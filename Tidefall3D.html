@@ -223,10 +223,10 @@ renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
 const scene=new THREE.Scene();
 const SUNDIR=new THREE.Vector3(0.5,0.8,0.35).normalize();
-scene.fog=new THREE.FogExp2(0xbcd6e4,0.0019);
+scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
 const camera=new THREE.PerspectiveCamera(52,2,0.5,1400);
 const hemi=new THREE.HemisphereLight(0xcfe6ff,0x415536,0.82); scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xfff0d6,1.35); sun.position.copy(SUNDIR).multiplyScalar(140); sun.castShadow=true;
+const sun=new THREE.DirectionalLight(0xfff0d6,1.55); sun.position.copy(SUNDIR).multiplyScalar(140); sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H;sc.near=20;sc.far=400; sun.shadow.bias=-0.0004;
 scene.add(sun,sun.target);
@@ -376,7 +376,7 @@ function heightAtWorld(x,z){ if(!hc)return 0; const gx=(x+HALF_W)/TILE,gz=(z+HAL
   return (a*(1-fx)+b*fx)*(1-fz)+(c*(1-fx)+d*fx)*fz; }
 const _tc1=new THREE.Color(),_tc2=new THREE.Color();
 function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
-  const stops=[[0.0,0xb7a97e],[1.05,0xc9b98a],[1.5,0x8fae5e],[2.0,0x76a251],[2.6,0x639549],[3.1,0x7d9a62],[3.6,0x9aa985]];
+  const stops=[[0.0,0xbfa878],[1.05,0xd6c088],[1.45,0x7cb84c],[2.0,0x58ab3b],[2.6,0x479c33],[3.1,0x64a34a],[3.6,0x8fae74]];
   let a=stops[0],b=stops[stops.length-1];
   for(let i=0;i<stops.length-1;i++)if(e>=stops[i][0]&&e<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
   const t=clamp((e-a[0])/((b[0]-a[0])||1),0,1);
@@ -397,24 +397,39 @@ function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.g
   geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.computeVertexNormals();
   terrainMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95}));  // smooth shading — no facets
   terrainMesh.receiveShadow=true;scene.add(terrainMesh);}
-const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR}};
+const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR},uHeight:{value:null},uSea:{value:SEA}};
 function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.dispose();}
-  const geo=new THREE.PlaneGeometry(WORLD_W*1.5,WORLD_H*1.5,120,90);geo.rotateX(-Math.PI/2);
+  // terrain heightmap so the water knows its own depth
+  const hdata=new Float32Array(MAP_W*MAP_H);
+  for(let i=0;i<MAP_W*MAP_H;i++)hdata[i]=elev[i];
+  const htex=new THREE.DataTexture(hdata,MAP_W,MAP_H,THREE.RedFormat,THREE.FloatType);
+  htex.magFilter=THREE.LinearFilter;htex.minFilter=THREE.LinearFilter;htex.needsUpdate=true;
+  waterUniforms.uHeight.value=htex;
+  const geo=new THREE.PlaneGeometry(WORLD_W*1.5,WORLD_H*1.5,140,100);geo.rotateX(-Math.PI/2);
   const mat=new THREE.ShaderMaterial({transparent:true,uniforms:waterUniforms,
-    vertexShader:`uniform float uTime;varying vec3 vW;varying float vH;
+    vertexShader:`uniform float uTime;varying vec3 vW;
       void main(){vec3 p=position;
-        float w=sin(p.x*0.16+uTime*1.4)*0.34+cos(p.z*0.19+uTime*1.1)*0.34+sin((p.x+p.z)*0.09+uTime*0.7)*0.22;
-        p.y+=w;vH=w;vec4 wp=modelMatrix*vec4(p,1.0);vW=wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`,
-    fragmentShader:`uniform vec3 uCam;uniform vec3 uSun;uniform float uTime;varying vec3 vW;varying float vH;
-      void main(){vec3 vd=normalize(uCam-vW);vec3 n=normalize(vec3(sin(vW.x*0.16+uTime*1.4)*0.12,1.0,cos(vW.z*0.19+uTime*1.1)*0.12));
+        p.y+=sin(p.x*0.45+uTime*1.6)*0.13+cos(p.z*0.52+uTime*1.3)*0.13+sin((p.x-p.z)*0.23+uTime*0.8)*0.09;
+        vec4 wp=modelMatrix*vec4(p,1.0);vW=wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`,
+    fragmentShader:`uniform vec3 uCam;uniform vec3 uSun;uniform float uTime;uniform sampler2D uHeight;uniform float uSea;varying vec3 vW;
+      void main(){
+        vec2 uv=vec2((vW.x+${HALF_W.toFixed(1)})/${WORLD_W.toFixed(1)},(vW.z+${HALF_H.toFixed(1)})/${WORLD_H.toFixed(1)});
+        float ground=texture2D(uHeight,clamp(uv,0.0,1.0)).r;
+        float depth=clamp(uSea-ground,0.0,1.6);
+        vec3 vd=normalize(uCam-vW);
+        vec3 n=normalize(vec3(sin(vW.x*0.45+uTime*1.6)*0.10+sin(vW.x*1.3+uTime*2.2)*0.04,1.0,cos(vW.z*0.52+uTime*1.3)*0.10+cos(vW.z*1.5+uTime*1.9)*0.04));
+        vec3 shore=vec3(0.35,0.78,0.72), mid=vec3(0.10,0.47,0.58), deep=vec3(0.02,0.16,0.34);
+        vec3 col=mix(shore,mid,smoothstep(0.03,0.35,depth));
+        col=mix(col,deep,smoothstep(0.35,1.1,depth));
         float fres=pow(1.0-max(dot(vd,n),0.0),3.0);
-        vec3 deep=vec3(0.05,0.21,0.40),shallow=vec3(0.20,0.60,0.62);
-        vec3 col=mix(deep,shallow,clamp(vH*0.9+0.5,0.0,1.0));
-        vec3 h=normalize(normalize(uSun)+vd);float spec=pow(max(dot(n,h),0.0),80.0);
-        col+=vec3(1.0,0.97,0.88)*spec*0.9;
-        col=mix(col,vec3(0.7,0.82,0.92),fres*0.55);
-        float foam=smoothstep(0.5,0.62,vH);col=mix(col,vec3(0.92,0.96,1.0),foam*0.6);
-        gl_FragColor=vec4(col,0.9);}`});
+        col=mix(col,vec3(0.62,0.76,0.88),fres*0.35);
+        vec3 h=normalize(normalize(uSun)+vd);
+        col+=vec3(1.0,0.96,0.85)*pow(max(dot(n,h),0.0),140.0)*0.8;
+        // foam hugging the shoreline only, gently animated
+        float foam=smoothstep(0.16,0.02,depth)*(0.55+0.45*sin(uTime*2.0+vW.x*0.8+vW.z*0.7));
+        col=mix(col,vec3(0.94,0.97,1.0),clamp(foam,0.0,1.0)*0.7);
+        float alpha=mix(0.72,0.94,smoothstep(0.05,0.8,depth));
+        gl_FragColor=vec4(col,alpha);}`});
   waterMesh=new THREE.Mesh(geo,mat);scene.add(waterMesh);}
 function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THREE.Group();scene.add(decorGroup);
   for(const n of woodNodes)n.mesh=addTree(n);for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);
@@ -499,21 +514,21 @@ function addRock(n){const g=new THREE.Group();
 let ambientGroup=null,cloudGroup=null,birdGroup=null,birds=[];
 function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGroup=new THREE.Group(); scene.add(ambientGroup);
   const m4=new THREE.Matrix4(),col=new THREE.Color(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3();
-  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.09,.55,4),new THREE.MeshStandardMaterial({roughness:1}),4000); let gi=0;
-  for(let i=0;i<14000&&gi<4000;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
+  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.11,.62,4),new THREE.MeshStandardMaterial({roughness:1}),9000); let gi=0;
+  for(let i=0;i<30000&&gi<9000;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.65||e>3.1)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.22,z); grass.setMatrixAt(gi,m4);
     col.setHSL(0.26+hashN(i,9)*0.06,0.5,0.30+hashN(9,i)*0.12); grass.setColorAt(gi,col); gi++; }
   grass.count=gi; ambientGroup.add(grass);
-  const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,5,4),new THREE.MeshStandardMaterial({roughness:.8}),700); let fi=0;
+  const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,5,4),new THREE.MeshStandardMaterial({roughness:.8}),1600); let fi=0;
   const fcols=[0xffffff,0xf0d060,0xe66a8a,0xb07ae0];
-  for(let i=0;i<5000&&fi<700;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
+  for(let i=0;i<12000&&fi<1600;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.9)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.12,z); flowers.setMatrixAt(fi,m4);
     col.setHex(fcols[i%4]); flowers.setColorAt(fi,col); fi++; }
   flowers.count=fi; ambientGroup.add(flowers);
-  const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),500); let bi=0;
-  for(let i=0;i<5000&&bi<500;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
+  const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),1200); let bi=0;
+  for(let i=0;i<12000&&bi<1200;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.45,0.22+hashN(i,29)*0.08); bushes.setColorAt(bi,col); bi++; }
