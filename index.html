@@ -273,6 +273,25 @@ let CHAR_LIB=null;
   if(Object.keys(lib).length) CHAR_LIB={lib,clone:SK.clone};
 }catch(e){/* stay on procedural villagers */} })();
 
+// ---- professional medieval building models (KayKit Medieval Hexagon, CC0) ----
+let BLD_LIB=null,NATURE_LIB=null;
+const FACTION_TEAMCOL={english:'red',french:'blue',irish:'green',scottish:'yellow'};
+const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacksmith',church:'church',market:'market',mill:'windmill',storehouse:'lumbermill',tower:'tower_A',watch:'tower_B',siege:'tower_catapult',dock:'watermill',castle:'castle'};
+(async()=>{ try{
+  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
+  const loader=new GLTFLoader();
+  const load1=p=>new Promise(res=>loader.load(p,g=>res(g.scene),undefined,()=>res(null)));
+  const models=[...new Set(Object.values(BLD_CHAR))];
+  const lib={};
+  await Promise.all(['red','blue','green','yellow'].map(async c=>{ lib[c]={};
+    await Promise.all(models.map(async m=>{ const s=await load1('assets/med/'+c+'/building_'+m+'_'+c+'.gltf'); if(s)lib[c][m]=s; })); }));
+  if(Object.keys(lib.red||{}).length)BLD_LIB=lib;
+  const nat={};
+  await Promise.all(['rock_single_A','rock_single_B','rock_single_C'].map(async r=>{ const s=await load1('assets/med/nature/'+r+'.gltf'); if(s)nat[r]=s; }));
+  if(Object.keys(nat).length)NATURE_LIB=nat;
+  if(BLD_LIB&&typeof refreshBuildingMeshes==='function')refreshBuildingMeshes();
+}catch(e){/* stay on procedural buildings */} })();
+
 // ==================================================== MATERIALS
 const M={
   stone:new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:.9,flatShading:true}),
@@ -344,22 +363,35 @@ function genMap(){
     if(ok)villages.push({tx:x,ty:y,claimed:null}); }
 }
 const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','Foxholt','Elmsworth'];
-function scatter(cx,cy){for(let i=0;i<5+Math.floor(hashN(cx,cy)*4);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*4),y=cy+Math.round((hashN(cx,cy+i)-.5)*4);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
+function scatter(cx,cy){for(let i=0;i<7+Math.floor(hashN(cx,cy)*5);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*5),y=cy+Math.round((hashN(cx,cy+i)-.5)*5);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
 function plateau(cx,cy,val,rad){for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(!inB(x,y))continue;const d=Math.hypot(dx,dy);if(d>rad+.5)continue;elev[ti(x,y)]=Math.max(elev[ti(x,y)],val-(d/(rad+1))*0.5);}}
 function minFootElev(tx,ty,w,h){let m=9;for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++)if(inB(x,y))m=Math.min(m,elev[ti(x,y)]);return m;}
 function heightAtWorld(x,z){ if(!hc)return 0; const gx=(x+HALF_W)/TILE,gz=(z+HALF_H)/TILE;
   const x0=clamp(Math.floor(gx),0,MAP_W),z0=clamp(Math.floor(gz),0,MAP_H),x1=Math.min(x0+1,MAP_W),z1=Math.min(z0+1,MAP_H);
   const fx=clamp(gx-x0,0,1),fz=clamp(gz-z0,0,1),w=MAP_W+1;const a=hc[z0*w+x0],b=hc[z0*w+x1],c=hc[z1*w+x0],d=hc[z1*w+x1];
   return (a*(1-fx)+b*fx)*(1-fz)+(c*(1-fx)+d*fx)*fz; }
+const _tc1=new THREE.Color(),_tc2=new THREE.Color();
+function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
+  const stops=[[0.0,0xb7a97e],[1.05,0xc9b98a],[1.5,0x8fae5e],[2.0,0x76a251],[2.6,0x639549],[3.1,0x7d9a62],[3.6,0x9aa985]];
+  let a=stops[0],b=stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++)if(e>=stops[i][0]&&e<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
+  const t=clamp((e-a[0])/((b[0]-a[0])||1),0,1);
+  out.setHex(a[1]);_tc2.setHex(b[1]);out.lerp(_tc2,t);
+  // swampy lowland mottling
+  const sw=noise2(vx*0.045+80,vz*0.045+80);
+  if(e>1.05&&e<1.95&&sw<0.2){_tc2.setHex(0x5e6b42);out.lerp(_tc2,clamp((0.2-sw)*6,0,0.75));}
+  out.offsetHSL(0,0,(noise2(vx*0.18,vz*0.18)-0.5)*0.05); }
 function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();}
-  const geo=new THREE.PlaneGeometry(WORLD_W,WORLD_H,MAP_W,MAP_H);geo.rotateX(-Math.PI/2);
-  const pos=geo.attributes.position,w=MAP_W+1,colors=[],col=new THREE.Color();
-  for(let i=0;i<pos.count;i++){const vx=pos.getX(i),vz=pos.getZ(i);const gx=Math.round((vx+HALF_W)/TILE),gz=Math.round((vz+HALF_H)/TILE);
-    const h=hc[clamp(gz,0,MAP_H)*w+clamp(gx,0,MAP_W)];pos.setY(i,h);const e=h/HSCALE;
-    if(e>=2.7)col.setHex(0x5f8c4c);else if(e>=1.95)col.setHex(0x6fa14d);else if(e>=1.25)col.setHex(0x8fa860);else col.setHex(0xc4b487);
-    col.offsetHSL(0,0,(noise2(vx*0.1,vz*0.1)-0.5)*0.1);colors.push(col.r,col.g,col.b);}
+  const SUB=3;   // render mesh 3x finer than the game grid — smooth rolling ground
+  const geo=new THREE.PlaneGeometry(WORLD_W,WORLD_H,MAP_W*SUB,MAP_H*SUB);geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position,colors=[];
+  for(let i=0;i<pos.count;i++){const vx=pos.getX(i),vz=pos.getZ(i);
+    let h=heightAtWorld(vx,vz);
+    h+=(noise2(vx*0.3,vz*0.3)-0.5)*0.5+(noise2(vx*0.9,vz*0.9)-0.5)*0.16;   // gentle natural detail
+    pos.setY(i,h);
+    terrainColor(h/HSCALE,vx,vz,_tc1);colors.push(_tc1.r,_tc1.g,_tc1.b);}
   geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.computeVertexNormals();
-  terrainMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,flatShading:true}));
+  terrainMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95}));  // smooth shading — no facets
   terrainMesh.receiveShadow=true;scene.add(terrainMesh);}
 const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR}};
 function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.dispose();}
@@ -372,7 +404,7 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
     fragmentShader:`uniform vec3 uCam;uniform vec3 uSun;uniform float uTime;varying vec3 vW;varying float vH;
       void main(){vec3 vd=normalize(uCam-vW);vec3 n=normalize(vec3(sin(vW.x*0.16+uTime*1.4)*0.12,1.0,cos(vW.z*0.19+uTime*1.1)*0.12));
         float fres=pow(1.0-max(dot(vd,n),0.0),3.0);
-        vec3 deep=vec3(0.09,0.28,0.44),shallow=vec3(0.24,0.55,0.68);
+        vec3 deep=vec3(0.05,0.21,0.40),shallow=vec3(0.20,0.60,0.62);
         vec3 col=mix(deep,shallow,clamp(vH*0.9+0.5,0.0,1.0));
         vec3 h=normalize(normalize(uSun)+vd);float spec=pow(max(dot(n,h),0.0),80.0);
         col+=vec3(1.0,0.97,0.88)*spec*0.9;
@@ -408,11 +440,22 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
 function addGold(n){const g=new THREE.Group();const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.1,0),M.stoneD);r.position.y=.65;r.castShadow=true;r.rotation.set(hashN(n.tx,3),hashN(n.ty,4),hashN(n.tx,n.ty));
   for(const[dx,dz]of[[.4,.2],[-.3,.4],[.1,-.4]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.34,0),M.gold);v.position.set(dx,1.0+dz*.2,dz);v.castShadow=true;g.add(v);}
   g.add(r);g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
-function addTree(n){const g=new THREE.Group();const t=new THREE.Mesh(new THREE.CylinderGeometry(.22,.34,1.6,6),M.trunk);t.position.y=.8;t.castShadow=true;
-  const l1=new THREE.Mesh(new THREE.ConeGeometry(1.5,2.6,7),hashN(n.tx,n.ty)<.5?M.leafA:M.leafB);l1.position.y=2.5;l1.castShadow=true;
-  const l2=new THREE.Mesh(new THREE.ConeGeometry(1.05,1.9,7),M.leafA);l2.position.y=3.6;l2.castShadow=true;
-  g.add(t,l1,l2);const yy=heightAtWorld(wx(n.tx),wz(n.ty));g.position.set(wx(n.tx),yy,wz(n.ty));g.rotation.y=hashN(n.ty,n.tx)*6;decorGroup.add(g);return g;}
-function addRock(n){const g=new THREE.Group();const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.15,0),M.rock);r.position.y=.7;r.castShadow=true;r.rotation.set(hashN(n.tx,1),hashN(n.ty,2),hashN(n.tx,n.ty));
+const LEAF_MATS=[0x2c5e33,0x3a7a41,0x4a8a3e,0x35704a,0x5a8a35,0x6b8a3a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.9,flatShading:true}));
+function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),h2=hashN(n.ty*3.1,n.tx*1.9);
+  const mA=LEAF_MATS[Math.floor(h1*LEAF_MATS.length)%LEAF_MATS.length],mB=LEAF_MATS[Math.floor(h2*LEAF_MATS.length)%LEAF_MATS.length];
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(.22,.34,1.6,6),M.trunk);t.position.y=.8;t.castShadow=true;
+  const l1=new THREE.Mesh(new THREE.ConeGeometry(1.5,2.6,7),mA);l1.position.y=2.5;l1.castShadow=true;
+  const l2=new THREE.Mesh(new THREE.ConeGeometry(1.05,1.9,7),mB);l2.position.y=3.6;l2.castShadow=true;
+  const l3=new THREE.Mesh(new THREE.ConeGeometry(.62,1.2,7),mA);l3.position.y=4.5;l3.castShadow=true;
+  g.add(t,l1,l2,l3);const yy=heightAtWorld(wx(n.tx),wz(n.ty));g.position.set(wx(n.tx),yy,wz(n.ty));
+  g.rotation.y=h1*6;g.scale.setScalar(0.75+h2*0.6);decorGroup.add(g);return g;}
+function addRock(n){const g=new THREE.Group();
+  if(NATURE_LIB){const keys=Object.keys(NATURE_LIB);const src=NATURE_LIB[keys[Math.floor(hashN(n.tx,n.ty)*keys.length)%keys.length]];
+    if(src){const m=src.clone(true);const box=new THREE.Box3().setFromObject(m);const s=2.6/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,0.001);
+      m.scale.setScalar(s);m.position.y=-box.min.y*s;m.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(m);
+      const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),M.ore);v.position.set(.5,1.0,.3);v.castShadow=true;g.add(v);
+      g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}}
+  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.15,0),M.rock);r.position.y=.7;r.castShadow=true;r.rotation.set(hashN(n.tx,1),hashN(n.ty,2),hashN(n.tx,n.ty));
   const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),M.ore);v.position.set(.5,1.15,.3);v.castShadow=true;
   g.add(r,v);g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 
@@ -472,6 +515,18 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
 function makeHealthBar(){const grp=new THREE.Group();const bg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x220808}));
   const fg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x6fd07a}));fg.position.z=.01;grp.add(bg,fg);grp.userData.fg=fg;grp.visible=false;grp.renderOrder=999;bg.material.depthTest=false;fg.material.depthTest=false;return grp;}
 function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
+  // professional model where one exists for this building type
+  const teamCol=FACTION_TEAMCOL[faction[owner]],mdl=BLD_CHAR[type];
+  if(BLD_LIB&&mdl&&BLD_LIB[teamCol]&&BLD_LIB[teamCol][mdl]){
+    const m=BLD_LIB[teamCol][mdl].clone(true);
+    const box=new THREE.Box3().setFromObject(m);
+    const fw=box.max.x-box.min.x,fd=box.max.z-box.min.z;
+    const s=(Math.min(wpx,hpx)*1.3)/Math.max(fw,fd,0.001);
+    m.scale.setScalar(s);m.position.y=-box.min.y*s;
+    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+    g.add(m);
+    const hbm=makeHealthBar();hbm.scale.setScalar(1.8);hbm.position.y=(box.max.y-box.min.y)*s+2;g.add(hbm);g.userData.hb=hbm;
+    return g; }
   const OM=ownerMats(owner),A=OM.A,roof=OM.roof;
   if(type==='wall'){const seg=new THREE.Mesh(new THREE.BoxGeometry(wpx*.98,3.2,hpx*.98),M.stone);seg.position.y=1.8;seg.castShadow=true;seg.receiveShadow=true;g.add(seg);
     for(let i=-1;i<=1;i++){const cr=new THREE.Mesh(new THREE.BoxGeometry(wpx*.26,.7,hpx*.98),M.stone);cr.position.set(i*wpx*.34,3.6,0);cr.castShadow=true;g.add(cr);}
@@ -531,6 +586,9 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   bl.mesh=makeBldMesh(type,owner);const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
   bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(!done)bl.mesh.scale.y=0.05;scene.add(bl.mesh);blds.push(bl);
   for(let y=ty;y<ty+b.h;y++)for(let x=tx;x<tx+b.w;x++)if(inB(x,y))buildGrid[ti(x,y)]=bl.id;return bl;}
+function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; const nm=makeBldMesh(bl.type,bl.owner);
+    nm.position.copy(old.position); nm.scale.y=bl.done?1:(0.05+0.95*bl.progress);
+    scene.remove(old); bl.mesh=nm; scene.add(nm); } visT=0; }
 function removeBuilding(bl){scene.remove(bl.mesh);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;}
 
 // ==================================================== POP / TECH
