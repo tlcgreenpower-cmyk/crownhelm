@@ -770,6 +770,8 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
   for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry)res[b.owner].f+=FARM_FOOD*dt;}
   for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*dt;
+  for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=1.2*dt;      // markets mint steady gold
+  for(const v of villages)if(v.claimed)res[v.claimed].g+=0.7*dt;               // villages pay tribute
   for(const b of blds)updateBuilding(b,dt);
   for(const e of ents)updateUnit(e,dt);
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
@@ -1081,7 +1083,9 @@ function techBtn(cmds,ic,label,cost,en,fn,maxed){const btn=document.createElemen
 function marketBtn(cmds,label,cost,fn){const btn=document.createElement('div');btn.className='btn';btn.innerHTML=`${label}<small>${cost}</small>`;btn.onclick=fn;cmds.appendChild(btn);}
 function trade(k,amt,gold){const r=res.player;if(amt<0&&r[k]<-amt){flashMsg('Not enough to sell');return;}if(gold<0&&r.g<-gold){flashMsg('Not enough gold');return;}r[k]+=amt;r.g+=gold;SFX.cmd();updateHUD();refreshUI();}
 function flashMsg(t){const m=$('msg');m.textContent=t;m.style.opacity=1;clearTimeout(flashMsg._t);flashMsg._t=setTimeout(()=>m.style.opacity=0,2400);}
-function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').textContent=Math.floor(res.player.w);$('metal').textContent=Math.floor(res.player.m);$('gold').textContent=Math.floor(res.player.g);$('pop').textContent=popUsed('player')+'/'+popCap('player');
+function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').textContent=Math.floor(res.player.w);$('metal').textContent=Math.floor(res.player.m);$('gold').textContent=Math.floor(res.player.g);
+  const pu=popUsed('player'),pc=popCap('player');$('pop').textContent=pu+'/'+pc;
+  $('pop').style.color=pu>=pc?'#ff8a6a':'';$('pop').title=pu>=pc?'Population full — build Houses!':'';
   $('age').textContent=tech.player.ageTimer>0?'Advancing…':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
   $('clock').textContent=Math.floor(elapsed/60)+':'+String(Math.floor(elapsed%60)).padStart(2,'0');}
 // ---- diplomacy panel ----
