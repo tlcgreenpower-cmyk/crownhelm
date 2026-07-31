@@ -274,7 +274,7 @@ let CHAR_LIB=null;
 }catch(e){/* stay on procedural villagers */} })();
 
 // ---- professional medieval building models (KayKit Medieval Hexagon, CC0) ----
-let BLD_LIB=null,NATURE_LIB=null;
+let BLD_LIB=null,NATURE_LIB=null,NEUTRAL_LIB=null;
 const FACTION_TEAMCOL={english:'red',french:'blue',irish:'green',scottish:'yellow'};
 const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacksmith',church:'church',market:'market',mill:'windmill',storehouse:'lumbermill',tower:'tower_A',watch:'tower_B',siege:'tower_catapult',dock:'watermill',castle:'castle'};
 (async()=>{ try{
@@ -289,6 +289,9 @@ const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacks
   const nat={};
   await Promise.all(['rock_single_A','rock_single_B','rock_single_C','cloud_big','cloud_small'].map(async r=>{ const s=await load1('assets/med/nature/'+r+'.gltf'); if(s)nat[r]=s; }));
   if(Object.keys(nat).length)NATURE_LIB=nat;
+  const neu={};
+  await Promise.all(['building_grain','building_dirt','fence_wood_straight','fence_stone_straight'].map(async r=>{ const s=await load1('assets/med/neutral/'+r+'.gltf'); if(s)neu[r.replace('building_','')]=s; }));
+  if(Object.keys(neu).length)NEUTRAL_LIB=neu;
   if(BLD_LIB&&typeof refreshBuildingMeshes==='function')refreshBuildingMeshes();
   if(NATURE_LIB&&typeof spawnClouds==='function')spawnClouds();
 }catch(e){/* stay on procedural buildings */} })();
@@ -416,16 +419,48 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
 function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THREE.Group();scene.add(decorGroup);
   for(const n of woodNodes)n.mesh=addTree(n);for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);
   for(const v of villages)v.mesh=addVillage(v);}
-function addVillage(v){ const g=new THREE.Group();
-  for(const[dx,dz,r]of[[-2.4,-1.6,0],[2.2,-2.0,0.8],[0.2,2.4,2.1]]){
-    const hut=new THREE.Group();
-    const w=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.7,2.2),new THREE.MeshStandardMaterial({color:0xcabb96,roughness:.9,flatShading:true}));w.position.y=.85;w.castShadow=true;hut.add(w);
-    const rf=new THREE.Mesh(new THREE.ConeGeometry(2.0,1.5,4),M.thatch);rf.position.y=2.35;rf.rotation.y=Math.PI/4;rf.castShadow=true;hut.add(rf);
-    hut.position.set(dx,0,dz);hut.rotation.y=r;g.add(hut); }
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,4,5),M.trunk);pole.position.set(0,2,0);g.add(pole);
+const cotStone=new THREE.MeshStandardMaterial({color:0xa8a49a,roughness:.95,flatShading:true});
+const cotCream=new THREE.MeshStandardMaterial({color:0xe8dcc0,roughness:.9,flatShading:true});
+const cotBeam=new THREE.MeshStandardMaterial({color:0x5a4630,roughness:.9,flatShading:true});
+function makeCottage(seed){ const h=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.BoxGeometry(2.6,.9,2.2),cotStone);base.position.y=.45;base.castShadow=true;h.add(base);
+  const upper=new THREE.Mesh(new THREE.BoxGeometry(2.5,.95,2.1),cotCream);upper.position.y=1.35;upper.castShadow=true;h.add(upper);
+  for(const bx of[-.8,0,.8]){const beam=new THREE.Mesh(new THREE.BoxGeometry(.12,.95,2.14),cotBeam);beam.position.set(bx,1.35,0);h.add(beam);}
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(2.1,1.5,4),M.thatch);roof.position.y=2.55;roof.rotation.y=Math.PI/4;roof.castShadow=true;h.add(roof);
+  const chim=new THREE.Mesh(new THREE.BoxGeometry(.35,1.1,.35),cotStone);chim.position.set(.75,2.8,.4);h.add(chim);
+  const door=new THREE.Mesh(new THREE.BoxGeometry(.55,.85,.08),cotBeam);door.position.set(0,.45,1.12);h.add(door);
+  h.scale.setScalar(.85+hashN(seed,77)*0.3);return h; }
+function addVillage(v){ const g=new THREE.Group();const cx0=wx(v.tx),cz0=wz(v.ty);const vy=heightAtWorld(cx0,cz0);
+  // dirt village green
+  if(NEUTRAL_LIB&&NEUTRAL_LIB.dirt){const d=NEUTRAL_LIB.dirt.clone(true);const box=new THREE.Box3().setFromObject(d);
+    const s=15/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);d.scale.setScalar(s);d.position.y=-box.min.y*s-.15;
+    d.traverse(o=>{if(o.isMesh)o.receiveShadow=true;});g.add(d);}
+  // ring of timbered cottages
+  const n=4+Math.floor(hashN(v.tx,v.ty)*2);
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2+hashN(i,v.tx)*.5;const r=4.6+hashN(v.ty,i)*1.4;
+    const hut=makeCottage(v.tx*7+i);hut.position.set(Math.cos(a)*r,heightAtWorld(cx0+Math.cos(a)*r,cz0+Math.sin(a)*r)-vy,Math.sin(a)*r);
+    hut.rotation.y=-a+Math.PI/2;g.add(hut);}
+  // village well
+  const wellW=new THREE.Mesh(new THREE.CylinderGeometry(.8,.9,.8,10),cotStone);wellW.position.y=.4;wellW.castShadow=true;g.add(wellW);
+  for(const px of[-.7,.7]){const post=new THREE.Mesh(new THREE.BoxGeometry(.12,1.5,.12),M.wood);post.position.set(px,1.1,0);g.add(post);}
+  const wr=new THREE.Mesh(new THREE.ConeGeometry(1.15,.7,4),M.thatch);wr.position.y=2.0;wr.rotation.y=Math.PI/4;wr.castShadow=true;g.add(wr);
+  // grain plots + fences at the edge
+  if(NEUTRAL_LIB&&NEUTRAL_LIB.grain){const gr=NEUTRAL_LIB.grain.clone(true);const box=new THREE.Box3().setFromObject(gr);
+    const s=6/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);gr.scale.setScalar(s);
+    gr.position.set(7.5,-box.min.y*s+heightAtWorld(cx0+7.5,cz0+2)-vy,2);gr.traverse(o=>{if(o.isMesh)o.receiveShadow=true;});g.add(gr);}
+  if(NEUTRAL_LIB&&NEUTRAL_LIB.fence_wood_straight){for(let i=0;i<5;i++){const f=NEUTRAL_LIB.fence_wood_straight.clone(true);
+    const box=new THREE.Box3().setFromObject(f);const s=3.4/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);
+    const a=i/5*Math.PI*2+.35;f.scale.setScalar(s);
+    f.position.set(Math.cos(a)*8.2,-box.min.y*s+heightAtWorld(cx0+Math.cos(a)*8.2,cz0+Math.sin(a)*8.2)-vy,Math.sin(a)*8.2);
+    f.rotation.y=-a+Math.PI/2;f.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(f);}}
+  // village banner
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,4.6,5),M.trunk);pole.position.set(0,2.9,0);g.add(pole);
   const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.3,.8),new THREE.MeshStandardMaterial({color:0xf0f0e0,side:THREE.DoubleSide,roughness:.8}));
-  flag.position.set(.65,3.6,0);g.add(flag);g.userData.flag=flag;
-  g.position.set(wx(v.tx),heightAtWorld(wx(v.tx),wz(v.ty)),wz(v.ty));decorGroup.add(g);return g;}
+  flag.position.set(.65,4.7,0);g.add(flag);g.userData.flag=flag;
+  g.position.set(cx0,vy,cz0);decorGroup.add(g);
+  // resident villagers pottering about
+  spawnCitizen({cx:cx0,cz:cz0});spawnCitizen({cx:cx0,cz:cz0});
+  return g;}
 let vilT=0;
 function updateVillages(dt){ vilT-=dt; if(vilT>0)return; vilT=0.5;
   for(const v of villages){ if(v.claimed)continue;
@@ -557,6 +592,16 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
 function makeHealthBar(){const grp=new THREE.Group();const bg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x220808}));
   const fg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x6fd07a}));fg.position.z=.01;grp.add(bg,fg);grp.userData.fg=fg;grp.visible=false;grp.renderOrder=999;bg.material.depthTest=false;fg.material.depthTest=false;return grp;}
 function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
+  // farms use the real grain-field model (neutral — crops have no flag)
+  if(type==='farm'&&NEUTRAL_LIB&&NEUTRAL_LIB.grain){
+    const m=NEUTRAL_LIB.grain.clone(true);
+    const box=new THREE.Box3().setFromObject(m);
+    const s=(Math.min(wpx,hpx)*1.3)/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,0.001);
+    m.scale.setScalar(s);m.position.y=-box.min.y*s;
+    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+    g.add(m);
+    const hbf=makeHealthBar();hbf.scale.setScalar(1.4);hbf.position.y=3;g.add(hbf);g.userData.hb=hbf;
+    return g; }
   // professional model where one exists for this building type
   const teamCol=FACTION_TEAMCOL[faction[owner]],mdl=BLD_CHAR[type];
   if(BLD_LIB&&mdl&&BLD_LIB[teamCol]&&BLD_LIB[teamCol][mdl]){
@@ -760,7 +805,7 @@ const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new
 const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
 const strawMat=new THREE.MeshStandardMaterial({color:0xd8b96a,roughness:1,flatShading:true});
 const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian'];
-function spawnCitizen(b){ if(citizens.length>=14)return;
+function spawnCitizen(b){ if(citizens.length>=34)return;
   const sx1=b.cx+(Math.random()-.5)*10,sz1=b.cz+7+Math.random()*4;
   if(CHAR_LIB){ const src=CHAR_LIB.lib[CIT_CHARS[citizens.length%CIT_CHARS.length]];
     if(src){ const g=CHAR_LIB.clone(src.scene);
