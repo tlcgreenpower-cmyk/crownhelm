@@ -232,17 +232,35 @@ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bot
 scene.add(sun,sun.target);
 
 // sky dome
-const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{uSun:{value:SUNDIR}},
+const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{uSun:{value:SUNDIR},uNight:{value:0}},
   vertexShader:`varying vec3 vD; void main(){ vD=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-  fragmentShader:`varying vec3 vD; uniform vec3 uSun;
+  fragmentShader:`varying vec3 vD; uniform vec3 uSun; uniform float uNight;
     void main(){ float t=clamp(vD.y*0.5+0.5,0.0,1.0);
       vec3 horizon=vec3(0.78,0.86,0.92), zenith=vec3(0.26,0.5,0.78);
-      vec3 col=mix(horizon,zenith,pow(t,0.8));
+      vec3 nHorizon=vec3(0.10,0.13,0.22), nZenith=vec3(0.02,0.04,0.10);
+      vec3 col=mix(mix(horizon,nHorizon,uNight),mix(zenith,nZenith,uNight),pow(t,0.8));
+      float dusk=uNight*(1.0-uNight)*4.0;                        // orange band at sunset/sunrise
+      col+=vec3(1.0,0.45,0.18)*dusk*pow(1.0-t,2.0)*0.55;
       float s=max(dot(vD,normalize(uSun)),0.0);
-      col+=vec3(1.0,0.92,0.75)*pow(s,180.0)*1.2;
-      col+=vec3(1.0,0.85,0.6)*pow(s,8.0)*0.12;
+      col+=vec3(1.0,0.92,0.75)*pow(s,180.0)*1.2*(1.0-uNight*0.85);
+      col+=vec3(1.0,0.85,0.6)*pow(s,8.0)*0.12*(1.0-uNight);
       gl_FragColor=vec4(col,1.0); }`});
 const sky=new THREE.Mesh(new THREE.SphereGeometry(600,24,16),skyMat); scene.add(sky);
+
+// ---- day/night cycle: 5-minute days, warm dusks, moonlit nights, lanterns ----
+const LANTERN_MAT=new THREE.MeshStandardMaterial({color:0x6a4a20,emissive:0xffb050,emissiveIntensity:0});
+const _sunDay=new THREE.Color(0xfff0d6),_sunDusk=new THREE.Color(0xffa060),_sunMoon=new THREE.Color(0x9db8e8),_sunC=new THREE.Color();
+let dayNight=0;
+function updateDayNight(){ const a=(elapsed%300)/300*Math.PI*2;
+  const dayLight=clamp(Math.sin(a)*0.5+0.62,0.14,1);
+  dayNight=1-clamp((dayLight-0.14)/0.86,0,1);
+  sun.intensity=1.55*Math.max(dayLight,0.18);
+  if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
+  sun.color.copy(_sunC);
+  hemi.intensity=0.32+0.52*dayLight;
+  skyMat.uniforms.uNight.value=dayNight;
+  scene.fog.color.setRGB(0.77-0.62*dayNight,0.86-0.70*dayNight,0.91-0.64*dayNight);
+  LANTERN_MAT.emissiveIntensity=dayNight*2.3; }
 
 // ---- image-based lighting + post-processing (bloom, anti-aliasing) ----
 let composer=null, bloomPass=null;
@@ -704,6 +722,7 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
     m.scale.setScalar(s);m.position.y=-box.min.y*s;
     m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
     g.add(m);
+    const lan=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),LANTERN_MAT);lan.position.set(wpx*.34,2.1,hpx*.40);g.add(lan);
     const hbm=makeHealthBar();hbm.scale.setScalar(1.8);hbm.position.y=(box.max.y-box.min.y)*s+2;g.add(hbm);g.userData.hb=hbm;
     return g; }
   const OM=ownerMats(owner),A=OM.A,roof=OM.roof;
@@ -749,6 +768,7 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
   if(type==='watch'){const post=new THREE.Mesh(new THREE.BoxGeometry(wpx*.5,1.7,hpx*.5),A);post.position.y=wallH+1.25;post.castShadow=true;g.add(post);const rail=new THREE.Mesh(new THREE.BoxGeometry(wpx*.62,.22,hpx*.62),M.wood);rail.position.y=wallH+.45;g.add(rail);const bell=new THREE.Mesh(new THREE.ConeGeometry(.32,.55,8),M.gold);bell.position.y=wallH+2.35;g.add(bell);}
   if(type==='market'){for(const[dx,dz,col]of[[-wpx*.24,hpx*.28,0xc85142],[wpx*.24,hpx*.28,0x2a51a0],[0,-hpx*.3,0x1f7a38]]){const awn=new THREE.Mesh(new THREE.BoxGeometry(1.5,.22,1.5),new THREE.MeshStandardMaterial({color:col,roughness:.85}));awn.position.set(dx,2.2,dz);awn.castShadow=true;g.add(awn);const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2,5),M.wood);pole.position.set(dx,1.1,dz);g.add(pole);const crate=new THREE.Mesh(new THREE.BoxGeometry(.7,.6,.7),M.wood);crate.position.set(dx,.7,dz);g.add(crate);}const coin=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,.12,14),M.gold);coin.rotation.x=Math.PI/2;coin.position.y=wallH+1.7;g.add(coin);}
   if(type==='dock'){const plank=new THREE.Mesh(new THREE.BoxGeometry(wpx*.3,.3,hpx*1.4),M.wood);plank.position.set(wpx*.3,.6,0);g.add(plank);}
+  const lan2=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),LANTERN_MAT);lan2.position.set(-wpx*.34,2.0,hpx*.40);g.add(lan2);
   const bigF=type==='hall'||type==='castle';
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,bigF?4:2.6,5),M.trunk);pole.position.set(wpx*.36,wallH+(bigF?3:1.8),hpx*.36);g.add(pole);
   const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.9),new THREE.MeshStandardMaterial({color:FACTIONS[faction[owner]].coat,side:THREE.DoubleSide,roughness:.8}));flag.position.set(wpx*.36+.75,wallH+(bigF?4:2.6),hpx*.36);g.add(flag);g.userData.flag=flag;
@@ -1270,7 +1290,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else updateCamera(frame);
-  updateGhost();updateRings();updateAmbient(frame,now);waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateAmbient(frame,now);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
