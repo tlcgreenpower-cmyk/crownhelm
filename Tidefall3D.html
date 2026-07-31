@@ -50,6 +50,7 @@
     <div class="spacer"></div>
     <button id="muteBtn">🔊 Sound</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
+    <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
   </div>
   <div id="stage">
@@ -77,6 +78,7 @@
           <li><b>Advance the Age</b> to unlock Knights, Cannon &amp; your champion</li>
         </ul></div>
       </div>
+      <button class="big" id="contBtn" style="display:none;background:#1c4d6d;border-color:#3a86b0;">▶ Continue Your Kingdom</button>
       <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Choose your regiment:</div>
       <div id="facpick" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:820px;">
         <button class="fac big" data-fac="scottish" style="background:#2b303a;border-color:#5a6578;">🏴 Scottish Black Watch</button>
@@ -123,6 +125,7 @@ const COST={
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},
+  statue:{m:30,g:20},garden:{w:25},
 };
 const FACTIONS={
   scottish:{name:'Scottish Black Watch',coat:0x2b303a,trim:0x5a6578,accent:0x8a95a5,emo:'🏴',bonus:'Tough infantry (+15% HP)'},
@@ -134,9 +137,12 @@ const AI_REALMS=['r1','r2','r3'];
 const REALMS=['player',...AI_REALMS];
 let faction={player:'english',r1:'french',r2:'scottish',r3:'irish'};
 let diplo={};        // per AI realm: {score, stance:'neutral'|'ally'|'war'}
+let aiWars={};       // wars between AI realms (allies joining your fights): key "r1|r2" -> true
+const warKey=(a,b)=>[a,b].sort().join('|');
 function isHostile(a,b){ if(a===b)return false;
   if(a==='player'||b==='player'){const r=a==='player'?b:a;return diplo[r]&&diplo[r].stance==='war';}
-  return false; }     // AI realms keep the peace with each other (for now)
+  return !!aiWars[warKey(a,b)]; }
+const isFriend=o=>diplo[o]&&diplo[o].stance!=='war'&&diplo[o].score>=60;
 function realmName(o){return o==='player'?'You':FACTIONS[faction[o]].name;}
 const UNIT={
   worker:{hp:45,speed:14,range:2.4,dmg:3,cd:.8,r:.9,vis:8,dom:'land',color:0xd7dee2,name:'Worker'},
@@ -167,6 +173,7 @@ const BLD={
   gunshop:{w:3,h:2,hp:820,name:'Gun Shop',vis:7}, church:{w:2,h:3,hp:640,name:'Church',vis:7},
   castle:{w:4,h:4,hp:3200,name:'Castle',vis:14,fort:true}, wall:{w:1,h:1,hp:1000,name:'Wall',vis:4},
   mill:{w:2,h:2,hp:340,name:'Mill',vis:6}, watch:{w:2,h:2,hp:440,name:'Watch House',vis:10}, market:{w:2,h:2,hp:400,name:'Market',vis:6},
+  statue:{w:1,h:1,hp:220,name:'Statue',vis:3}, garden:{w:2,h:2,hp:160,name:'Garden',vis:3},
   dock:{w:3,h:2,hp:640,name:'Dock',vis:8}, tower:{w:1,h:1,hp:560,name:'Tower',vis:11},
 };
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=4.4,MILL_FOOD=3.4,CARRY=12,MINE=10,AGE2={f:300,w:250,time:40},AGE3={f:600,w:400,m:200,time:60};
@@ -175,8 +182,9 @@ const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',
 // ==================================================== STATE
 let elev,hc,buildGrid,explored,visNow;
 let woodNodes=[],metalNodes=[],goldNodes=[],ents=[],blds=[],projs=[],parts=[],idc=1;
+let citizens=[],villages=[];
 let res={},tech={},realmAI={};
-function initRealms(){ res={};tech={};realmAI={};diplo={};
+function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
   for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,ageTimer:0}; }
   for(const o of AI_REALMS){ realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:30+Math.random()*50,warCheck:120+Math.random()*120};
     diplo[o]={score:10,stance:'neutral'}; } }
@@ -314,7 +322,17 @@ function genMap(){
     else if(h>0.94&&e>=1.8)metalNodes.push({tx:x,ty:y,amount:1200,type:'metal'});
     else if(h>0.905&&h<=0.94&&e>=1.8)goldNodes.push({tx:x,ty:y,amount:800,type:'gold'});
   }
+  // neutral villages to discover while roaming
+  villages=[];
+  for(let y=8;y<MAP_H-8;y+=4)for(let x=8;x<MAP_W-8;x+=4){ if(villages.length>=7)continue;
+    const e=elev[ti(x,y)]; if(e<1.9||e>2.8)continue;
+    if(hashN(x*1.7,y*2.9)>0.05)continue;
+    let ok=true;
+    for(const o of REALMS){const s=REALM_SITES[o];if(Math.hypot(x-s[0],y-s[1])<15)ok=false;}
+    for(const v of villages)if(Math.hypot(x-v.tx,y-v.ty)<12)ok=false;
+    if(ok)villages.push({tx:x,ty:y,claimed:null}); }
 }
+const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','Foxholt','Elmsworth'];
 function scatter(cx,cy){for(let i=0;i<5+Math.floor(hashN(cx,cy)*4);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*4),y=cy+Math.round((hashN(cx,cy+i)-.5)*4);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
 function plateau(cx,cy,val,rad){for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(!inB(x,y))continue;const d=Math.hypot(dx,dy);if(d>rad+.5)continue;elev[ti(x,y)]=Math.max(elev[ti(x,y)],val-(d/(rad+1))*0.5);}}
 function minFootElev(tx,ty,w,h){let m=9;for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++)if(inB(x,y))m=Math.min(m,elev[ti(x,y)]);return m;}
@@ -352,7 +370,30 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
         gl_FragColor=vec4(col,0.9);}`});
   waterMesh=new THREE.Mesh(geo,mat);scene.add(waterMesh);}
 function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THREE.Group();scene.add(decorGroup);
-  for(const n of woodNodes)n.mesh=addTree(n);for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);}
+  for(const n of woodNodes)n.mesh=addTree(n);for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);
+  for(const v of villages)v.mesh=addVillage(v);}
+function addVillage(v){ const g=new THREE.Group();
+  for(const[dx,dz,r]of[[-2.4,-1.6,0],[2.2,-2.0,0.8],[0.2,2.4,2.1]]){
+    const hut=new THREE.Group();
+    const w=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.7,2.2),new THREE.MeshStandardMaterial({color:0xcabb96,roughness:.9,flatShading:true}));w.position.y=.85;w.castShadow=true;hut.add(w);
+    const rf=new THREE.Mesh(new THREE.ConeGeometry(2.0,1.5,4),M.thatch);rf.position.y=2.35;rf.rotation.y=Math.PI/4;rf.castShadow=true;hut.add(rf);
+    hut.position.set(dx,0,dz);hut.rotation.y=r;g.add(hut); }
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,4,5),M.trunk);pole.position.set(0,2,0);g.add(pole);
+  const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.3,.8),new THREE.MeshStandardMaterial({color:0xf0f0e0,side:THREE.DoubleSide,roughness:.8}));
+  flag.position.set(.65,3.6,0);g.add(flag);g.userData.flag=flag;
+  g.position.set(wx(v.tx),heightAtWorld(wx(v.tx),wz(v.ty)),wz(v.ty));decorGroup.add(g);return g;}
+let vilT=0;
+function updateVillages(dt){ vilT-=dt; if(vilT>0)return; vilT=0.5;
+  for(const v of villages){ if(v.claimed)continue;
+    const vx2=wx(v.tx),vz2=wz(v.ty);
+    for(const e of ents){ if(Math.hypot(e.x-vx2,e.z-vz2)<9){ claimVillage(v,e.owner); break; } } } }
+function claimVillageSilent(v,owner){ v.claimed=owner;
+  if(v.mesh)v.mesh.userData.flag.material=new THREE.MeshStandardMaterial({color:FACTIONS[faction[owner]].coat,side:THREE.DoubleSide,roughness:.8}); }
+function claimVillage(v,owner){ claimVillageSilent(v,owner);
+  res[owner].g+=30; const u=spawnUnit('worker',owner,v.tx,v.ty+2);
+  const name=VILLAGE_NAMES[villages.indexOf(v)%VILLAGE_NAMES.length];
+  if(owner==='player'){ SFX.age(); flashMsg('🏘 The village of '+name+' joins your realm! (+6 pop, +1 worker, +30 gold)'); }
+  else if(u){ const n=nearestNode(u,realmWant(owner)); if(n)gatherOrder(u,n); } }
 function addGold(n){const g=new THREE.Group();const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.1,0),M.stoneD);r.position.y=.65;r.castShadow=true;r.rotation.set(hashN(n.tx,3),hashN(n.ty,4),hashN(n.tx,n.ty));
   for(const[dx,dz]of[[.4,.2],[-.3,.4],[.1,-.4]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.34,0),M.gold);v.position.set(dx,1.0+dz*.2,dz);v.castShadow=true;g.add(v);}
   g.add(r);g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
@@ -407,6 +448,20 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
   if(type==='wall'){const seg=new THREE.Mesh(new THREE.BoxGeometry(wpx*.98,3.2,hpx*.98),M.stone);seg.position.y=1.8;seg.castShadow=true;seg.receiveShadow=true;g.add(seg);
     for(let i=-1;i<=1;i++){const cr=new THREE.Mesh(new THREE.BoxGeometry(wpx*.26,.7,hpx*.98),M.stone);cr.position.set(i*wpx*.34,3.6,0);cr.castShadow=true;g.add(cr);}
     const hbw=makeHealthBar();hbw.scale.setScalar(1.2);hbw.position.y=4.8;g.add(hbw);g.userData.hb=hbw;return g;}
+  if(type==='statue'){const ped=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.1,2.2),M.stone);ped.position.y=.55;ped.castShadow=true;g.add(ped);
+    const ped2=new THREE.Mesh(new THREE.BoxGeometry(1.5,.7,1.5),M.stoneD);ped2.position.y=1.45;g.add(ped2);
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(.5,1.1,3,8),M.gold);body.position.y=2.9;body.castShadow=true;g.add(body);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.4,8,7),M.gold);head.position.y=4.0;g.add(head);
+    const sw=new THREE.Mesh(new THREE.BoxGeometry(.1,1.5,.1),M.gold);sw.position.set(.7,3.1,0);sw.rotation.z=-.4;g.add(sw);
+    const hbs=makeHealthBar();hbs.position.y=5.2;g.add(hbs);g.userData.hb=hbs;return g;}
+  if(type==='garden'){const bed=new THREE.Mesh(new THREE.BoxGeometry(wpx*.9,.35,hpx*.9),M.leafB);bed.position.y=.25;bed.receiveShadow=true;g.add(bed);
+    const path1=new THREE.Mesh(new THREE.BoxGeometry(wpx*.9,.08,.8),M.thatch);path1.position.y=.46;g.add(path1);
+    const path2=new THREE.Mesh(new THREE.BoxGeometry(.8,.08,hpx*.9),M.thatch);path2.position.y=.46;g.add(path2);
+    for(let i=0;i<8;i++){const fl=new THREE.Mesh(new THREE.SphereGeometry(.22,6,5),new THREE.MeshStandardMaterial({color:[0xe66a8a,0xf0d060,0xffffff,0xb07ae0][i%4],roughness:.7}));
+      fl.position.set((hashN(i,1)-.5)*wpx*.7,.6,(hashN(1,i)-.5)*hpx*.7);g.add(fl);}
+    const hedge=new THREE.Mesh(new THREE.BoxGeometry(wpx*.94,.5,.3),M.leafA);hedge.position.set(0,.5,hpx*.45);g.add(hedge);
+    const hedge2=hedge.clone();hedge2.position.z=-hpx*.45;g.add(hedge2);
+    const hbg=makeHealthBar();hbg.position.y=3;g.add(hbg);g.userData.hb=hbg;return g;}
   const wallH=type==='hall'?5.5:type==='castle'?6.5:type==='tower'?7.5:(type==='barracks'||type==='siege'||type==='gunshop'||type==='dock'||type==='church')?4:3.4;
   const foot=new THREE.Mesh(new THREE.BoxGeometry(wpx*.92,.7,hpx*.92),M.stoneD);foot.position.y=.35;foot.receiveShadow=true;g.add(foot);
   const isStone=type==='hall'||type==='tower'||type==='castle';
@@ -451,7 +506,8 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
 function removeBuilding(bl){scene.remove(bl.mesh);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;}
 
 // ==================================================== POP / TECH
-function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=12;else if(b.type==='house')c+=6;}return Math.min(c,90);}
+function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=12;else if(b.type==='house')c+=6;}
+  c+=villages.filter(v=>v.claimed===o).length*6; return Math.min(c,90);}
 function popUsed(o){let p=0;for(const e of ents)if(e.owner===o)p+=COST[e.type].pop;return p;}
 function countType(o,t){return ents.filter(e=>e.owner===o&&e.type===t).length;}
 function countBld(o,t){return blds.filter(b=>b.owner===o&&b.type===t).length;}
@@ -494,7 +550,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
   for(const e of ents)updateUnit(e,dt);
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
   for(const b of blds)if((b.type==='tower'||b.type==='castle'||b.type==='watch')&&b.done){b.cd-=dt;if(b.cd<=0){const isC=b.type==='castle',isW=b.type==='watch';const rng=isC?30:isW?18:TOWER_RANGE,dm=isC?26:isW?9:TOWER_DMG;let tgt=null,bd=rng;for(const e of ents)if(isHostile(b.owner,e.owner)){const d=Math.hypot(b.cx-e.x,b.cz-e.z);if(d<bd){bd=d;tgt=e;}}if(tgt){b.cd=isC?0.6:isW?1.1:TOWER_CD;spawnProj(b.cx,heightAtWorld(b.cx,b.cz)+(isC?9:isW?5:7),b.cz,tgt,dm,b.owner,isC?'ball':'arrow');}}}
-  updateProjectiles(dt);updateParticles(dt);advanceAge(dt);
+  updateProjectiles(dt);updateParticles(dt);updateCitizens(dt);updateVillages(dt);advanceAge(dt);
   ents=ents.filter(e=>{if(e.hp<=0){for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');scene.remove(e.mesh);SFX.die();selected=selected.filter(id=>id!==e.id);for(const k in groups)groups[k]=groups[k].filter(id=>id!==e.id);return false;}return true;});
   for(const o of AI_REALMS)realmBrain(o,dt);computeVision();checkWin();}
 function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of Empire — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}}}
@@ -518,7 +574,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);if(e.carryType&&e.carryType!==n.type)e.carry=0;e.carryType=n.type;const take=Math.min(MINE*dt,CARRY-e.carry,n.amount);e.carry+=take;n.amount-=take;if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0&&n.mesh)n.mesh.visible=false;if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
-    case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.7+1){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;e.cmd='idle';e.build=null;if(b.owner==='player')SFX.build();}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
+    case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.7+1){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;e.cmd='idle';e.build=null;if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
   }
   // mesh transforms
   placeMesh(e);
@@ -567,6 +623,19 @@ function spawnPart(x,y,z,type){if(parts.length>240)return;const m=new THREE.Mesh
   else if(type==='debris'){p.vx=(Math.random()-.5)*10;p.vy=6+Math.random()*5;p.vz=(Math.random()-.5)*10;p.life=1.0;p.g=-24;p.s=1;}
   else if(type==='heal'){p.vx=(Math.random()-.5)*1.2;p.vy=3.2;p.vz=(Math.random()-.5)*1.2;p.life=.8;p.g=2;p.s=.55;}
   else{p.vx=(Math.random()-.5)*6;p.vy=3;p.vz=(Math.random()-.5)*6;p.life=.5;p.g=-18;p.s=.6;}m.scale.setScalar(p.s);parts.push(p);}
+// ---- decorative citizens ----
+const citMats=[0xe6c9a8,0xc9dce6,0xd8e6b0,0xe6b0c8,0xf0e0c0].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.8,flatShading:true}));
+function spawnCitizen(b){ if(citizens.length>=14)return;
+  const g=new THREE.Group();const body=new THREE.Mesh(new THREE.CapsuleGeometry(.32,.6,3,7),citMats[citizens.length%citMats.length]);body.position.y=.75;body.castShadow=true;g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.26,7,6),M.skin);head.position.y=1.45;g.add(head);
+  scene.add(g);citizens.push({mesh:g,hx:b.cx,hz:b.cz,x:b.cx+2,z:b.cz+2,tx:b.cx,tz:b.cz,wait:0}); }
+function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
+  const d=Math.hypot(c.tx-c.x,c.tz-c.z);
+  if(d<0.6){ if(c.wait<=0){ c.tx=c.hx+(Math.random()-.5)*14; c.tz=c.hz+(Math.random()-.5)*14;
+      const t1=txFromW(c.tx),t2=tzFromW(c.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){c.tx=c.hx;c.tz=c.hz;} c.wait=2+Math.random()*4; } }
+  else { const sp=3.2*dt; c.x+=(c.tx-c.x)/d*sp; c.z+=(c.tz-c.z)/d*sp;
+    c.mesh.rotation.y=-Math.atan2(c.tz-c.z,c.tx-c.x)+Math.PI/2; }
+  c.mesh.position.set(c.x,heightAtWorld(c.x,c.z),c.z); } }
 function updateParticles(dt){for(const p of parts){p.t+=dt;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.mesh.position.set(p.x,p.y,p.z);const a=1-p.t/p.life;if(p.mesh.material.transparent)p.mesh.material.opacity=a;if(p.type==='smoke')p.mesh.scale.setScalar(p.s*(1+p.t));}
   parts=parts.filter(p=>{if(p.t>=p.life){scene.remove(p.mesh);return false;}return true;});}
 
@@ -582,7 +651,11 @@ function computeVision(){visT-=1/30;if(visT>0)return;visT=0.25;visNow.fill(0);
 // ==================================================== REALM AI + DIPLOMACY
 function realmWant(o){if(res[o].g<130&&goldNodes.some(n=>n.amount>0)&&Math.random()<0.3)return 'gold';return res[o].w<=res[o].m*1.15?'wood':'metal';}
 function declareWar(o,by){ if(!diplo[o])return; if(diplo[o].stance!=='war'){ diplo[o].stance='war'; diplo[o].score=Math.min(diplo[o].score,-20);
-  SFX.wave(); flashMsg((by==='player'?'You declare war on ':'War! ')+realmName(o)+(by==='player'?'!':' turns against you!')); refreshUI(); } }
+  SFX.wave(); flashMsg((by==='player'?'You declare war on ':'War! ')+realmName(o)+(by==='player'?'!':' turns against you!'));
+  // your friends take up arms against your enemy
+  for(const f of AI_REALMS)if(f!==o&&isFriend(f)&&!aiWars[warKey(f,o)]){ aiWars[warKey(f,o)]=true;
+    setTimeout(()=>flashMsg('🤝 '+realmName(f)+' joins your war against '+realmName(o)+'!'),1800); }
+  refreshUI(); } }
 function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai.warCheck-=dt;
   const hall=blds.find(b=>b.owner===o&&b.type==='hall'); if(!hall)return; const r=res[o],T=tech[o];
   // friends send trade caravans — friendship pays
@@ -629,11 +702,14 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(T.age===2&&barr.length&&barr[0].queue.length===0&&countType(o,'dragoon')<2&&r.f>=COST.dragoon.f&&r.m>=COST.dragoon.m&&Math.random()<.3&&used+3<=cap){r.f-=COST.dragoon.f;r.m-=COST.dragoon.m;barr[0].queue.push({type:'dragoon',t:COST.dragoon.time});}
   const ch=blds.find(b=>b.owner===o&&b.type==='church'&&b.done);if(ch&&ch.queue.length===0&&(countType(o,'priest')+countType(o,'monk'))<2&&r.f>=90&&used+2<=cap){r.f-=90;ch.queue.push({type:'priest',t:COST.priest.time});}
   const cas=blds.find(b=>b.owner===o&&b.type==='castle'&&b.done);if(cas&&cas.queue.length===0&&T.age>=3&&used+4<=cap){const uq=FACTION_UNIT[faction[o]],c=COST[uq];if(r.f>=c.f&&r.m>=c.m&&r.g>=(c.g||0)&&countType(o,uq)<3){r.f-=c.f;r.m-=c.m;r.g-=(c.g||0);cas.queue.push({type:uq,t:c.time});}}
-  // only raid the player while at war
-  if(diplo[o].stance==='war'&&ai.attackTimer<=0){const army=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk);
-    if(army.length>=4+ai.wave){const tgt=pickTarget();army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}
+  // march on whoever this realm is at war with (the player, or a rival realm via alliances)
+  const foes=REALMS.filter(t=>isHostile(o,t)&&blds.some(b=>b.owner===t&&b.type==='hall'));
+  if(foes.length&&ai.attackTimer<=0){const army=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk);
+    if(army.length>=4+ai.wave){const foe=foes.includes('player')?'player':foes[0];const tgt=pickTargetFor(foe);
+      army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;
+      if(foe==='player'){SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}}
     else ai.attackTimer=12;}}
-function pickTarget(){const pb=blds.filter(b=>b.owner==='player'),front=pb.filter(b=>b.type!=='hall');return front.length?front[Math.floor(Math.random()*front.length)]:pb.find(b=>b.type==='hall');}
+function pickTargetFor(victim){const pb=blds.filter(b=>b.owner===victim),front=pb.filter(b=>b.type!=='hall');return front.length?front[Math.floor(Math.random()*front.length)]:pb.find(b=>b.type==='hall');}
 function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b=BLD[type];for(let r=2;r<13;r++)for(let a=0;a<16;a++){const ang=a/16*Math.PI*2,tx=Math.round(hall.tx+Math.cos(ang)*r),ty=Math.round(hall.ty+Math.sin(ang)*r);if(canPlace(tx,ty,b.w,b.h)&&minFootElev(tx,ty,b.w,b.h)>=2.1){res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true;}}return false;}
 
 // ==================================================== PLACEMENT
@@ -708,7 +784,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       if(b.type==='dock')trainBtn(cmds,b,'warboat','⛵','Warboat',can);
       if(b.type==='market'){marketBtn(cmds,'💰 Sell Wood','−100w +50g',()=>trade('w',-100,50));marketBtn(cmds,'💰 Sell Food','−100f +50g',()=>trade('f',-100,50));marketBtn(cmds,'💰 Sell Metal','−100m +65g',()=>trade('m',-100,65));marketBtn(cmds,'🛒 Buy Wood','−70g +100w',()=>trade('w',100,-70));marketBtn(cmds,'🛒 Buy Metal','−80g +100m',()=>trade('m',100,-80));marketBtn(cmds,'🛒 Buy Food','−70g +100f',()=>trade('f',100,-70));}}}return;}
   const sel=selUnits();if(sel.length){const counts={};sel.forEach(e=>counts[e.type]=(counts[e.type]||0)+1);info.innerHTML=`<b>Selected (${sel.length}):</b><br>`+Object.entries(counts).map(([t,n])=>`${n} × ${UNIT[t].name}`).join('<br>');
-    if(sel.some(e=>e.type==='worker')){buildBtn(cmds,'house','🏠','House',can);buildBtn(cmds,'farm','🌾','Farm',can);buildBtn(cmds,'mill','🌬️','Mill',can);buildBtn(cmds,'storehouse','📦','Storehouse',can);buildBtn(cmds,'market','⚖️','Market',can);buildBtn(cmds,'barracks','⚔','Barracks',can);buildBtn(cmds,'gunshop','🔫','Gun Shop',can);buildBtn(cmds,'church','⛪','Church',can);buildBtn(cmds,'watch','🔭','Watch House',can);buildBtn(cmds,'tower','🗼','Tower',can);buildBtn(cmds,'wall','🧱','Wall',can);if(tech.player.age>=2){buildBtn(cmds,'siege','⊙','Siege Wk.',can);buildBtn(cmds,'dock','⚓','Dock',can);buildBtn(cmds,'castle','🏰','Castle',can);}}}
+    if(sel.some(e=>e.type==='worker')){buildBtn(cmds,'house','🏠','House',can);buildBtn(cmds,'farm','🌾','Farm',can);buildBtn(cmds,'mill','🌬️','Mill',can);buildBtn(cmds,'storehouse','📦','Storehouse',can);buildBtn(cmds,'market','⚖️','Market',can);buildBtn(cmds,'barracks','⚔','Barracks',can);buildBtn(cmds,'gunshop','🔫','Gun Shop',can);buildBtn(cmds,'church','⛪','Church',can);buildBtn(cmds,'watch','🔭','Watch House',can);buildBtn(cmds,'tower','🗼','Tower',can);buildBtn(cmds,'wall','🧱','Wall',can);buildBtn(cmds,'statue','🗽','Statue',can);buildBtn(cmds,'garden','🌷','Garden',can);if(tech.player.age>=2){buildBtn(cmds,'siege','⊙','Siege Wk.',can);buildBtn(cmds,'dock','⚓','Dock',can);buildBtn(cmds,'castle','🏰','Castle',can);}}}
   else info.innerHTML='Nothing selected.<br><span style="color:#6f93a6">Drag to select. Click your Keep to train workers &amp; advance the Age. Press H for home.</span>';}
 function bumpHp(){for(const e of ents)if(e.owner==='player'){const nm=Math.round(UNIT[e.type].hp*(1+tech.player.armor*0.15)),ratio=e.hp/e.maxHp;e.maxHp=nm;e.hp=nm*ratio;}}
 function trainBtn(cmds,b,type,ic,label,can,dis){const c=COST[type];const en=!dis&&can(c)&&popUsed('player')+c.pop<=popCap('player')&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.f?c.f+'f ':''}${c.w?c.w+'w ':''}${c.m?c.m+'m ':''}${c.g?c.g+'g ':''}· ${c.pop}p</small>`;
@@ -735,7 +811,9 @@ function renderDiplo(){const p=$('diplo');if(p.classList.contains('hidden'))retu
   p.innerHTML=h;}
 window._gift=o=>{if(res.player.g<100){flashMsg('Not enough gold');return;}res.player.g-=100;diplo[o].score+=25;if(diplo[o].score>=25&&diplo[o].stance==='war')diplo[o].stance='neutral';SFX.cmd();flashMsg(realmName(o)+' welcomes your gift.');renderDiplo();updateHUD();};
 window._war=o=>{declareWar(o,'player');renderDiplo();};
-window._peace=o=>{if(res.player.g<200){flashMsg('Not enough gold');return;}res.player.g-=200;diplo[o].stance='neutral';diplo[o].score=Math.max(diplo[o].score,5);SFX.cmd();flashMsg('Peace with '+realmName(o)+'.');renderDiplo();updateHUD();};
+window._peace=o=>{if(res.player.g<200){flashMsg('Not enough gold');return;}res.player.g-=200;diplo[o].stance='neutral';diplo[o].score=Math.max(diplo[o].score,5);
+  for(const k of Object.keys(aiWars))if(k.includes(o))delete aiWars[k];   // allied wars end with yours
+  SFX.cmd();flashMsg('Peace with '+realmName(o)+'.');renderDiplo();updateHUD();};
 document.getElementById('realmsBtn').onclick=()=>{const p=$('diplo');p.classList.toggle('hidden');renderDiplo();};
 setInterval(renderDiplo,2000);
 
@@ -750,6 +828,8 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){if(!explored[ti(x,y)]){mctx.fillStyle='#060d14';}else{const e=elev[ti(x,y)];mctx.fillStyle=e<tideLevel?'#245478':(e>=2.7?'#4a6b3c':'#5c7d3a');}mctx.fillRect(x*sx,y*sy,sx+.5,sy+.5);}
   for(const b of blds){if(b.owner!=='player'&&!explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))])continue;mctx.fillStyle=ownerCss(b.owner);mctx.fillRect(b.tx*sx,b.ty*sy,Math.max(2,b.w*sx),Math.max(2,b.h*sy));}
   for(const e of ents){const tx=txFromW(e.x),ty=tzFromW(e.z);if(e.owner!=='player'&&(!inB(tx,ty)||visNow[ti(tx,ty)]!==1))continue;mctx.fillStyle=e.owner==='player'?'#bfe4ff':ownerCss(e.owner);mctx.fillRect((e.x/TILE+MAP_W/2)*sx-1,(e.z/TILE+MAP_H/2)*sy-1,2,2);}
+  for(const v of villages){ if(!explored[ti(v.tx,v.ty)])continue;
+    mctx.fillStyle=v.claimed?ownerCss(v.claimed):'#f0f0e0'; mctx.beginPath();mctx.arc((v.tx+.5)*sx,(v.ty+.5)*sy,2.4,0,7);mctx.fill(); }
   // camera box
   mctx.strokeStyle='#eef6fb';mctx.lineWidth=1;const cx=(camTarget.x/WORLD_W+0.5)*w,cy=(camTarget.z/WORLD_H+0.5)*h;mctx.strokeRect(cx-14,cy-9,28,18);}
 
@@ -760,8 +840,8 @@ function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&
   if(!others)endGame(true);else if(!ph)endGame(false);}
 function endGame(win){gameOver=true;running=false;const ov=$('overlay');ov.classList.remove('hidden');ov.innerHTML=`<h1>${win?'You Rule the <span>Realm</span>':'Your <span style="color:#ff7a6a">Kingdom</span> Has Fallen'}</h1><p>${win?'Every rival keep lies in ruins. The whole land answers to your crown.':'Your Keep is lost. Another crown will rule these lands.'}</p><p style="color:#7fa8bd">Reigned ${Math.floor(elapsed/60)}m ${Math.floor(elapsed%60)}s · Age ${tech.player.age}</p><button class="big" id="againBtn">Play Again</button>`;$('againBtn').onclick=()=>location.reload();}
 const REALM_SITES={player:[15,49],r1:[79,12],r2:[15,12],r3:[79,49]};
-function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);
-  ents=[];blds=[];parts=[];projs=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
+function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);
+  ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
   initRealms();elapsed=0;gameOver=false;
   genMap();buildTerrain();buildWater();buildDecor();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
@@ -772,8 +852,39 @@ function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)
   // opening reveal
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
   running=true;refreshUI();}
+// ==================================================== SAVE / LOAD
+function saveGame(quiet){ if(!running||gameOver)return;
+  const s={v:1,elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
+    diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
+    wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
+    vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
+    blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
+    ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType})),
+    cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,dist:camDist}};
+  try{localStorage.setItem('tidefall_save',JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
+  catch(err){flashMsg('Save failed: '+err.message);} }
+function loadGame(){ const raw=localStorage.getItem('tidefall_save'); if(!raw){flashMsg('No saved kingdom');return;}
+  let s; try{s=JSON.parse(raw);}catch(e){flashMsg('Save file corrupted');return;}
+  $('overlay').classList.add('hidden'); initAudio(); resize();
+  faction={...s.faction};
+  newGame();   // rebuilds the identical deterministic world, then we restore the saved state over it
+  for(const e of ents)scene.remove(e.mesh); ents=[];
+  for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
+  res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed;
+  const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0&&arr[i].mesh)arr[i].mesh.visible=false;}});};
+  restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);
+  (s.vil||[]).forEach((c,i)=>{if(c&&villages[i])claimVillageSilent(villages[i],c);});
+  if(s.explored&&s.explored.length===explored.length)explored=Uint8Array.from(s.explored,ch=>+ch);
+  for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);b.hp=sb.hp;b.progress=sb.p;
+    if(!sb.d)b.mesh.scale.y=0.05+0.95*sb.p; b.queue=(sb.q||[]).map(q=>({type:q.type,t:q.t})); b.rally=sb.r||null;
+    if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }
+  for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;placeMesh(e);}
+  camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camDist=s.cam.dist;
+  running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
+let autosaveT=90;
 let last=0;
 function loop(t){const now=t/1000,dt=Math.min(0.05,now-last||0);last=now;
+  if(running&&!gameOver){autosaveT-=dt;if(autosaveT<=0){autosaveT=90;saveGame(true);}}
   if(running&&!gameOver){updateCamera(dt);update(dt);updateHUD();}else updateCamera(dt);
   updateGhost();updateRings();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
@@ -783,6 +894,10 @@ function start(fac){faction.player=fac||'english';
   faction.r1=others[0];faction.r2=others[1];faction.r3=others[2];
   $('overlay').classList.add('hidden');initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
 document.querySelectorAll('#overlay .fac').forEach(b=>b.onclick=()=>start(b.dataset.fac));
+document.getElementById('saveBtn').onclick=()=>saveGame(false);
+const _cont=document.getElementById('contBtn');
+if(localStorage.getItem('tidefall_save'))_cont.style.display='';
+_cont.onclick=loadGame;
 resize();requestAnimationFrame(loop);
 </script>
 </body>
