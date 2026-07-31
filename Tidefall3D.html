@@ -818,7 +818,11 @@ function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx
 function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);list.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;const ox=gx+((i%3)-1),oy=gy+(Math.floor(i/3)-1);if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});SFX.cmd();}
 function commandTarget(list,x,z){const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));SFX.cmd();return;}
-  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
+  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');
+  // right-click your own unfinished building = send selected workers to build it
+  { const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;const ob=blds.find(q=>q.id===id);
+    if(ob&&ob.owner==='player'&&!ob.done&&workers.length){ workers.forEach(w=>{w.cmd='build';w.build=ob;orderPath(w,ob.tx+(ob.w>>1),ob.ty+ob.h,ob.id);});
+      flashMsg('Workers sent to the building site');SFX.cmd();return; } }if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
   commandMove(list,x,z,false);}
 function attackOrder(e,t){if(UNIT[e.type].noAtk){e.cmd='move';e.target=null;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);return;}if(e.type==='worker'&&t.owner===e.owner)return;
   if(e.owner==='player'&&t.owner!=='player'&&!isHostile('player',t.owner))declareWar(t.owner,'player');
@@ -1073,7 +1077,12 @@ function updateGhost(){if(!placing){if(ghost){scene.remove(ghost);ghost=null;}re
   if(!ghost){ghost=new THREE.Mesh(new THREE.BoxGeometry(1,4,1),M.ghostOk);scene.add(ghost);}ghost.geometry.dispose();ghost.geometry=new THREE.BoxGeometry(b.w*TILE*.9,4,b.h*TILE*.9);ghost.material=ok?M.ghostOk:M.ghostNo;ghost.position.set(cx,heightAtWorld(cx,cz)+2,cz);}
 function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverTile.ty;if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(res.player.w<(c.w||0)||res.player.m<(c.m||0)||res.player.f<(c.f||0)){flashMsg('Not enough resources');return;}
   const ok=type==='dock'?canPlaceDock(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h);if(!ok){flashMsg(type==='dock'?'Docks must touch water':'Can\'t build there');return;}
-  res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.f-=(c.f||0);res.player.g-=(c.g||0);const nb=addBuilding(type,tx,ty,'player',false);const crew=selUnits().filter(e=>e.type==='worker');crew.forEach(w=>{w.cmd='build';w.build=nb;orderPath(w,tx,ty+b.h,nb.id);});if(!crew.length)flashMsg('Placed — send a worker to build it');else SFX.cmd();if(!keys['shift']){placing=null;updateGhost();}refreshUI();}
+  res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.f-=(c.f||0);res.player.g-=(c.g||0);const nb=addBuilding(type,tx,ty,'player',false);let crew=selUnits().filter(e=>e.type==='worker');
+  if(!crew.length){ crew=ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd!=='build')
+      .sort((a,b2)=>Math.hypot(a.x-nb.cx,a.z-nb.cz)-Math.hypot(b2.x-nb.cx,b2.z-nb.cz)).slice(0,2);
+    if(crew.length)flashMsg('Nearby workers head to the site'); }
+  crew.forEach(w=>{w.cmd='build';w.build=nb;orderPath(w,tx,ty+b.h,nb.id);});
+  if(!crew.length)flashMsg('Placed — no workers available!');else SFX.cmd();if(!keys['shift']){placing=null;updateGhost();}refreshUI();}
 
 // ==================================================== CAMERA + INPUT
 let camYaw=0,camPitch=0.92,camDist=80,camTarget=new THREE.Vector3(0,0,0);
