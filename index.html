@@ -287,9 +287,10 @@ const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacks
     await Promise.all(models.map(async m=>{ const s=await load1('assets/med/'+c+'/building_'+m+'_'+c+'.gltf'); if(s)lib[c][m]=s; })); }));
   if(Object.keys(lib.red||{}).length)BLD_LIB=lib;
   const nat={};
-  await Promise.all(['rock_single_A','rock_single_B','rock_single_C'].map(async r=>{ const s=await load1('assets/med/nature/'+r+'.gltf'); if(s)nat[r]=s; }));
+  await Promise.all(['rock_single_A','rock_single_B','rock_single_C','cloud_big','cloud_small'].map(async r=>{ const s=await load1('assets/med/nature/'+r+'.gltf'); if(s)nat[r]=s; }));
   if(Object.keys(nat).length)NATURE_LIB=nat;
   if(BLD_LIB&&typeof refreshBuildingMeshes==='function')refreshBuildingMeshes();
+  if(NATURE_LIB&&typeof spawnClouds==='function')spawnClouds();
 }catch(e){/* stay on procedural buildings */} })();
 
 // ==================================================== MATERIALS
@@ -458,6 +459,47 @@ function addRock(n){const g=new THREE.Group();
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.15,0),M.rock);r.position.y=.7;r.castShadow=true;r.rotation.set(hashN(n.tx,1),hashN(n.ty,2),hashN(n.tx,n.ty));
   const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),M.ore);v.position.set(.5,1.15,.3);v.castShadow=true;
   g.add(r,v);g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
+
+// ==================================================== AMBIENT LIFE (grass, flowers, bushes, birds, clouds)
+let ambientGroup=null,cloudGroup=null,birdGroup=null,birds=[];
+function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGroup=new THREE.Group(); scene.add(ambientGroup);
+  const m4=new THREE.Matrix4(),col=new THREE.Color(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3();
+  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.09,.55,4),new THREE.MeshStandardMaterial({roughness:1}),4000); let gi=0;
+  for(let i=0;i<14000&&gi<4000;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.65||e>3.1)continue;
+    m4.makeTranslation(x,heightAtWorld(x,z)+.22,z); grass.setMatrixAt(gi,m4);
+    col.setHSL(0.26+hashN(i,9)*0.06,0.5,0.30+hashN(9,i)*0.12); grass.setColorAt(gi,col); gi++; }
+  grass.count=gi; ambientGroup.add(grass);
+  const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,5,4),new THREE.MeshStandardMaterial({roughness:.8}),700); let fi=0;
+  const fcols=[0xffffff,0xf0d060,0xe66a8a,0xb07ae0];
+  for(let i=0;i<5000&&fi<700;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.9)continue;
+    m4.makeTranslation(x,heightAtWorld(x,z)+.12,z); flowers.setMatrixAt(fi,m4);
+    col.setHex(fcols[i%4]); flowers.setColorAt(fi,col); fi++; }
+  flowers.count=fi; ambientGroup.add(flowers);
+  const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),500); let bi=0;
+  for(let i=0;i<5000&&bi<500;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
+    const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
+    bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.45,0.22+hashN(i,29)*0.08); bushes.setColorAt(bi,col); bi++; }
+  bushes.count=bi; ambientGroup.add(bushes);
+  if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
+  const bm=new THREE.MeshBasicMaterial({color:0x2a2f36,side:THREE.DoubleSide});
+  for(let f=0;f<3;f++){ const cx=(hashN(f,31)-0.5)*WORLD_W*.6, cz=(hashN(37,f)-0.5)*WORLD_H*.6;
+    for(let b=0;b<4;b++){ const g=new THREE.Group();
+      const w1=new THREE.Mesh(new THREE.PlaneGeometry(.9,.28),bm); w1.position.x=-.45; g.add(w1);
+      const w2=w1.clone(); w2.position.x=.45; g.add(w2); birdGroup.add(g);
+      birds.push({g,w1,w2,cx,cz,r:8+b*2.2,a:hashN(b,f)*6,h:26+f*5+b,sp:.25+hashN(f,b)*.15}); } } }
+function spawnClouds(){ if(cloudGroup||!NATURE_LIB)return; const srcs=[NATURE_LIB.cloud_big,NATURE_LIB.cloud_small].filter(Boolean); if(!srcs.length)return;
+  cloudGroup=new THREE.Group(); scene.add(cloudGroup);
+  for(let i=0;i<10;i++){ const m=srcs[i%srcs.length].clone(true);
+    m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.85;}});
+    m.scale.setScalar(6+hashN(i,41)*8);
+    m.position.set((hashN(i,43)-0.5)*WORLD_W*1.2,46+hashN(47,i)*22,(hashN(i,53)-0.5)*WORLD_H*1.1);
+    m.userData.sp=1.2+hashN(i,59)*1.6; cloudGroup.add(m); } }
+function updateAmbient(dt,now){ for(const b of birds){ b.a+=dt*b.sp; b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.h,b.cz+Math.sin(b.a)*b.r);
+    b.g.rotation.y=-b.a; const fl=Math.sin(now*7+b.r)*0.55; b.w1.rotation.y=fl; b.w2.rotation.y=-fl; }
+  if(cloudGroup)for(const c of cloudGroup.children){ c.position.x+=dt*c.userData.sp; if(c.position.x>HALF_W+80)c.position.x=-HALF_W-80; } }
 
 // ==================================================== UNIT / BUILDING MESHES
 const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian'};
@@ -979,7 +1021,7 @@ const REALM_SITES={player:[15,49],r1:[79,12],r2:[15,12],r3:[79,49]};
 function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
   initRealms();elapsed=0;gameOver=false;
-  genMap();buildTerrain();buildWater();buildDecor();
+  genMap();buildTerrain();buildWater();buildDecor();buildAmbient();spawnClouds();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
     addBuilding('hall',hx,hy,o,true);
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
@@ -1023,7 +1065,7 @@ let last=0;
 function loop(t){const now=t/1000,dt=Math.min(0.05,now-last||0);last=now;
   if(running&&!gameOver){autosaveT-=dt;if(autosaveT<=0){autosaveT=90;saveGame(true);}}
   if(running&&!gameOver){updateCamera(dt);update(dt);updateHUD();}else updateCamera(dt);
-  updateGhost();updateRings();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateAmbient(dt,now);waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
