@@ -585,6 +585,12 @@ function declareWar(o,by){ if(!diplo[o])return; if(diplo[o].stance!=='war'){ dip
   SFX.wave(); flashMsg((by==='player'?'You declare war on ':'War! ')+realmName(o)+(by==='player'?'!':' turns against you!')); refreshUI(); } }
 function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai.warCheck-=dt;
   const hall=blds.find(b=>b.owner===o&&b.type==='hall'); if(!hall)return; const r=res[o],T=tech[o];
+  // friends send trade caravans — friendship pays
+  if(ai.tradeT===undefined)ai.tradeT=50;
+  ai.tradeT-=dt;
+  if(ai.tradeT<=0){ ai.tradeT=50+Math.random()*20;
+    if(diplo[o].stance!=='war'&&diplo[o].score>=60){ res.player.g+=40; res[o].g=Math.max(0,res[o].g-10);
+      SFX.cmd(); flashMsg('🐎 A trade caravan arrives from '+realmName(o)+' (+40 gold)'); } }
   // relations drift: aggressive realms sour toward war unless befriended
   if(ai.warCheck<=0){ ai.warCheck=90+Math.random()*90;
     if(diplo[o].stance==='neutral'){ diplo[o].score-=Math.random()*ai.aggro*0.3;
@@ -718,7 +724,7 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
 // ---- diplomacy panel ----
 function stanceLabel(o){const d=diplo[o];return d.stance==='war'?'<span style="color:#ff8a6a">AT WAR</span>':d.score>=60?'<span style="color:#9fe6b0">Friend</span>':d.score>=25?'<span style="color:#bfe4a0">Warm</span>':d.score>=-10?'Neutral':'<span style="color:#e0b070">Wary</span>';}
 function renderDiplo(){const p=$('diplo');if(p.classList.contains('hidden'))return;
-  let h='<b style="font-size:15px;">🕊 The Realms</b><div style="color:#7fa8bd;margin:2px 0 8px;">Gift gold to make friends. Attack anyone to make enemies.</div>';
+  let h='<b style="font-size:15px;">🕊 The Realms</b><div style="color:#7fa8bd;margin:2px 0 8px;">Gift gold to make friends — Friends (60+) send you trade caravans. Attack anyone to make enemies.</div>';
   for(const o of AI_REALMS){const f=FACTIONS[faction[o]],d=diplo[o];const alive=blds.some(b=>b.owner===o&&b.type==='hall');
     h+=`<div style="border-top:1px solid #1d3a4a;padding:7px 0;">
       <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${ownerCss(o)};margin-right:6px;"></span>
