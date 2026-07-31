@@ -262,6 +262,17 @@ try{
   composer.addPass(new OutputPass());
 }catch(e){ composer=null; showErr('post-processing unavailable (falling back): '+e.message); }
 
+// ---- professional animated characters (KayKit, CC0) — graceful fallback if unavailable ----
+let CHAR_LIB=null;
+(async()=>{ try{
+  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
+  const SK=await import('three/addons/utils/SkeletonUtils.js');
+  const loader=new GLTFLoader(); const lib={};
+  await Promise.all(['Rogue_Hooded','Mage','Barbarian','Knight'].map(n=>new Promise(res=>{
+    loader.load('assets/'+n+'.glb',g=>{lib[n]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
+  if(Object.keys(lib).length) CHAR_LIB={lib,clone:SK.clone};
+}catch(e){/* stay on procedural villagers */} })();
+
 // ==================================================== MATERIALS
 const M={
   stone:new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:.9,flatShading:true}),
@@ -624,17 +635,63 @@ function spawnPart(x,y,z,type){if(parts.length>240)return;const m=new THREE.Mesh
   else if(type==='heal'){p.vx=(Math.random()-.5)*1.2;p.vy=3.2;p.vz=(Math.random()-.5)*1.2;p.life=.8;p.g=2;p.s=.55;}
   else{p.vx=(Math.random()-.5)*6;p.vy=3;p.vz=(Math.random()-.5)*6;p.life=.5;p.g=-18;p.s=.6;}m.scale.setScalar(p.s);parts.push(p);}
 // ---- decorative citizens ----
-const citMats=[0xe6c9a8,0xc9dce6,0xd8e6b0,0xe6b0c8,0xf0e0c0].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.8,flatShading:true}));
+const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
+const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
+const strawMat=new THREE.MeshStandardMaterial({color:0xd8b96a,roughness:1,flatShading:true});
+const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian'];
 function spawnCitizen(b){ if(citizens.length>=14)return;
-  const g=new THREE.Group();const body=new THREE.Mesh(new THREE.CapsuleGeometry(.32,.6,3,7),citMats[citizens.length%citMats.length]);body.position.y=.75;body.castShadow=true;g.add(body);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.26,7,6),M.skin);head.position.y=1.45;g.add(head);
-  scene.add(g);citizens.push({mesh:g,hx:b.cx,hz:b.cz,x:b.cx+2,z:b.cz+2,tx:b.cx,tz:b.cz,wait:0}); }
+  const sx1=b.cx+(Math.random()-.5)*10,sz1=b.cz+7+Math.random()*4;
+  if(CHAR_LIB){ const src=CHAR_LIB.lib[CIT_CHARS[citizens.length%CIT_CHARS.length]];
+    if(src){ const g=CHAR_LIB.clone(src.scene);
+      const box=new THREE.Box3().setFromObject(g),hgt=box.max.y-box.min.y||1.9;
+      g.scale.setScalar(1.9/hgt); g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
+      const mixer=new THREE.AnimationMixer(g);
+      const find=re=>src.clips.find(c=>re.test(c.name));
+      const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
+      const walkA=wc?mixer.clipAction(wc):null, idleA=ic?mixer.clipAction(ic):null;
+      if(idleA)idleA.play();
+      scene.add(g);
+      citizens.push({mesh:g,mixer,walkA,idleA,mode:'idle',armL:null,armR:null,legL:null,legR:null,phase:0,hx:b.cx,hz:b.cz,x:sx1,z:sz1,tx:sx1,tz:sz1,wait:1});
+      return; } }
+  const g=new THREE.Group(),i=citizens.length,coat=citMats[i%citMats.length];
+  // legs
+  const legL=new THREE.Mesh(new THREE.BoxGeometry(.16,.5,.18),citSkirt);legL.geometry.translate(0,-.25,0);legL.position.set(-.12,.55,0);g.add(legL);
+  const legR=legL.clone();legR.position.x=.12;g.add(legR);
+  // torso + belt
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.22,.3,.72,8),coat);torso.position.y=.95;torso.castShadow=true;g.add(torso);
+  const belt=new THREE.Mesh(new THREE.TorusGeometry(.26,.045,6,12),M.wood);belt.rotation.x=Math.PI/2;belt.position.y=.72;g.add(belt);
+  // arms (pivot at shoulder)
+  const armL=new THREE.Mesh(new THREE.BoxGeometry(.13,.52,.15),coat);armL.geometry.translate(0,-.24,0);armL.position.set(-.34,1.26,0);g.add(armL);
+  const armR=armL.clone();armR.position.x=.34;g.add(armR);
+  // hands
+  const handL=new THREE.Mesh(new THREE.SphereGeometry(.08,6,5),M.skin);handL.position.set(-.34,.75,0);g.add(handL);
+  const handR=handL.clone();handR.position.x=.34;g.add(handR);
+  // head + face
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.24,8,7),M.skin);head.position.y=1.58;g.add(head);
+  // hat variety: straw hat / hood / bare+hair
+  const hv=i%3;
+  if(hv===0){const brim=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,.05,10),strawMat);brim.position.y=1.72;g.add(brim);
+    const crown=new THREE.Mesh(new THREE.CylinderGeometry(.17,.2,.18,8),strawMat);crown.position.y=1.82;g.add(crown);}
+  else if(hv===1){const hood=new THREE.Mesh(new THREE.SphereGeometry(.28,8,6,0,6.28,0,1.9),coat);hood.position.y=1.6;g.add(hood);}
+  else{const hair=new THREE.Mesh(new THREE.SphereGeometry(.25,8,6,0,6.28,0,1.4),M.wood);hair.position.y=1.64;g.add(hair);}
+  scene.add(g);
+  const sx0=b.cx+(Math.random()-.5)*10,sz0=b.cz+7+Math.random()*4;   // start outside the walls
+  citizens.push({mesh:g,armL,armR,legL,legR,phase:Math.random()*6,hx:b.cx,hz:b.cz,x:sx0,z:sz0,tx:sx0,tz:sz0,wait:1}); }
 function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
   const d=Math.hypot(c.tx-c.x,c.tz-c.z);
+  let moving=false;
   if(d<0.6){ if(c.wait<=0){ c.tx=c.hx+(Math.random()-.5)*14; c.tz=c.hz+(Math.random()-.5)*14;
       const t1=txFromW(c.tx),t2=tzFromW(c.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){c.tx=c.hx;c.tz=c.hz;} c.wait=2+Math.random()*4; } }
-  else { const sp=3.2*dt; c.x+=(c.tx-c.x)/d*sp; c.z+=(c.tz-c.z)/d*sp;
+  else { moving=true; const sp=3.2*dt; c.x+=(c.tx-c.x)/d*sp; c.z+=(c.tz-c.z)/d*sp;
     c.mesh.rotation.y=-Math.atan2(c.tz-c.z,c.tx-c.x)+Math.PI/2; }
+  // animate: real skeletal animation if we have it, else procedural limb swing
+  if(c.mixer){ c.mixer.update(dt);
+    const want=moving?'walk':'idle';
+    if(want!==c.mode&&c.walkA&&c.idleA){ const to=moving?c.walkA:c.idleA, from=moving?c.idleA:c.walkA;
+      to.reset().fadeIn(0.18).play(); from.fadeOut(0.18); c.mode=want; } }
+  else if(c.armL){ if(moving){ c.phase+=dt*9; const s=Math.sin(c.phase)*0.7;
+      c.armL.rotation.x=s; c.armR.rotation.x=-s; c.legL.rotation.x=-s*0.85; c.legR.rotation.x=s*0.85; }
+    else for(const l of[c.armL,c.armR,c.legL,c.legR]) l.rotation.x*=Math.max(0,1-dt*8); }
   c.mesh.position.set(c.x,heightAtWorld(c.x,c.z),c.z); } }
 function updateParticles(dt){for(const p of parts){p.t+=dt;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.mesh.position.set(p.x,p.y,p.z);const a=1-p.t/p.life;if(p.mesh.material.transparent)p.mesh.material.opacity=a;if(p.type==='smoke')p.mesh.scale.setScalar(p.s*(1+p.t));}
   parts=parts.filter(p=>{if(p.t>=p.life){scene.remove(p.mesh);return false;}return true;});}
@@ -849,6 +906,7 @@ function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
     spawnUnit('spear',o,hx+3,hy+3); spawnUnit('infantry',o,hx-2,hy+3); }
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);camYaw=0;camDist=80;
+  for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
   running=true;refreshUI();}
