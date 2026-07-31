@@ -417,7 +417,24 @@ function addRock(n){const g=new THREE.Group();const r=new THREE.Mesh(new THREE.D
   g.add(r,v);g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 
 // ==================================================== UNIT / BUILDING MESHES
+const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian'};
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
+  // professional animated model where one fits this unit type
+  if(CHAR_LIB&&UNIT_CHAR[type]&&CHAR_LIB.lib[UNIT_CHAR[type]]){
+    const src=CHAR_LIB.lib[UNIT_CHAR[type]];
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*1.05,u.r*1.2,.3,12),tm);ring.position.y=.15;ring.castShadow=true;g.add(ring);
+    const ch=CHAR_LIB.clone(src.scene);
+    const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
+    ch.scale.setScalar((type==='hero'?2.6:type==='highlander'?2.4:2.1)/hgt);
+    ch.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(ch);
+    const mixer=new THREE.AnimationMixer(ch);
+    const find=re=>src.clips.find(c=>re.test(c.name));
+    const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
+    g.userData.mixer=mixer;g.userData.walkA=wc?mixer.clipAction(wc):null;g.userData.idleA=ic?mixer.clipAction(ic):null;g.userData.animMode='idle';
+    if(g.userData.idleA)g.userData.idleA.play();
+    g.userData.noBob=true;
+    const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8);g.add(hbk);g.userData.hb=hbk;
+    return g; }
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
   if(u.coat&&!unitMat[coatKey])unitMat[coatKey]=new THREE.MeshStandardMaterial({color:fac.coat,roughness:.55,flatShading:true});
   const bodyMat=u.coat?unitMat[coatKey]:unitMat[type];const trimMat=new THREE.MeshStandardMaterial({color:fac.trim,roughness:.5,metalness:.3});
@@ -592,6 +609,10 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
   let dd=e.dir-e.disp;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;e.disp+=dd*Math.min(1,dt*10);
   e.mesh.rotation.y=-e.disp+Math.PI/2;
   const anim=e.mesh.userData.anim;if(anim&&!e.mesh.userData.noBob){const bob=moving?Math.abs(Math.sin(e.walk*10))*0.28:0;anim.position.y=bob;anim.rotation.x=(e.atk>0?-0.5:moving?Math.sin(e.walk*10)*0.08:0);}
+  const ud=e.mesh.userData;
+  if(ud.mixer){ ud.mixer.update(dt); const mv=e.path&&e.pi<e.path.length, want=mv?'walk':'idle';
+    if(want!==ud.animMode&&ud.walkA&&ud.idleA){ const to=mv?ud.walkA:ud.idleA, from=mv?ud.idleA:ud.walkA;
+      to.reset().fadeIn(0.15).play(); from.fadeOut(0.15); ud.animMode=want; } }
   const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;hb.userData.fg.scale.x=Math.max(0.01,e.hp/e.maxHp);hb.userData.fg.position.x=-(1-e.hp/e.maxHp)*0.8;hb.userData.fg.material.color.setHex(e.hp/e.maxHp>0.4?0x6fd07a:0xe0503a);hb.quaternion.copy(camera.quaternion);}else hb.visible=false;}
 }
 function autoAcq(e,chase){if(e.type==='worker'||UNIT[e.type].noAtk||e.stance==='hold'||e.cmd==='attack'||e.cmd==='attackb')return;let tgt=null,bd=UNIT[e.type].range+(UNIT[e.type].ranged?7:11);for(const o of ents)if(isHostile(e.owner,o.owner)){const d=Math.hypot(e.x-o.x,e.z-o.z);if(d<bd){bd=d;tgt=o;}}if(tgt){e.cmd='attack';e.target=tgt;}}
