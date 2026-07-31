@@ -493,9 +493,9 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
 function spawnClouds(){ if(cloudGroup||!NATURE_LIB)return; const srcs=[NATURE_LIB.cloud_big,NATURE_LIB.cloud_small].filter(Boolean); if(!srcs.length)return;
   cloudGroup=new THREE.Group(); scene.add(cloudGroup);
   for(let i=0;i<10;i++){ const m=srcs[i%srcs.length].clone(true);
-    m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.85;}});
-    m.scale.setScalar(6+hashN(i,41)*8);
-    m.position.set((hashN(i,43)-0.5)*WORLD_W*1.2,46+hashN(47,i)*22,(hashN(i,53)-0.5)*WORLD_H*1.1);
+    m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.7;}});
+    m.scale.setScalar(1.6+hashN(i,41)*2.2);
+    m.position.set((hashN(i,43)-0.5)*WORLD_W*1.2,78+hashN(47,i)*30,(hashN(i,53)-0.5)*WORLD_H*1.1);
     m.userData.sp=1.2+hashN(i,59)*1.6; cloudGroup.add(m); } }
 function updateAmbient(dt,now){ for(const b of birds){ b.a+=dt*b.sp; b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.h,b.cz+Math.sin(b.a)*b.r);
     b.g.rotation.y=-b.a; const fl=Math.sin(now*7+b.r)*0.55; b.w1.rotation.y=fl; b.w2.rotation.y=-fl; }
@@ -914,7 +914,16 @@ function updateCamera(dt){const sp=48*dt*(camDist/80),m=18;const fwd=[-Math.sin(
   if(keys['q'])camYaw-=1.3*dt;if(keys['e'])camYaw+=1.3*dt;camTarget.y=heightAtWorld(camTarget.x,camTarget.z);
   const ox=Math.sin(camYaw)*Math.cos(camPitch)*camDist,oz=Math.cos(camYaw)*Math.cos(camPitch)*camDist,oy=Math.sin(camPitch)*camDist;
   camera.position.set(camTarget.x+ox,camTarget.y+oy,camTarget.z+oz);camera.lookAt(camTarget);sky.position.copy(camera.position);waterUniforms.uCam.value.copy(camera.position);}
-function raycastGround(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);if(terrainMesh){const h=raycaster.intersectObject(terrainMesh,false);if(h.length)return h[0].point;}const t=-camera.position.y/(raycaster.ray.direction.y||-0.001);return raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(t));}
+function raycastGround(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);
+  const ro=raycaster.ray.origin,rd=raycaster.ray.direction;   // fast analytic march — no mesh raycast
+  let t=0;
+  for(let i=0;i<240;i++){ const px=ro.x+rd.x*t,py=ro.y+rd.y*t,pz=ro.z+rd.z*t;
+    if(py<=heightAtWorld(px,pz)+0.01){ let lo=Math.max(0,t-3),hi=t;
+      for(let j=0;j<12;j++){ const mid=(lo+hi)/2;
+        if(ro.y+rd.y*mid<=heightAtWorld(ro.x+rd.x*mid,ro.z+rd.z*mid))hi=mid;else lo=mid; }
+      const ft=(lo+hi)/2; return new THREE.Vector3(ro.x+rd.x*ft,ro.y+rd.y*ft,ro.z+rd.z*ft); }
+    t+=3; }
+  const tt=-ro.y/(rd.y||-0.001);return ro.clone().add(rd.clone().multiplyScalar(tt));}
 function pickUnit(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);const meshes=ents.filter(e=>e.owner==='player').map(e=>e.mesh);const h=raycaster.intersectObjects(meshes,true);if(h.length){let o=h[0].object;while(o.parent&&!ents.some(e=>e.mesh===o))o=o.parent;return ents.find(e=>e.mesh===o)||null;}return null;}
 function pickBuilding(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);const meshes=blds.filter(b=>b.owner==='player').map(b=>b.mesh);const h=raycaster.intersectObjects(meshes,true);if(h.length){let o=h[0].object;while(o.parent&&!blds.some(b=>b.mesh===o))o=o.parent;return blds.find(b=>b.mesh===o)||null;}return null;}
 function localXY(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(vw/r.width),y:(ev.clientY-r.top)*(vh/r.height)};}
@@ -1061,11 +1070,15 @@ function loadGame(){ const raw=localStorage.getItem('tidefall_save'); if(!raw){f
   camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camDist=s.cam.dist;
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
 let autosaveT=90;
-let last=0;
-function loop(t){const now=t/1000,dt=Math.min(0.05,now-last||0);last=now;
-  if(running&&!gameOver){autosaveT-=dt;if(autosaveT<=0){autosaveT=90;saveGame(true);}}
-  if(running&&!gameOver){updateCamera(dt);update(dt);updateHUD();}else updateCamera(dt);
-  updateGhost();updateRings();updateAmbient(dt,now);waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+let last=0,simAcc=0;
+const SIM_DT=1/30;   // fixed-step sim: game speed independent of frame rate
+function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)frame=0.5;
+  if(running&&!gameOver){ autosaveT-=frame;if(autosaveT<=0){autosaveT=90;saveGame(true);}
+    simAcc+=frame; let steps=0;
+    while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
+    if(steps)updateHUD(); }
+  else updateCamera(frame);
+  updateGhost();updateRings();updateAmbient(frame,now);waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
