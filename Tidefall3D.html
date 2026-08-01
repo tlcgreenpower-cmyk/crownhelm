@@ -710,14 +710,19 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
 function makeHealthBar(){const grp=new THREE.Group();const bg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x220808}));
   const fg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x6fd07a}));fg.position.z=.01;grp.add(bg,fg);grp.userData.fg=fg;grp.visible=false;grp.renderOrder=999;bg.material.depthTest=false;fg.material.depthTest=false;return grp;}
 function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
-  // farms use the real grain-field model (neutral — crops have no flag)
-  if(type==='farm'&&NEUTRAL_LIB&&NEUTRAL_LIB.grain){
-    const m=NEUTRAL_LIB.grain.clone(true);
-    const box=new THREE.Box3().setFromObject(m);
-    const s=(Math.min(wpx,hpx)*1.3)/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,0.001);
-    m.scale.setScalar(s);m.position.y=-box.min.y*s;
-    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-    g.add(m);
+  // farms: hand-built square tilled field — soil furrows, golden wheat rows, fence posts
+  if(type==='farm'){
+    const soil=new THREE.Mesh(new THREE.BoxGeometry(wpx*.96,.5,hpx*.96),new THREE.MeshStandardMaterial({color:0x6b4a2e,roughness:1,flatShading:true}));
+    soil.position.y=.25;soil.receiveShadow=true;g.add(soil);
+    const furrow=new THREE.MeshStandardMaterial({color:0x54371f,roughness:1});
+    const wheatA=new THREE.MeshStandardMaterial({color:0xd8b53c,roughness:.9,flatShading:true});
+    const wheatB=new THREE.MeshStandardMaterial({color:0xc9a232,roughness:.9,flatShading:true});
+    for(let i=-2;i<=2;i++){
+      const row=new THREE.Mesh(new THREE.BoxGeometry(wpx*.88,.1,.5),furrow);row.position.set(0,.52,i*hpx*.17);g.add(row);
+      for(let jx=-3;jx<=3;jx++){ const wcl=new THREE.Mesh(new THREE.ConeGeometry(.26,.85,5),(i+jx)%2?wheatA:wheatB);
+        wcl.position.set(jx*wpx*.12,1.0,i*hpx*.17);wcl.castShadow=true;g.add(wcl); } }
+    for(const[fx,fz]of[[-wpx*.45,-hpx*.45],[wpx*.45,-hpx*.45],[-wpx*.45,hpx*.45],[wpx*.45,hpx*.45]]){
+      const post=new THREE.Mesh(new THREE.BoxGeometry(.18,1.0,.18),M.wood);post.position.set(fx,.75,fz);post.castShadow=true;g.add(post);}
     const hbf=makeHealthBar();hbf.scale.setScalar(1.4);hbf.position.y=3;g.add(hbf);g.userData.hb=hbf;
     return g; }
   // professional model where one exists for this building type
