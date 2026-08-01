@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b21</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b22</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -938,7 +938,17 @@ function popUsed(o){let p=0;for(const e of ents)if(e.owner===o)p+=COST[e.type].p
 function countType(o,t){return ents.filter(e=>e.owner===o&&e.type===t).length;}
 function countBld(o,t){return blds.filter(b=>b.owner===o&&b.type===t).length;}
 function hasBld(o,t){return blds.some(b=>b.owner===o&&b.type===t&&b.done);}
-function effDmg(e){let d=UNIT[e.type].dmg*(1+tech[e.owner].weapon*0.2);if(UNIT[e.type].coat&&UNIT[e.type].ranged&&faction[e.owner]==='english')d*=1.15;return d;}
+function effDmg(e){let d=UNIT[e.type].dmg*(1+tech[e.owner].weapon*0.2);if(UNIT[e.type].coat&&UNIT[e.type].ranged&&faction[e.owner]==='english')d*=1.15;return d*(1+0.1*(e.rank||0));}
+// ---- veterancy: soldiers earn stripes in battle — harder-hitting, tougher, gold pips overhead ----
+const RANK_XP=[60,180,400];
+function gainXp(e,amt){ if(e.type==='worker'||UNIT[e.type].noAtk)return; e.xp=(e.xp||0)+amt;
+  const r=e.xp>=RANK_XP[2]?3:e.xp>=RANK_XP[1]?2:e.xp>=RANK_XP[0]?1:0;
+  if(r>(e.rank||0)){ e.rank=r; const grow=e.maxHp*0.15; e.maxHp+=grow; e.hp=Math.min(e.maxHp,e.hp+grow); addRankPips(e);
+    if(e.owner==='player'){flashMsg('🎖 Your '+UNIT[e.type].name+' earns a battle stripe! (rank '+r+')');} } }
+function addRankPips(e){ const old=e.mesh.userData.pips; if(old)e.mesh.remove(old);
+  const r=e.rank||0; if(!r)return; const g=new THREE.Group();
+  for(let i=0;i<r;i++){ const pip=new THREE.Mesh(new THREE.SphereGeometry(.11,6,5),M.gold); pip.position.x=(i-(r-1)/2)*.3; g.add(pip); }
+  g.position.y=UNIT[e.type].r*2.6+1.1; e.mesh.add(g); e.mesh.userData.pips=g; }
 
 // ==================================================== PATHFINDING
 function passable(tx,ty,goalId,dom){if(!inB(tx,ty))return false;const fl=isFlooded(tx,ty);if(dom==='water'){if(!fl)return false;}else if(fl)return false;const b=buildGrid[ti(tx,ty)];return b===0||b===goalId;}
@@ -1071,8 +1081,8 @@ function muzzleFX(e,U){ if(e.owner!=='player'&&!tileVis(e.x,e.z))return; const m
   if(U.siege)for(let i=0;i<3;i++)spawnPart(mx,my,mz,'smoke'); }
 function projKind(U){return U.arc?'boulder':(U.siege?'ball':'arrow');}
 function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk)return;const U=UNIT[e.type];e.cd=U.cd;e.atk=0.2;
-  if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e),e.owner,projKind(U));muzzleFX(e,U);if(e.owner==='player')U.siege?SFX.boom():SFX.bow();}
-  else{t.hp-=effDmg(e);spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');if(e.owner==='player')SFX.hit();}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
+  if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player')U.siege?SFX.boom():SFX.bow();}
+  else{t.hp-=effDmg(e);spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0)gainXp(e,25);if(e.owner==='player')SFX.hit();}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
 function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;const U=UNIT[e.type];e.cd=U.cd;e.atk=0.2;const mult=U.siege?4:(e.type==='knight'?0.6:1);
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player')SFX.boom();}
   else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);}if(b.owner==='player'&&e.owner!=='player')pingAttack(b.cx,b.cz);}
@@ -1496,7 +1506,7 @@ function saveGame(quiet,key){ if(!running||gameOver)return; key=key||'tidefall_s
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
     blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
-    ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType})),
+    ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0})),
     cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
   catch(err){flashMsg('Save failed: '+err.message);} }
@@ -1516,7 +1526,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);b.hp=sb.hp;b.progress=sb.p;
     if(!sb.d)b.mesh.scale.y=0.05+0.95*sb.p; b.queue=(sb.q||[]).map(q=>({type:q.type,t:q.t})); b.rally=sb.r||null;
     if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }
-  for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;placeMesh(e);}
+  for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;e.xp=se.xp||0;e.rank=se.rk||0;if(e.rank)addRankPips(e);placeMesh(e);}
   camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camDist=s.cam.dist;
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
 let autosaveT=40;
