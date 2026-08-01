@@ -1038,7 +1038,8 @@ function computeVision(){visT-=1/30;if(visT>0)return;visT=0.25;visNow.fill(0);
   for(const e of ents)if(e.owner==='player')mark(txFromW(e.x),tzFromW(e.z),UNIT[e.type].vis);
   for(const b of blds)if(b.owner==='player')mark(b.tx+(b.w>>1),b.ty+(b.h>>1),BLD[b.type].vis);
   for(const e of ents)if(e.owner!=='player')e.mesh.visible=visNow[ti(clamp(txFromW(e.x),0,MAP_W-1),clamp(tzFromW(e.z),0,MAP_H-1))]===1;
-  for(const b of blds)if(b.owner!=='player')b.mesh.visible=visNow[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))]===1;}
+  // buildings stay on the map once discovered — only troops hide in the fog
+  for(const b of blds)if(b.owner!=='player')b.mesh.visible=explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))]===1;}
 
 // ==================================================== REALM AI + DIPLOMACY
 function realmWant(o){if(res[o].g<130&&goldNodes.some(n=>n.amount>0)&&Math.random()<0.3)return 'gold';return res[o].w<=res[o].m*1.15?'wood':'metal';}
