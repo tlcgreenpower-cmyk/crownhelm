@@ -251,6 +251,14 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(600,24,16),skyMat); scene.add(
 const LANTERN_MAT=new THREE.MeshStandardMaterial({color:0x6a4a20,emissive:0xffb050,emissiveIntensity:0});
 const _sunDay=new THREE.Color(0xfff0d6),_sunDusk=new THREE.Color(0xffa060),_sunMoon=new THREE.Color(0x9db8e8),_sunC=new THREE.Color();
 let dayNight=0;
+let chirpT=4,waveT=9;
+function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
+  chirpT-=dt; if(chirpT<=0){ chirpT=3+Math.random()*7;
+    if(dayNight<0.6){ const base=1700+Math.random()*900, n=2+Math.floor(Math.random()*2);   // birds by day
+      for(let i=0;i<n;i++)setTimeout(()=>beep(base+Math.random()*300-150,0.07,'sine',0.018,base-400),i*120); }
+    else if(Math.random()<0.4)beep(900+Math.random()*250,0.5,'sine',0.012,700);            // owl by night
+  }
+  waveT-=dt; if(waveT<=0){ waveT=8+Math.random()*9; noiseBurst(1.4,0.028,420); } }
 function updateDayNight(){ const a=(elapsed%300)/300*Math.PI*2+1.1;   // start at bright noon
   const dayLight=clamp(Math.sin(a)*0.5+0.62,0.14,1);
   dayNight=1-clamp((dayLight-0.14)/0.86,0,1);
@@ -1305,7 +1313,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else updateCamera(frame);
-  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateAmbience(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
