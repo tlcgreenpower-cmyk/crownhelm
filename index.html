@@ -50,6 +50,7 @@
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
     <button id="muteBtn">🔊 Sound</button>
+    <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
@@ -90,6 +91,7 @@
     </div>
   </div>
   <div id="botbar"><div id="selInfo">Nothing selected.</div><div id="cmds"></div>
+    <div id="pauseOv" style="display:none;position:absolute;inset:0;z-index:40;align-items:center;justify-content:center;pointer-events:none;background:rgba(4,10,16,.35)"><div style="font:700 54px Georgia,serif;color:#f3e4be;text-shadow:0 4px 18px #000;letter-spacing:6px">⏸ PAUSED</div></div>
     <div id="hint">Tip: keep workers on wood &amp; metal, farms feeding your pop, and don't get caught on low ground at high tide.</div></div>
 </div>
 
@@ -213,6 +215,12 @@ const SFX={select(){beep(520,.05,'square',.05);},cmd(){beep(300,.07,'triangle',.
   build(){beep(360,.12,'sine',.09,540);setTimeout(()=>beep(560,.14,'sine',.08),90);},train(){beep(440,.1,'triangle',.07,660);},
   hit(){beep(170,.05,'square',.045);},bow(){beep(900,.07,'sawtooth',.035,300);},boom(){noiseBurst(.4,.26,700);beep(90,.35,'sine',.11);},
   die(){beep(150,.13,'sawtooth',.05,60);},age(){[523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.3,'triangle',.08),i*110));},wave(){beep(120,.5,'sine',.07,80);}};
+let paused=false;
+function togglePause(){ if(!running||gameOver)return; paused=!paused;
+  document.getElementById('pauseBtn').textContent=paused?'▶ Resume':'⏸ Pause';
+  const ov=document.getElementById('pauseOv'); if(ov)ov.style.display=paused?'flex':'none';
+  flashMsg(paused?'⏸ Game paused — press P to resume':'▶ Battle resumes!'); }
+document.getElementById('pauseBtn').onclick=togglePause;
 document.getElementById('muteBtn').onclick=()=>{audioOn=!audioOn;document.getElementById('muteBtn').textContent=audioOn?'🔊 Sound':'🔇 Muted';if(audioOn)initAudio();};
 
 // ==================================================== THREE CORE
@@ -1237,6 +1245,7 @@ window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true
   if(k==='escape'){placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();}
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
+  if(k==='p')togglePause();
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
   if(k>='1'&&k<='5'){if(keys['control']||ev.ctrlKey){groups[k]=selUnits().map(e=>e.id);flashMsg('Group '+k+' set');}else{const g=groups[k];if(g&&g.length){selected=g.filter(id=>ents.some(e=>e.id===id));selBuilding=null;const e=ents.find(u=>u.id===selected[0]);if(e)camTarget.set(e.x,0,e.z);SFX.select();refreshUI();}}}});
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
@@ -1379,11 +1388,11 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){try{saveGa
 let last=0,simAcc=0;
 const SIM_DT=1/30;   // fixed-step sim: game speed independent of frame rate
 function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)frame=0.5;
-  if(running&&!gameOver){ autosaveT-=frame;if(autosaveT<=0){autosaveT=40;saveGame(true);}
+  if(running&&!gameOver&&!paused){ autosaveT-=frame;if(autosaveT<=0){autosaveT=40;saveGame(true);}
     simAcc+=frame; let steps=0;
     while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
-  else updateCamera(frame);
+  else{ updateCamera(frame); if(paused)simAcc=0; }
   updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
