@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b23</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b24</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -264,7 +264,7 @@ const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.08;
 const scene=new THREE.Scene();
 const SUNDIR=new THREE.Vector3(0.5,0.8,0.35).normalize();
 scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
@@ -363,7 +363,7 @@ try{
     fragmentShader:`uniform sampler2D tDiffuse;varying vec2 vUv;
       void main(){vec4 c=texture2D(tDiffuse,vUv);
         float g=dot(c.rgb,vec3(0.299,0.587,0.114));
-        c.rgb=mix(vec3(g),c.rgb,1.14);                       // saturation lift
+        c.rgb=mix(vec3(g),c.rgb,1.22);                       // saturation lift
         float d=distance(vUv,vec2(0.5));
         c.rgb*=1.0-smoothstep(0.42,0.85,d)*0.28;             // vignette
         gl_FragColor=c;}`}));
@@ -503,17 +503,46 @@ function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
   const sw=noise2(vx*0.045+80,vz*0.045+80);
   if(e>1.05&&e<1.95&&sw<0.2){_tc2.setHex(0x5e6b42);out.lerp(_tc2,clamp((0.2-sw)*6,0,0.75));}
   out.offsetHSL(0,0,(noise2(vx*0.18,vz*0.18)-0.5)*0.05); }
-function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();}
+function buildGroundTexture(){   // painted ground: bright grass with grain + worn dirt roads
+  const TW=1024, TH=Math.max(256,Math.round(1024*MAP_H/MAP_W));
+  const cv=document.createElement('canvas');cv.width=TW;cv.height=TH;const c2=cv.getContext('2d');
+  const img=c2.createImageData(TW,TH);const d=img.data;const hsl={h:0,s:0,l:0};
+  for(let py=0;py<TH;py++)for(let px=0;px<TW;px++){
+    const wxp=(px/TW-0.5)*WORLD_W, wzp=(py/TH-0.5)*WORLD_H;
+    const h=heightAtWorld(wxp,wzp)/HSCALE;
+    terrainColor(h,wxp,wzp,_tc1);
+    _tc1.getHSL(hsl); _tc1.setHSL(hsl.h,Math.min(1,hsl.s*1.22),Math.min(1,hsl.l*1.10));   // sunnier, clearer
+    const i=(py*TW+px)*4;
+    d[i]=_tc1.r*255;d[i+1]=_tc1.g*255;d[i+2]=_tc1.b*255;d[i+3]=255; }
+  c2.putImageData(img,0,0);
+  // worn dirt roads: villages to their nearest keep, keeps to the central highlands
+  const toPx=(tx,ty)=>[(tx+0.5)/MAP_W*TW,(ty+0.5)/MAP_H*TH];
+  const road=(a,b)=>{ const A=toPx(a[0],a[1]),B=toPx(b[0],b[1]);
+    const seg=10, pts=[A];
+    for(let s=1;s<seg;s++){ const t=s/seg;
+      pts.push([A[0]+(B[0]-A[0])*t+(noise2(A[0]*0.31+s*13.7,B[1]*0.17)-0.5)*TW*0.02,
+                A[1]+(B[1]-A[1])*t+(noise2(A[1]*0.23,B[0]*0.29+s*7.3)-0.5)*TH*0.02]); }
+    pts.push(B);
+    const draw=(w,st)=>{ c2.strokeStyle=st; c2.lineWidth=w; c2.lineCap='round'; c2.lineJoin='round';
+      c2.beginPath(); c2.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++)c2.lineTo(pts[i][0],pts[i][1]); c2.stroke(); };
+    draw(Math.max(4,TW/MAP_W*1.05),'rgba(203,176,124,0.85)');
+    draw(Math.max(2,TW/MAP_W*0.45),'rgba(158,128,86,0.55)'); };
+  const ks=REALMS.map(o=>REALM_SITES[o]), mid=[MAP_W>>1,MAP_H>>1];
+  for(const k of ks)road(k,mid);
+  for(const v of villages){ let best=ks[0],bd=1e9;
+    for(const k of ks){const dd=Math.hypot(v.tx-k[0],v.ty-k[1]);if(dd<bd){bd=dd;best=k;}}
+    road([v.tx,v.ty],best); }
+  const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; return tex; }
+function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.map&&terrainMesh.material.map.dispose();}
   const SUB=3;   // render mesh 3x finer than the game grid — smooth rolling ground
   const geo=new THREE.PlaneGeometry(WORLD_W,WORLD_H,MAP_W*SUB,MAP_H*SUB);geo.rotateX(-Math.PI/2);
-  const pos=geo.attributes.position,colors=[];
+  const pos=geo.attributes.position;
   for(let i=0;i<pos.count;i++){const vx=pos.getX(i),vz=pos.getZ(i);
     let h=heightAtWorld(vx,vz);
     h+=(noise2(vx*0.3,vz*0.3)-0.5)*0.5+(noise2(vx*0.9,vz*0.9)-0.5)*0.16;   // gentle natural detail
-    pos.setY(i,h);
-    terrainColor(h/HSCALE,vx,vz,_tc1);colors.push(_tc1.r,_tc1.g,_tc1.b);}
-  geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.computeVertexNormals();
-  terrainMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95}));  // smooth shading — no facets
+    pos.setY(i,h);}
+  geo.computeVertexNormals();
+  terrainMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:buildGroundTexture(),roughness:.95}));  // painted ground
   terrainMesh.receiveShadow=true;scene.add(terrainMesh);}
 const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR},uHeight:{value:null},uSea:{value:SEA}};
 function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.dispose();}
