@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b33</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b34</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -816,16 +816,16 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const hbh=makeHealthBar();hbh.position.y=u.r*2.7+.6;g.add(hbh);g.userData.hb=hbh;return g;}
   // ---- articulated musket-era soldier bodies (coat-coloured, marching limbs) ----
   anim.scale.setScalar(u.r*1.16);
-  const artic=()=>{ const legL=new THREE.Mesh(new THREE.BoxGeometry(.17,.76,.20),M.stoneD);legL.geometry.translate(0,-.38,0);legL.position.set(-.14,.86,0);legL.castShadow=true;anim.add(legL);
-    const legR=legL.clone();legR.position.x=.16;anim.add(legR);
-    const torso=new THREE.Mesh(new THREE.CylinderGeometry(.24,.33,1.0,8),bodyMat);torso.position.y=1.36;torso.castShadow=true;anim.add(torso);
-    const cross=new THREE.Mesh(new THREE.BoxGeometry(.62,.10,.52),trimMat);cross.position.y=1.55;anim.add(cross);
-    const belt=new THREE.Mesh(new THREE.TorusGeometry(.30,.045,6,12),M.wood);belt.rotation.x=Math.PI/2;belt.position.y=1.02;anim.add(belt);
-    const armL=new THREE.Mesh(new THREE.BoxGeometry(.13,.72,.16),bodyMat);armL.geometry.translate(0,-.33,0);armL.position.set(-.40,1.78,0);armL.castShadow=true;anim.add(armL);
-    const armR=armL.clone();armR.position.x=.40;anim.add(armR);
-    const handL=new THREE.Mesh(new THREE.SphereGeometry(.09,6,5),M.skin);handL.position.set(-.40,1.10,0);anim.add(handL);
-    const handR=handL.clone();handR.position.x=.40;anim.add(handR);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(.26,9,8),M.skin);head.position.y=2.20;anim.add(head);
+  const artic=()=>{ const legL=new THREE.Mesh(new THREE.BoxGeometry(.24,.76,.28),M.stoneD);legL.geometry.translate(0,-.38,0);legL.position.set(-.18,.86,0);legL.castShadow=true;anim.add(legL);
+    const legR=legL.clone();legR.position.x=.20;anim.add(legR);
+    const torso=new THREE.Mesh(new THREE.CylinderGeometry(.35,.47,1.0,8),bodyMat);torso.position.y=1.36;torso.castShadow=true;anim.add(torso);
+    const cross=new THREE.Mesh(new THREE.BoxGeometry(.80,.12,.68),trimMat);cross.position.y=1.55;anim.add(cross);
+    const belt=new THREE.Mesh(new THREE.TorusGeometry(.42,.06,6,12),M.wood);belt.rotation.x=Math.PI/2;belt.position.y=1.02;anim.add(belt);
+    const armL=new THREE.Mesh(new THREE.BoxGeometry(.19,.72,.23),bodyMat);armL.geometry.translate(0,-.33,0);armL.position.set(-.52,1.78,0);armL.castShadow=true;anim.add(armL);
+    const armR=armL.clone();armR.position.x=.52;anim.add(armR);
+    const handL=new THREE.Mesh(new THREE.SphereGeometry(.12,6,5),M.skin);handL.position.set(-.52,1.10,0);anim.add(handL);
+    const handR=handL.clone();handR.position.x=.52;anim.add(handR);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.34,9,8),M.skin);head.position.y=2.24;anim.add(head);
     g.userData.limbs={armL,armR,legL,legR}; return head; };
   const HORSE_COATS=[0x6b4a30,0x3e2f22,0x8a6a4a,0x2c2825,0x7a5a3a];
   const horseMat=new THREE.MeshStandardMaterial({color:type==='cuirassier'?0x8a8a92:HORSE_COATS[Math.floor(Math.random()*HORSE_COATS.length)],roughness:.9,flatShading:true});
@@ -839,18 +839,18 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const blanket=new THREE.Mesh(new THREE.BoxGeometry(.94,.12,1.3),new THREE.MeshStandardMaterial({color:fac.coat,roughness:.85,flatShading:true}));blanket.position.y=1.55;anim.add(blanket);
     const saddle=new THREE.Mesh(new THREE.BoxGeometry(.6,.14,.8),trimMat);saddle.position.y=1.64;anim.add(saddle);
     const mane=new THREE.Mesh(new THREE.BoxGeometry(.12,.7,.5),M.trunk);mane.position.set(0,1.95,.9);mane.rotation.x=-.45;anim.add(mane);
-    const rTorso=new THREE.Mesh(new THREE.CylinderGeometry(.26,.34,.8,8),type==='knight'?M.stone:bodyMat);rTorso.position.y=2.05;rTorso.castShadow=true;anim.add(rTorso);
+    const rTorso=new THREE.Mesh(new THREE.CylinderGeometry(.33,.43,.8,8),type==='knight'?M.stone:bodyMat);rTorso.position.y=2.05;rTorso.castShadow=true;anim.add(rTorso);
     const rCross=new THREE.Mesh(new THREE.BoxGeometry(.54,.09,.44),trimMat);rCross.position.y=2.2;anim.add(rCross);
-    const rHead=new THREE.Mesh(new THREE.SphereGeometry(.26,8,7),M.skin);rHead.position.y=2.72;anim.add(rHead);
+    const rHead=new THREE.Mesh(new THREE.SphereGeometry(.32,8,7),M.skin);rHead.position.y=2.76;anim.add(rHead);
     return rHead; };
   const strawHat=y=>{const brim=new THREE.Mesh(new THREE.CylinderGeometry(.44,.44,.06,10),strawMat);brim.position.y=y+.18;anim.add(brim);const crown=new THREE.Mesh(new THREE.CylinderGeometry(.2,.24,.2,8),strawMat);crown.position.y=y+.3;anim.add(crown);};
-  const shako=(y,tall)=>{const s=new THREE.Mesh(new THREE.CylinderGeometry(.24,.27,tall?.62:.44,10),bodyMat);s.position.y=y+(tall?.5:.4);anim.add(s);
-    const band=new THREE.Mesh(new THREE.CylinderGeometry(.275,.275,.09,10),trimMat);band.position.y=y+.24;anim.add(band);
+  const shako=(y,tall)=>{const s=new THREE.Mesh(new THREE.CylinderGeometry(.31,.35,tall?.62:.44,10),bodyMat);s.position.y=y+(tall?.5:.4);anim.add(s);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,.10,10),trimMat);band.position.y=y+.24;anim.add(band);
     const plume=new THREE.Mesh(new THREE.ConeGeometry(.09,.4,6),trimMat);plume.position.set(0,y+(tall?.95:.75),.12);anim.add(plume);};
-  const busby=(y,tall)=>{const b=new THREE.Mesh(new THREE.CylinderGeometry(.27,.30,tall?.85:.68,10),M.stoneD);b.position.y=y+(tall?.6:.5);anim.add(b);
-    if(tall){const cord=new THREE.Mesh(new THREE.TorusGeometry(.28,.035,6,12),M.gold);cord.rotation.x=Math.PI/2;cord.position.y=y+.3;anim.add(cord);}};
-  const musketAt=(x,y)=>{const mk=new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,2.1,6),M.wood);mk.position.set(x,y,0);mk.rotation.z=.3;anim.add(mk);
-    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1.0,6),M.ore);barrel.position.set(x-.14,y+.55,0);barrel.rotation.z=.3;anim.add(barrel);};
+  const busby=(y,tall)=>{const b=new THREE.Mesh(new THREE.CylinderGeometry(.34,.38,tall?.85:.68,10),M.stoneD);b.position.y=y+(tall?.6:.5);anim.add(b);
+    if(tall){const cord=new THREE.Mesh(new THREE.TorusGeometry(.36,.045,6,12),M.gold);cord.rotation.x=Math.PI/2;cord.position.y=y+.3;anim.add(cord);}};
+  const musketAt=(x,y)=>{const mk=new THREE.Mesh(new THREE.CylinderGeometry(.075,.09,2.2,6),M.wood);mk.position.set(x,y,0);mk.rotation.z=.3;anim.add(mk);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1.05,6),M.ore);barrel.position.set(x-.14,y+.55,0);barrel.rotation.z=.3;anim.add(barrel);};
   if(type==='knight'||type==='dragoon'||type==='wolfrider'||type==='cuirassier'){ mounted();
     if(type==='knight'){const helm=new THREE.Mesh(new THREE.ConeGeometry(.28,.42,8),M.ore);helm.position.y=2.98;anim.add(helm);
       const plume=new THREE.Mesh(new THREE.ConeGeometry(.1,.5,6),new THREE.MeshStandardMaterial({color:fac.coat}));plume.position.y=3.3;anim.add(plume);
