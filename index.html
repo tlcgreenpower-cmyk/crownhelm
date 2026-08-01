@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b34</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b35</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -160,7 +160,7 @@ const COST={
   cannon:{w:100,m:120,pop:4,time:20,age:2}, howitzer:{w:130,m:140,pop:4,time:22,age:2},
   hero:{f:150,w:80,m:150,pop:5,time:24,age:1},
   monk:{f:60,pop:2,time:10,age:1}, priest:{f:90,pop:2,time:12,age:1}, doctor:{f:70,w:20,pop:2,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:4,time:20,age:2},
-  warboat:{w:80,m:50,pop:3,time:13,age:2},
+  warboat:{w:80,m:50,pop:3,time:13,age:2}, privateer:{f:80,m:60,g:40,pop:3,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},
@@ -204,6 +204,7 @@ const UNIT={
   cuirassier:{hp:310,speed:18,range:2.8,dmg:28,cd:.9,r:1.3,vis:10,dom:'land',color:0xcccccc,name:'Cuirassier',coat:true,uniq:true},
   catapult:{hp:130,speed:7.5,range:26,dmg:14,cd:3,r:1.5,vis:9,dom:'land',color:0x9a8a72,name:'Catapult',siege:true,ranged:true,arc:true},
   warboat:{hp:250,speed:16,range:18,dmg:16,cd:1.3,r:1.7,vis:11,dom:'water',color:0x6fb0c8,name:'Warboat',ranged:true},
+  privateer:{hp:135,speed:13,range:13,dmg:15,cd:1.3,r:1.05,vis:11,dom:'land',color:0x3a3f4a,name:'Privateer',ranged:true},
 };
 const BLD={
   hall:{w:3,h:3,hp:1600,name:'Keep',vis:11,drop:true}, house:{w:2,h:2,hp:320,name:'House',vis:6},
@@ -385,6 +386,7 @@ let CHAR_LIB=null;
   const loader=new GLTFLoader(); const lib={};
   await Promise.all(['Rogue_Hooded','Mage','Barbarian','Knight'].map(n=>new Promise(res=>{
     loader.load('assets/'+n+'.glb',g=>{lib[n]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
+  await new Promise(res=>{loader.load('assets/pirate/Privateer.glb',g=>{lib['Privateer']={scene:g.scene,clips:g.animations};res();},undefined,()=>res());});
   if(Object.keys(lib).length) CHAR_LIB={lib,clone:SK.clone};
 }catch(e){/* stay on procedural villagers */} })();
 
@@ -769,7 +771,7 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded'};
+const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer'};
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // professional animated model where one fits this unit type
   if(CHAR_LIB&&UNIT_CHAR[type]&&CHAR_LIB.lib[UNIT_CHAR[type]]){
@@ -783,10 +785,11 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const find=re=>src.clips.find(c=>re.test(c.name));
     const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
     const pick=(...res)=>{for(const r of res){const c=src.clips.find(cc=>r.test(cc.name));if(c)return c;}return null;};
-    const atkClip=type==='archer'?pick(/2H_Ranged_Shooting/,/2H_Ranged_Shoot/,/1H_Ranged_Shooting/)
+    const atkClip=type==='privateer'?pick(/Sword/i,/Punch/i)
+      :type==='archer'?pick(/2H_Ranged_Shooting/,/2H_Ranged_Shoot/,/1H_Ranged_Shooting/)
       :(type==='monk'||type==='priest'||type==='cardinal')?pick(/Spellcast/i,/1H_Ranged_Shooting/)
       :pick(/2H_Melee_Attack_Chop/,/1H_Melee_Attack_Slice_Diagonal/,/1H_Melee_Attack_Chop/);
-    const deathClip=pick(/^Death_A$/,/Death_A(?!_)/,/Death_B(?!_)/), cheerClip=pick(/^Cheer/i);
+    const deathClip=pick(/^Death_A$/,/Death_A(?!_)/,/Death_B(?!_)/,/Death/i), cheerClip=pick(/^Cheer/i,/Cheer/i,/Wave/i,/Yes/i);
     g.userData.attackA=atkClip?mixer.clipAction(atkClip):null;
     g.userData.deathA=deathClip?mixer.clipAction(deathClip):null;
     g.userData.cheerA=cheerClip?mixer.clipAction(cheerClip):null;
@@ -1489,7 +1492,7 @@ mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();cons
 
 // ==================================================== UI
 const $=id=>document.getElementById(id);
-const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',cannon:'💣',howitzer:'🎆',warboat:'⛵',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
+const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',cannon:'💣',howitzer:'🎆',warboat:'⛵',privateer:'🏴‍☠️',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
 const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock']);
 function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Idle — click a unit button to train</span>';
   const q0=b.queue[0]; let s='⚒ <b>Training '+(UNIT_IC[q0.type]||'')+' '+UNIT[q0.type].name+'</b> — '+Math.max(1,Math.ceil(q0.t))+'s';
@@ -1509,7 +1512,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2)trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);}
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
       if(b.type==='siege')trainBtn(cmds,b,'catapult','⊙','Catapult',can);
-      if(b.type==='dock')trainBtn(cmds,b,'warboat','⛵','Warboat',can);
+      if(b.type==='dock'){trainBtn(cmds,b,'warboat','⛵','Warboat',can);if(tech.player.age>=2)trainBtn(cmds,b,'privateer','🏴‍☠️','Privateer',can);}
       if(b.type==='market'){marketBtn(cmds,'💰 Sell Wood','−100🪵 +50🪙',()=>trade('w',-100,50));marketBtn(cmds,'💰 Sell Food','−100🍖 +50🪙',()=>trade('f',-100,50));marketBtn(cmds,'💰 Sell Metal','−100⛏️ +65🪙',()=>trade('m',-100,65));marketBtn(cmds,'🛒 Buy Wood','−70🪙 +100🪵',()=>trade('w',100,-70));marketBtn(cmds,'🛒 Buy Metal','−80🪙 +100⛏️',()=>trade('m',100,-80));marketBtn(cmds,'🛒 Buy Food','−70🪙 +100🍖',()=>trade('f',100,-70));}}}return;}
   const sel=selUnits();if(sel.length){const counts={};sel.forEach(e=>counts[e.type]=(counts[e.type]||0)+1);info.innerHTML=`<b>Selected (${sel.length}):</b><br>`+Object.entries(counts).map(([t,n])=>`${n} × ${UNIT[t].name}`).join('<br>');
     if(sel.some(e=>e.type==='worker')){buildBtn(cmds,'house','🏠','House',can);buildBtn(cmds,'farm','🌾','Farm',can);buildBtn(cmds,'mill','🌬️','Mill',can);buildBtn(cmds,'storehouse','📦','Storehouse',can);buildBtn(cmds,'market','⚖️','Market',can);buildBtn(cmds,'barracks','⚔','Barracks',can);buildBtn(cmds,'gunshop','🔫','Gun Shop',can);buildBtn(cmds,'church','⛪','Church',can);buildBtn(cmds,'watch','🔭','Watch House',can);buildBtn(cmds,'tower','🗼','Tower',can);buildBtn(cmds,'wall','🧱','Wall',can);buildBtn(cmds,'statue','🗽','Statue',can);buildBtn(cmds,'garden','🌷','Garden',can);if(tech.player.age>=2){buildBtn(cmds,'siege','⊙','Siege Wk.',can);buildBtn(cmds,'dock','⚓','Dock',can);buildBtn(cmds,'castle','🏰','Castle',can);}}}
