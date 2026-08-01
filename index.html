@@ -605,6 +605,37 @@ function updateAmbient(dt,now){ for(const b of birds){ b.a+=dt*b.sp; b.g.positio
     b.g.rotation.y=-b.a; const fl=Math.sin(now*7+b.r)*0.55; b.w1.rotation.y=fl; b.w2.rotation.y=-fl; }
   if(cloudGroup)for(const c of cloudGroup.children){ c.position.x+=dt*c.userData.sp; if(c.position.x>HALF_W+80)c.position.x=-HALF_W-80; } }
 
+// ---- wandering sheep flocks ----
+let sheep=[];
+const woolMat=new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:1,flatShading:true});
+const sheepDark=new THREE.MeshStandardMaterial({color:0x3a3532,roughness:.9,flatShading:true});
+function makeSheep(){ const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,0),woolMat);body.scale.set(1,.8,1.25);body.position.y=.62;body.castShadow=true;g.add(body);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(.26,.28,.42),sheepDark);head.position.set(0,.72,.62);g.add(head);g.userData.head=head;
+  for(const[lx,lz]of[[-.22,.3],[.22,.3],[-.22,-.3],[.22,-.3]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.09,.32,.09),sheepDark);leg.position.set(lx,.18,lz);g.add(leg);}
+  const tail=new THREE.Mesh(new THREE.SphereGeometry(.14,5,4),woolMat);tail.position.set(0,.62,-.68);g.add(tail);
+  return g; }
+function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
+  let flocks=0;
+  for(let y=6;y<MAP_H-6&&flocks<5;y+=3)for(let x=6;x<MAP_W-6&&flocks<5;x+=3){
+    if(hashN(x*4.7,y*5.3)>0.028)continue; const e=elev[ti(x,y)]; if(e<1.8||e>2.6)continue;
+    let ok=true; for(const o of REALMS){const st=REALM_SITES[o];if(Math.hypot(x-st[0],y-st[1])<12)ok=false;}
+    if(!ok)continue; flocks++;
+    const n=3+Math.floor(hashN(y,x)*3);
+    for(let i=0;i<n;i++){ const m=makeSheep(); scene.add(m);
+      const sx=wx(x)+(Math.random()-.5)*6, sz=wz(y)+(Math.random()-.5)*6;
+      sheep.push({mesh:m,hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }
+function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
+  const d=Math.hypot(s.tx-s.x,s.tz-s.z);
+  if(d<0.5){ s.graze=Math.max(0,s.graze-dt);
+    if(s.wait<=0){ s.tx=s.hx+(Math.random()-.5)*12; s.tz=s.hz+(Math.random()-.5)*12;
+      const t1=txFromW(s.tx),t2=tzFromW(s.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){s.tx=s.hx;s.tz=s.hz;}
+      s.wait=4+Math.random()*7; s.graze=2+Math.random()*3; } }
+  else { const sp=1.7*dt; s.x+=(s.tx-s.x)/d*sp; s.z+=(s.tz-s.z)/d*sp;
+    s.mesh.rotation.y=Math.atan2(s.tx-s.x,s.tz-s.z); }
+  s.mesh.userData.head.rotation.x=(d<0.5&&s.graze>0)?0.7:0;   // head down to graze
+  s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
+
 // ==================================================== UNIT / BUILDING MESHES
 const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian'};
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
@@ -1297,7 +1328,7 @@ const REALM_SITES={player:[15,49],r1:[79,12],r2:[15,12],r3:[79,49]};
 function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
   initRealms();elapsed=0;gameOver=false;
-  genMap();buildTerrain();buildWater();buildDecor();buildAmbient();spawnClouds();
+  genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
     addBuilding('hall',hx,hy,o,true);
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
@@ -1347,7 +1378,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else updateCamera(frame);
-  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateAmbience(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
