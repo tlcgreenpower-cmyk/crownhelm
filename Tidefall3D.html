@@ -1538,7 +1538,7 @@ document.getElementById('saveBtn').onclick=()=>{saveGame(true);openSlots();};
 const _cont=document.getElementById('contBtn');
 if(localStorage.getItem('tidefall_save'))_cont.style.display='';
 if(SLOT_KEYS.some(([k])=>localStorage.getItem(k)))document.getElementById('loadMenuBtn').style.display='';
-_cont.onclick=loadGame;
+_cont.onclick=()=>loadGame();
 resize();requestAnimationFrame(loop);
 </script>
 </body>
