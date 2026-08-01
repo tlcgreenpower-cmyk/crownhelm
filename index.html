@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b28</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b29</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -541,10 +541,10 @@ function buildGroundTexture(){   // painted ground: bright grass with grain + wo
   const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; groundTex=tex; return tex; }
 let groundCv=null,groundCtx=null,groundTex=null;
 function stampDirt(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
-  const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(4,tiles*TILE/WORLD_W*TW*0.95);
+  const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(3,tiles*TILE/WORLD_W*TW*0.68);
   const c2=groundCtx;
   for(let i=0;i<5;i++){ const a=i/5*Math.PI*2+cx*0.37, rr=r*(0.55+((Math.abs(cx*7+cz*13)+i*29)%17)/17*0.5);
-    c2.fillStyle=i?'rgba(196,168,118,0.28)':'rgba(186,156,106,0.5)';
+    c2.fillStyle=i?'rgba(196,168,118,0.18)':'rgba(186,156,106,0.38)';
     c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.25,py+Math.sin(a)*r*0.22,rr,rr*0.8,a,0,7); c2.fill(); }
   groundTex.needsUpdate=true; }
 function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.map&&terrainMesh.material.map.dispose();}
@@ -594,7 +594,15 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
         float alpha=mix(0.72,0.94,smoothstep(0.05,0.8,depth));
         gl_FragColor=vec4(col,alpha);}`});
   waterMesh=new THREE.Mesh(geo,mat);scene.add(waterMesh);}
+function stampShade(tx,ty,r,al){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
+  const px=(tx+0.5)/MAP_W*TW, py=(ty+0.5)/MAP_H*TH, rr=r/MAP_W*TW;
+  groundCtx.fillStyle='rgba(24,44,20,'+al+')';
+  groundCtx.beginPath(); groundCtx.ellipse(px,py,rr,rr*0.8,0,0,7); groundCtx.fill(); }
 function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THREE.Group();scene.add(decorGroup);
+  for(const n of woodNodes)stampShade(n.tx,n.ty,0.85,0.16);
+  for(const n of metalNodes)stampShade(n.tx,n.ty,0.7,0.2);
+  for(const n of goldNodes)stampShade(n.tx,n.ty,0.7,0.2);
+  if(groundTex)groundTex.needsUpdate=true;
   for(const n of woodNodes)n.mesh=addTree(n);for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);
   for(const v of villages)v.mesh=addVillage(v);}
 const cotStone=new THREE.MeshStandardMaterial({color:0xa8a49a,roughness:.95,flatShading:true});
@@ -761,7 +769,7 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian'};
+const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded'};
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // professional animated model where one fits this unit type
   if(CHAR_LIB&&UNIT_CHAR[type]&&CHAR_LIB.lib[UNIT_CHAR[type]]){
@@ -769,7 +777,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.88,u.r*.98,.08,14),tm);ring.position.y=.04;ring.castShadow=true;g.add(ring);
     const ch=CHAR_LIB.clone(src.scene);
     const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
-    ch.scale.setScalar((type==='hero'?2.6:type==='highlander'?2.4:2.1)/hgt);
+    ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:2.4)/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(ch);
     const mixer=new THREE.AnimationMixer(ch);
     const find=re=>src.clips.find(c=>re.test(c.name));
@@ -799,7 +807,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     else if(type==='monk'){const hood=new THREE.Mesh(new THREE.SphereGeometry(u.r*.5,8,6,0,6.28,0,1.7),unitMat.monk);hood.position.y=u.r*2.1+.4;anim.add(hood);}
     const hbh=makeHealthBar();hbh.position.y=u.r*2.7+.6;g.add(hbh);g.userData.hb=hbh;return g;}
   // ---- articulated musket-era soldier bodies (coat-coloured, marching limbs) ----
-  anim.scale.setScalar(u.r);
+  anim.scale.setScalar(u.r*1.16);
   const artic=()=>{ const legL=new THREE.Mesh(new THREE.BoxGeometry(.17,.76,.20),M.stoneD);legL.geometry.translate(0,-.38,0);legL.position.set(-.14,.86,0);legL.castShadow=true;anim.add(legL);
     const legR=legL.clone();legR.position.x=.16;anim.add(legR);
     const torso=new THREE.Mesh(new THREE.CylinderGeometry(.24,.33,1.0,8),bodyMat);torso.position.y=1.36;torso.castShadow=true;anim.add(torso);
@@ -974,15 +982,16 @@ function attachBuildUI(bl){ const grp=new THREE.Group();
   bl.buildUI={grp,fg,ctx2,tex,lastTxt:'',t:0};}
 function removeBuildUI(bl){ if(bl.buildUI){scene.remove(bl.buildUI.grp);bl.buildUI=null;} if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;} }
 // ---- timber scaffold + plank foundation so building sites read as sites, not rugs ----
+const SCAF_MAT=new THREE.MeshStandardMaterial({color:0xc99a5e,roughness:.8});
 function attachScaffold(bl){ const g=new THREE.Group();
   const W=bl.w*TILE, H=bl.h*TILE, y0=heightAtWorld(bl.cx,bl.cz);
   const found=new THREE.Mesh(new THREE.BoxGeometry(W+0.6,0.35,H+0.6),M.trunk); found.position.y=0.18; g.add(found);
-  const postG=new THREE.BoxGeometry(0.28,4.6,0.28);
-  for(const[sx,sz]of[[-1,-1],[1,-1],[-1,1],[1,1]]){ const post=new THREE.Mesh(postG,M.wood);
-    post.position.set(sx*(W/2+0.15),2.3,sz*(H/2+0.15)); post.castShadow=true; g.add(post); }
+  const postG=new THREE.BoxGeometry(0.26,3.4,0.26);
+  for(const[sx,sz]of[[-1,-1],[1,-1],[-1,1],[1,1]]){ const post=new THREE.Mesh(postG,SCAF_MAT);
+    post.position.set(sx*(W/2+0.15),1.7,sz*(H/2+0.15)); post.castShadow=true; g.add(post); }
   const railX=new THREE.BoxGeometry(W+0.9,0.16,0.16), railZ=new THREE.BoxGeometry(0.16,0.16,H+0.9);
-  for(const ry of[3.0,4.4]){ for(const sz of[-1,1]){ const r=new THREE.Mesh(railX,M.wood); r.position.set(0,ry,sz*(H/2+0.15)); g.add(r); }
-    for(const sx of[-1,1]){ const r=new THREE.Mesh(railZ,M.wood); r.position.set(sx*(W/2+0.15),ry,0); g.add(r); } }
+  for(const ry of[2.2,3.2]){ for(const sz of[-1,1]){ const r=new THREE.Mesh(railX,SCAF_MAT); r.position.set(0,ry,sz*(H/2+0.15)); g.add(r); }
+    for(const sx of[-1,1]){ const r=new THREE.Mesh(railZ,SCAF_MAT); r.position.set(sx*(W/2+0.15),ry,0); g.add(r); } }
   const crate=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,1.1),M.trunk); crate.position.set(W/2+1.2,0.55,H/2-0.4); crate.castShadow=true; g.add(crate);
   const planks=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.4,0.9),M.wood); planks.position.set(-W/2-1.4,0.2,-H/2+0.6); planks.rotation.y=0.4; g.add(planks);
   g.position.set(bl.cx,y0,bl.cz); scene.add(g); bl.scaffold=g; }
