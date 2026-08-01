@@ -271,13 +271,37 @@ function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
 function updateDayNight(){ const a=(elapsed%300)/300*Math.PI*2+1.1;   // start at bright noon
   const dayLight=clamp(Math.sin(a)*0.5+0.62,0.36,1);
   dayNight=1-clamp((dayLight-0.36)/0.64,0,1);
-  sun.intensity=1.55*Math.max(dayLight,0.42);
+  sun.intensity=1.55*Math.max(dayLight,0.42)*(1-0.45*rainI);
   if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
   sun.color.copy(_sunC);
   hemi.intensity=0.46+0.42*dayLight;
   skyMat.uniforms.uNight.value=dayNight;
   scene.fog.color.setRGB(0.77-0.40*dayNight,0.86-0.46*dayNight,0.91-0.40*dayNight);
-  LANTERN_MAT.emissiveIntensity=dayNight*2.3; }
+  LANTERN_MAT.emissiveIntensity=dayNight*2.3;
+  scene.fog.density=0.0010+0.0014*rainI;
+  if(rainI>0.01)scene.fog.color.lerp(RAIN_FOG,rainI*0.55); }
+
+// ---- passing rain showers: streak lines around the camera, dimmed sun, thicker mist ----
+const RAIN_N=1400, RAIN_FOG=new THREE.Color(0.60,0.66,0.71);
+const rainGeo=new THREE.BufferGeometry(), rainPos=new Float32Array(RAIN_N*6);
+rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPos,3));
+const rainMat=new THREE.LineBasicMaterial({color:0xaac8dd,transparent:true,opacity:0,depthWrite:false});
+const rainMesh=new THREE.LineSegments(rainGeo,rainMat); rainMesh.visible=false; rainMesh.frustumCulled=false; scene.add(rainMesh);
+const rainDrops=[]; for(let i=0;i<RAIN_N;i++)rainDrops.push({x:0,y:-1,z:0});
+let rainI=0,raining=false,rainT=70+Math.random()*120;
+function updateRain(dt){
+  rainT-=dt;
+  if(rainT<=0){ raining=!raining; rainT=raining?(28+Math.random()*32):(110+Math.random()*180);
+    if(raining&&running&&!gameOver)flashMsg('\u{1F327} Rain sweeps across the land\u2026'); }
+  rainI+=((raining?1:0)-rainI)*Math.min(1,dt*0.5);
+  if(rainI<0.02){ rainMesh.visible=false; return; }
+  rainMesh.visible=true; rainMat.opacity=0.38*rainI;
+  const cx=camTarget.x,cz=camTarget.z;
+  for(let i=0;i<RAIN_N;i++){ const d=rainDrops[i];
+    d.y-=60*dt; d.x+=7*dt;
+    if(d.y<heightAtWorld(d.x,d.z)){ d.x=cx+(Math.random()-0.5)*115; d.z=cz+(Math.random()-0.5)*115; d.y=38+Math.random()*34; }
+    const o=i*6; rainPos[o]=d.x;rainPos[o+1]=d.y;rainPos[o+2]=d.z; rainPos[o+3]=d.x+0.5;rainPos[o+4]=d.y+2.4;rainPos[o+5]=d.z; }
+  rainGeo.attributes.position.needsUpdate=true; }
 
 // ---- image-based lighting + post-processing (bloom, anti-aliasing) ----
 let composer=null, bloomPass=null;
@@ -1393,7 +1417,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
-  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
