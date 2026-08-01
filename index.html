@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b27</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b28</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1578,7 +1578,7 @@ function saveGame(quiet,key){ if(!running||gameOver)return; key=key||'tidefall_s
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
     blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
-    ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0})),
+    ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
     cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
   catch(err){flashMsg('Save failed: '+err.message);} }
@@ -1598,7 +1598,10 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);b.hp=sb.hp;b.progress=sb.p;
     if(!sb.d)b.mesh.scale.y=0.05+0.95*sb.p; b.queue=(sb.q||[]).map(q=>({type:q.type,t:q.t})); b.rally=sb.r||null;
     if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }
-  for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;e.xp=se.xp||0;e.rank=se.rk||0;if(e.rank)addRankPips(e);placeMesh(e);}
+  for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;e.xp=se.xp||0;e.rank=se.rk||0;if(e.rank)addRankPips(e);placeMesh(e);
+    if(se.j==='tend'){const f=blds.filter(q=>q.owner===e.owner&&q.done&&q.type==='farm').sort((q,r)=>Math.hypot(e.x-q.cx,e.z-q.cz)-Math.hypot(e.x-r.cx,e.z-r.cz))[0];
+      if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}
+    else if(se.j){const n=nearestNode(e,se.j);if(n)gatherOrder(e,n);}}
   camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camDist=s.cam.dist;
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
 let autosaveT=40;
