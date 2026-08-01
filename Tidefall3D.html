@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b24</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b25</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -271,7 +271,7 @@ scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
 const camera=new THREE.PerspectiveCamera(52,2,0.5,1400);
 const hemi=new THREE.HemisphereLight(0xcfe6ff,0x415536,0.82); scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xfff0d6,1.55); sun.position.copy(SUNDIR).multiplyScalar(140); sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
+sun.shadow.mapSize.set(4096,4096);
 const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H;sc.near=20;sc.far=400; sun.shadow.bias=-0.0004;
 scene.add(sun,sun.target);
 
@@ -505,7 +505,7 @@ function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
   out.offsetHSL(0,0,(noise2(vx*0.18,vz*0.18)-0.5)*0.05); }
 function buildGroundTexture(){   // painted ground: bright grass with grain + worn dirt roads
   const TW=1024, TH=Math.max(256,Math.round(1024*MAP_H/MAP_W));
-  const cv=document.createElement('canvas');cv.width=TW;cv.height=TH;const c2=cv.getContext('2d');
+  const cv=document.createElement('canvas');cv.width=TW;cv.height=TH;const c2=cv.getContext('2d');groundCv=cv;groundCtx=c2;
   const img=c2.createImageData(TW,TH);const d=img.data;const hsl={h:0,s:0,l:0};
   for(let py=0;py<TH;py++)for(let px=0;px<TW;px++){
     const wxp=(px/TW-0.5)*WORLD_W, wzp=(py/TH-0.5)*WORLD_H;
@@ -532,7 +532,15 @@ function buildGroundTexture(){   // painted ground: bright grass with grain + wo
   for(const v of villages){ let best=ks[0],bd=1e9;
     for(const k of ks){const dd=Math.hypot(v.tx-k[0],v.ty-k[1]);if(dd<bd){bd=dd;best=k;}}
     road([v.tx,v.ty],best); }
-  const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; return tex; }
+  const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; groundTex=tex; return tex; }
+let groundCv=null,groundCtx=null,groundTex=null;
+function stampDirt(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
+  const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(4,tiles*TILE/WORLD_W*TW*0.95);
+  const c2=groundCtx;
+  for(let i=0;i<5;i++){ const a=i/5*Math.PI*2+cx*0.37, rr=r*(0.55+((Math.abs(cx*7+cz*13)+i*29)%17)/17*0.5);
+    c2.fillStyle=i?'rgba(196,168,118,0.28)':'rgba(186,156,106,0.5)';
+    c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.25,py+Math.sin(a)*r*0.22,rr,rr*0.8,a,0,7); c2.fill(); }
+  groundTex.needsUpdate=true; }
 function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.map&&terrainMesh.material.map.dispose();}
   const SUB=3;   // render mesh 3x finer than the game grid — smooth rolling ground
   const geo=new THREE.PlaneGeometry(WORLD_W,WORLD_H,MAP_W*SUB,MAP_H*SUB);geo.rotateX(-Math.PI/2);
@@ -943,6 +951,7 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   bl.mesh=makeBldMesh(type,owner);const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
   bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(!done)bl.mesh.scale.y=0.05;scene.add(bl.mesh);blds.push(bl);
+  if(done&&type!=='wall')stampDirt(cx,cz,Math.max(b.w,b.h)+0.6);
   if(!done){attachBuildUI(bl);if(type!=='wall')attachScaffold(bl);}
   for(let y=ty;y<ty+b.h;y++)for(let x=tx;x<tx+b.w;x++)if(inB(x,y))buildGrid[ti(x,y)]=bl.id;return bl;}
 // ---- construction progress UI: bar + countdown floating over the site ----
@@ -1102,7 +1111,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);if(e.carryType&&e.carryType!==n.type)e.carry=0;e.carryType=n.type;const take=Math.min(MINE*dt,CARRY-e.carry,n.amount);e.carry+=take;n.amount-=take;if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0&&n.mesh)n.mesh.visible=false;if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
-    case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
+    case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);if(b.type!=='wall')stampDirt(b.cx,b.cz,Math.max(b.w,b.h)+0.6);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
     case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
       e.tendT=(e.tendT||0)-dt;
       if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4;
@@ -1542,7 +1551,8 @@ function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&
   if(!others)endGame(true);else if(!ph)endGame(false);}
 function endGame(win){gameOver=true;running=false;const ov=$('overlay');ov.classList.remove('hidden');ov.innerHTML=`<h1>${win?'You Rule the <span>Realm</span>':'Your <span style="color:#ff7a6a">Kingdom</span> Has Fallen'}</h1><p>${win?'Every rival keep lies in ruins. The whole land answers to your crown.':'Your Keep is lost. Another crown will rule these lands.'}</p><p style="color:#7fa8bd">Reigned ${Math.floor(elapsed/60)}m ${Math.floor(elapsed%60)}s · Age ${tech.player.age}</p><button class="big" id="againBtn">Play Again</button>`;$('againBtn').onclick=()=>location.reload();}
 // REALM_SITES computed per battleground in setMap()
-function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
+function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H; sc.updateProjectionMatrix(); }
+function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
   initRealms();elapsed=0;gameOver=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
