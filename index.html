@@ -182,7 +182,7 @@ const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',
 // ==================================================== STATE
 let elev,hc,buildGrid,explored,visNow;
 let woodNodes=[],metalNodes=[],goldNodes=[],ents=[],blds=[],projs=[],parts=[],idc=1;
-let citizens=[],villages=[];
+let citizens=[],villages=[],corpses=[];
 let res={},tech={},realmAI={};
 function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
   for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,ageTimer:0}; }
@@ -863,11 +863,14 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=1.2*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.7*dt;               // villages pay tribute
   for(const b of blds)updateBuilding(b,dt);
+  for(const b of blds)if(b.done&&b.hp<b.maxHp*0.65){ const dmg=1-b.hp/b.maxHp;
+    if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
+      spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
   for(const e of ents)updateUnit(e,dt);
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
   for(const b of blds)if((b.type==='tower'||b.type==='castle'||b.type==='watch')&&b.done){b.cd-=dt;if(b.cd<=0){const isC=b.type==='castle',isW=b.type==='watch';const rng=isC?30:isW?18:TOWER_RANGE,dm=isC?26:isW?9:TOWER_DMG;let tgt=null,bd=rng;for(const e of ents)if(isHostile(b.owner,e.owner)){const d=Math.hypot(b.cx-e.x,b.cz-e.z);if(d<bd){bd=d;tgt=e;}}if(tgt){b.cd=isC?0.6:isW?1.1:TOWER_CD;spawnProj(b.cx,heightAtWorld(b.cx,b.cz)+(isC?9:isW?5:7),b.cz,tgt,dm,b.owner,isC?'ball':'arrow');}}}
-  updateProjectiles(dt);updateParticles(dt);updateCitizens(dt);updateVillages(dt);advanceAge(dt);
-  ents=ents.filter(e=>{if(e.hp<=0){for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');scene.remove(e.mesh);SFX.die();selected=selected.filter(id=>id!==e.id);for(const k in groups)groups[k]=groups[k].filter(id=>id!==e.id);return false;}return true;});
+  updateProjectiles(dt);updateParticles(dt);updateCorpses(dt);updateCitizens(dt);updateVillages(dt);advanceAge(dt);
+  ents=ents.filter(e=>{if(e.hp<=0){for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');corpses.push({mesh:e.mesh,t:0});SFX.die();selected=selected.filter(id=>id!==e.id);for(const k in groups)groups[k]=groups[k].filter(id=>id!==e.id);return false;}return true;});
   for(const o of AI_REALMS)realmBrain(o,dt);computeVision();checkWin();}
 function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of Empire — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}}}
 function destroyBuilding(b){removeBuildUI(b);const y=heightAtWorld(b.cx,b.cz)+3;for(let i=0;i<16;i++)spawnPart(b.cx,y,b.cz,'debris');SFX.boom();removeBuilding(b);}
@@ -949,7 +952,7 @@ function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heig
   if(p.target.bld){if(blds.includes(p.target.bld)){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);}}else if(ents.includes(p.target)){p.target.hp-=p.dmg;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');}}
 const partGeo=new THREE.SphereGeometry(0.18,5,4);
 const partMats={smoke:new THREE.MeshBasicMaterial({color:0x9098a0,transparent:true}),splash:new THREE.MeshBasicMaterial({color:0x9fd6ec}),chip:new THREE.MeshBasicMaterial({color:0xa9803f}),spark:new THREE.MeshBasicMaterial({color:0xffdca0}),debris:new THREE.MeshBasicMaterial({color:0xb08050}),blood:new THREE.MeshBasicMaterial({color:0xa03828}),heal:new THREE.MeshBasicMaterial({color:0x9ff0b0,transparent:true}),
-musket:new THREE.MeshBasicMaterial({color:0xd8dade,transparent:true}),flash:new THREE.MeshBasicMaterial({color:0xffdf80,transparent:true})};
+musket:new THREE.MeshBasicMaterial({color:0xd8dade,transparent:true}),flash:new THREE.MeshBasicMaterial({color:0xffdf80,transparent:true}),flame:new THREE.MeshBasicMaterial({color:0xff8a30,transparent:true})};
 function spawnPart(x,y,z,type){if(parts.length>240)return;const m=new THREE.Mesh(partGeo,partMats[type]||partMats.spark);m.position.set(x,y,z);scene.add(m);
   let p={mesh:m,x,y,z,t:0,type};if(type==='smoke'){p.vx=(Math.random()-.5)*1;p.vy=3.5;p.vz=(Math.random()-.5)*1;p.life=1.6;p.g=0;p.s=1.4;}
   else if(type==='splash'){p.vx=(Math.random()-.5)*5;p.vy=5;p.vz=(Math.random()-.5)*5;p.life=.6;p.g=-16;p.s=.5;}
@@ -959,6 +962,7 @@ function spawnPart(x,y,z,type){if(parts.length>240)return;const m=new THREE.Mesh
   else if(type==='heal'){p.vx=(Math.random()-.5)*1.2;p.vy=3.2;p.vz=(Math.random()-.5)*1.2;p.life=.8;p.g=2;p.s=.55;}
   else if(type==='musket'){p.vx=(Math.random()-.5)*2.5;p.vy=1.6+Math.random()*1.2;p.vz=(Math.random()-.5)*2.5;p.life=1.1;p.g=.4;p.s=.8;}
   else if(type==='flash'){p.vx=0;p.vy=.4;p.vz=0;p.life=.12;p.g=0;p.s=1.1;}
+  else if(type==='flame'){p.vx=(Math.random()-.5)*1.2;p.vy=2.6+Math.random()*1.5;p.vz=(Math.random()-.5)*1.2;p.life=.5;p.g=0;p.s=.7;}
   else{p.vx=(Math.random()-.5)*6;p.vy=3;p.vz=(Math.random()-.5)*6;p.life=.5;p.g=-18;p.s=.6;}m.scale.setScalar(p.s);parts.push(p);}
 // ---- decorative citizens ----
 const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
@@ -1019,6 +1023,11 @@ function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
       c.armL.rotation.x=s; c.armR.rotation.x=-s; c.legL.rotation.x=-s*0.85; c.legR.rotation.x=s*0.85; }
     else for(const l of[c.armL,c.armR,c.legL,c.legR]) l.rotation.x*=Math.max(0,1-dt*8); }
   c.mesh.position.set(c.x,heightAtWorld(c.x,c.z),c.z); } }
+function updateCorpses(dt){ for(const c of corpses){ c.t+=dt;
+  if(c.t<0.5)c.mesh.rotation.z=Math.min(1.5,c.t*4);          // topple
+  else if(c.t>1.2)c.mesh.position.y-=dt*1.2;                 // sink away
+  if(c.t>2.4){scene.remove(c.mesh);c.dead=true;} }
+  corpses=corpses.filter(c=>!c.dead); }
 function updateParticles(dt){for(const p of parts){p.t+=dt;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.mesh.position.set(p.x,p.y,p.z);const a=1-p.t/p.life;if(p.mesh.material.transparent)p.mesh.material.opacity=a;if(p.type==='smoke')p.mesh.scale.setScalar(p.s*(1+p.t));}
   parts=parts.filter(p=>{if(p.t>=p.life){scene.remove(p.mesh);return false;}return true;});}
 
@@ -1239,7 +1248,7 @@ function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&
   if(!others)endGame(true);else if(!ph)endGame(false);}
 function endGame(win){gameOver=true;running=false;const ov=$('overlay');ov.classList.remove('hidden');ov.innerHTML=`<h1>${win?'You Rule the <span>Realm</span>':'Your <span style="color:#ff7a6a">Kingdom</span> Has Fallen'}</h1><p>${win?'Every rival keep lies in ruins. The whole land answers to your crown.':'Your Keep is lost. Another crown will rule these lands.'}</p><p style="color:#7fa8bd">Reigned ${Math.floor(elapsed/60)}m ${Math.floor(elapsed%60)}s · Age ${tech.player.age}</p><button class="big" id="againBtn">Play Again</button>`;$('againBtn').onclick=()=>location.reload();}
 const REALM_SITES={player:[15,49],r1:[79,12],r2:[15,12],r3:[79,49]};
-function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);
+function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
   initRealms();elapsed=0;gameOver=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();spawnClouds();
