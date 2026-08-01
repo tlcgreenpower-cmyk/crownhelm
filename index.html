@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b20</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b21</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -951,13 +951,16 @@ function findPath(sx,sy,gx,gy,goalId,dom){if(!inB(gx,gy))return null;
 function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom);if(p){e.path=p;e.pi=0;return true;}e.path=null;return false;}
 
 // ==================================================== COMMANDS
-function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);
+function commandMove(list,x,z,amove,fdir){const gx=txFromW(x),gy=tzFromW(z);
   // regiments form ranks: melee & cavalry front, muskets/archers centre, guns & healers rear
   const rank=t=>{const U=UNIT[t];return U.siege?3:(U.heal||U.noAtk)?2:U.ranged?1:0;};
   const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type));
   const cols=Math.max(1,Math.ceil(Math.sqrt(ml.length*1.6)));
+  const fx=fdir===undefined?0:Math.cos(fdir), fz=fdir===undefined?0:Math.sin(fdir);
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
-    const ox=gx+(i%cols)-((cols-1)>>1),oy=gy+Math.floor(i/cols)-((Math.ceil(ml.length/cols)-1)>>1);
+    let ox,oy; const c=(i%cols)-((cols-1)>>1), rw=Math.floor(i/cols);
+    if(fdir===undefined){ ox=gx+c; oy=gy+rw-((Math.ceil(ml.length/cols)-1)>>1); }
+    else { ox=gx+Math.round(c*-fz-rw*fx); oy=gy+Math.round(c*fx-rw*fz); }   // ranks perpendicular to the aim, front rank toward it
     if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
 function commandTarget(list,x,z){const workers0=list.filter(e=>e.type==='worker');
   // right-click near your own unfinished building = send selected workers to finish it (checked FIRST so nothing steals the click)
@@ -1296,6 +1299,9 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
 let camYaw=0,camPitch=0.92,camDist=80,camTarget=new THREE.Vector3(0,0,0);
 const keys={};let hoverTile={tx:0,ty:0},hoverWorld=new THREE.Vector3();const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2();
 let mouseSX=0,mouseSY=0,dragStartSX=0,dragStartSY=0,dragging=false,vw=1280,vh=640;
+let rDrag=null;   // right-button drag = aim the army's facing
+const aimArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),8,0x8fe6a8,3.2,2.0);
+aimArrow.visible=false; aimArrow.line.material.depthTest=false; aimArrow.cone.material.depthTest=false; scene.add(aimArrow);
 function resize(){const s=document.getElementById('stage');vw=s.clientWidth;vh=s.clientHeight;renderer.setSize(vw,vh,false);camera.aspect=vw/vh;camera.updateProjectionMatrix();if(composer)composer.setSize(vw,vh);}
 window.addEventListener('resize',resize);
 function updateCamera(dt){const sp=48*dt*(camDist/80),m=18;const fwd=[-Math.sin(camYaw),-Math.cos(camYaw)],rgt=[Math.cos(camYaw),-Math.sin(camYaw)];let fx=0,fz=0;
@@ -1319,10 +1325,23 @@ function pickUnit(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromC
 function pickBuilding(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);const meshes=blds.filter(b=>b.owner==='player').map(b=>b.mesh);const h=raycaster.intersectObjects(meshes,true);if(h.length){let o=h[0].object;while(o.parent&&!blds.some(b=>b.mesh===o))o=o.parent;return blds.find(b=>b.mesh===o)||null;}return null;}
 function localXY(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(vw/r.width),y:(ev.clientY-r.top)*(vh/r.height)};}
 canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY=p.y;const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
-  if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}});
+  if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}
+  if(rDrag){ const dx=g.x-rDrag.gx,dz=g.z-rDrag.gz,d=Math.hypot(dx,dz);
+    if(!rDrag.moved&&d>3)rDrag.moved=true;
+    if(rDrag.moved&&d>0.5){ aimArrow.visible=true;
+      aimArrow.position.set(rDrag.gx,heightAtWorld(rDrag.gx,rDrag.gz)+1.6,rDrag.gz);
+      aimArrow.setDirection(new THREE.Vector3(dx/d,0,dz/d));
+      aimArrow.setLength(Math.max(5,d),3.2,2.0); } }});
 canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===0){if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
-  else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length)commandTarget(s,g.x,g.z);else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('🚩 Rally flag planted — new recruits will march there');SFX.cmd();refreshUI();}}}});
-window.addEventListener('mouseup',ev=>{if(ev.button===0&&wallDrag){const a=wallDrag;wallDrag=null;placeWallLine(a,hoverTile);if(!(keys['shift']||keys['control'])){placing=null;}updateGhost();refreshUI();return;}
+  else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length){rDrag={gx:g.x,gz:g.z,moved:false};return;}else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('🚩 Rally flag planted — new recruits will march there');SFX.cmd();refreshUI();}}}});
+window.addEventListener('mouseup',ev=>{
+  if(ev.button===2&&rDrag){ const rd=rDrag; rDrag=null; aimArrow.visible=false;
+    const s=selUnits();
+    if(s.length){ if(rd.moved){ const g2=hoverWorld, ang=Math.atan2(g2.z-rd.gz,g2.x-rd.gx);
+        commandMove(s,rd.gx,rd.gz,false,ang); flashMsg('⚔ Regiment forms up facing your line'); }
+      else commandTarget(s,rd.gx,rd.gz); }
+    return; }
+  if(ev.button===0&&wallDrag){const a=wallDrag;wallDrag=null;placeWallLine(a,hoverTile);if(!(keys['shift']||keys['control'])){placing=null;}updateGhost();refreshUI();return;}
   if(ev.button!==0||!dragging)return;dragging=false;document.getElementById('dragbox').style.display='none';const p=localXY(ev);const moved=Math.abs(p.x-dragStartSX)>7||Math.abs(p.y-dragStartSY)>7;selBuilding=null;
   if(moved){selected=[];const x1=Math.min(dragStartSX,p.x),x2=Math.max(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y),y2=Math.max(dragStartSY,p.y);const v=new THREE.Vector3();
     for(const e of ents)if(e.owner==='player'){v.set(e.x,heightAtWorld(e.x,e.z)+1,e.z).project(camera);const sxp=(v.x+1)/2*vw,syp=(-v.y+1)/2*vh;if(v.z<1&&sxp>=x1&&sxp<=x2&&syp>=y1&&syp<=y2)selected.push(e.id);}
