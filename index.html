@@ -609,7 +609,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   // professional animated model where one fits this unit type
   if(CHAR_LIB&&UNIT_CHAR[type]&&CHAR_LIB.lib[UNIT_CHAR[type]]){
     const src=CHAR_LIB.lib[UNIT_CHAR[type]];
-    const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*1.05,u.r*1.2,.3,12),tm);ring.position.y=.15;ring.castShadow=true;g.add(ring);
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.88,u.r*.98,.08,14),tm);ring.position.y=.04;ring.castShadow=true;g.add(ring);
     const ch=CHAR_LIB.clone(src.scene);
     const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
     ch.scale.setScalar((type==='hero'?2.6:type==='highlander'?2.4:2.1)/hgt);
@@ -625,7 +625,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
   if(u.coat&&!unitMat[coatKey])unitMat[coatKey]=new THREE.MeshStandardMaterial({color:fac.coat,roughness:.55,flatShading:true});
   const bodyMat=u.coat?unitMat[coatKey]:unitMat[type];const trimMat=new THREE.MeshStandardMaterial({color:fac.trim,roughness:.5,metalness:.3});
-  const base=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.7,u.r*.92,.35,10),tm);base.position.y=.18;base.castShadow=true;g.add(base);
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.66,u.r*.74,.08,14),tm);base.position.y=.04;base.castShadow=true;g.add(base);
   const anim=new THREE.Group();g.add(anim);g.userData.anim=anim;
   if(type==='warboat'){const hull=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.5,u.r*1.0,u.r*2.6,8),M.wood);hull.rotation.z=Math.PI/2;hull.position.y=.5;hull.castShadow=true;
     const mast=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,3,5),M.trunk);mast.position.y=2;const sail=new THREE.Mesh(new THREE.PlaneGeometry(1.8,2),new THREE.MeshStandardMaterial({color:fac.coat,side:THREE.DoubleSide}));sail.position.set(0,2,0);
@@ -643,16 +643,16 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const hbh=makeHealthBar();hbh.position.y=u.r*2.7+.6;g.add(hbh);g.userData.hb=hbh;return g;}
   // ---- articulated musket-era soldier bodies (coat-coloured, marching limbs) ----
   anim.scale.setScalar(u.r);
-  const artic=()=>{ const legL=new THREE.Mesh(new THREE.BoxGeometry(.20,.62,.24),M.stoneD);legL.geometry.translate(0,-.31,0);legL.position.set(-.16,.72,0);legL.castShadow=true;anim.add(legL);
+  const artic=()=>{ const legL=new THREE.Mesh(new THREE.BoxGeometry(.17,.76,.20),M.stoneD);legL.geometry.translate(0,-.38,0);legL.position.set(-.14,.86,0);legL.castShadow=true;anim.add(legL);
     const legR=legL.clone();legR.position.x=.16;anim.add(legR);
-    const torso=new THREE.Mesh(new THREE.CylinderGeometry(.30,.40,.92,8),bodyMat);torso.position.y=1.22;torso.castShadow=true;anim.add(torso);
-    const cross=new THREE.Mesh(new THREE.BoxGeometry(.62,.10,.52),trimMat);cross.position.y=1.40;anim.add(cross);
-    const belt=new THREE.Mesh(new THREE.TorusGeometry(.35,.05,6,12),M.wood);belt.rotation.x=Math.PI/2;belt.position.y=.92;anim.add(belt);
-    const armL=new THREE.Mesh(new THREE.BoxGeometry(.16,.66,.19),bodyMat);armL.geometry.translate(0,-.30,0);armL.position.set(-.47,1.62,0);armL.castShadow=true;anim.add(armL);
-    const armR=armL.clone();armR.position.x=.47;anim.add(armR);
-    const handL=new THREE.Mesh(new THREE.SphereGeometry(.09,6,5),M.skin);handL.position.set(-.47,1.00,0);anim.add(handL);
-    const handR=handL.clone();handR.position.x=.47;anim.add(handR);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(.30,8,7),M.skin);head.position.y=2.04;anim.add(head);
+    const torso=new THREE.Mesh(new THREE.CylinderGeometry(.24,.33,1.0,8),bodyMat);torso.position.y=1.36;torso.castShadow=true;anim.add(torso);
+    const cross=new THREE.Mesh(new THREE.BoxGeometry(.62,.10,.52),trimMat);cross.position.y=1.55;anim.add(cross);
+    const belt=new THREE.Mesh(new THREE.TorusGeometry(.30,.045,6,12),M.wood);belt.rotation.x=Math.PI/2;belt.position.y=1.02;anim.add(belt);
+    const armL=new THREE.Mesh(new THREE.BoxGeometry(.13,.72,.16),bodyMat);armL.geometry.translate(0,-.33,0);armL.position.set(-.40,1.78,0);armL.castShadow=true;anim.add(armL);
+    const armR=armL.clone();armR.position.x=.40;anim.add(armR);
+    const handL=new THREE.Mesh(new THREE.SphereGeometry(.09,6,5),M.skin);handL.position.set(-.40,1.10,0);anim.add(handL);
+    const handR=handL.clone();handR.position.x=.40;anim.add(handR);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.26,9,8),M.skin);head.position.y=2.20;anim.add(head);
     g.userData.limbs={armL,armR,legL,legR}; return head; };
   const horseMat=new THREE.MeshStandardMaterial({color:type==='cuirassier'?0x8a8a92:0x6b4a30,roughness:.9,flatShading:true});
   const mounted=()=>{ const bodyH=new THREE.Mesh(new THREE.BoxGeometry(.9,.8,2.1),horseMat);bodyH.position.y=1.15;bodyH.castShadow=true;anim.add(bodyH);
@@ -686,23 +686,23 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
       const helm2=new THREE.Mesh(new THREE.ConeGeometry(.26,.5,8),M.gold);helm2.position.y=3.0;anim.add(helm2);
       const sab=new THREE.Mesh(new THREE.BoxGeometry(.08,1.3,.08),M.ore);sab.rotation.z=.5;sab.position.set(.6,1.9,-.3);anim.add(sab);} }
   else { artic();
-    if(type==='worker'){strawHat(2.04);const tool=new THREE.Mesh(new THREE.BoxGeometry(.1,1.0,.1),M.wood);tool.position.set(.5,1.15,.1);tool.rotation.z=-.3;anim.add(tool);
+    if(type==='worker'){strawHat(2.20);const tool=new THREE.Mesh(new THREE.BoxGeometry(.1,1.0,.1),M.wood);tool.position.set(.5,1.15,.1);tool.rotation.z=-.3;anim.add(tool);
       const toolHead=new THREE.Mesh(new THREE.BoxGeometry(.3,.16,.1),M.ore);toolHead.position.set(.66,1.62,.1);anim.add(toolHead);}
-    if(type==='spear'){const kettle=new THREE.Mesh(new THREE.ConeGeometry(.4,.3,10),M.ore);kettle.position.y=2.3;anim.add(kettle);
+    if(type==='spear'){const kettle=new THREE.Mesh(new THREE.ConeGeometry(.4,.3,10),M.ore);kettle.position.y=2.46;anim.add(kettle);
       const sp=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2.7,5),M.wood);sp.position.set(.5,1.6,0);anim.add(sp);
       const tip=new THREE.Mesh(new THREE.ConeGeometry(.11,.4,6),M.ore);tip.position.set(.5,3.1,0);anim.add(tip);}
-    if(type==='archer'){const hood=new THREE.Mesh(new THREE.SphereGeometry(.33,8,6,0,6.28,0,1.9),bodyMat);hood.position.y=2.08;anim.add(hood);
+    if(type==='archer'){const hood=new THREE.Mesh(new THREE.SphereGeometry(.33,8,6,0,6.28,0,1.9),bodyMat);hood.position.y=2.24;anim.add(hood);
       const bow=new THREE.Mesh(new THREE.TorusGeometry(.55,.05,6,12,Math.PI),M.wood);bow.position.set(-.5,1.5,.1);bow.rotation.z=Math.PI/2;anim.add(bow);
       const quiv=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.6,6),M.trunk);quiv.position.set(.2,1.45,-.4);quiv.rotation.x=.4;anim.add(quiv);}
-    if(type==='infantry'){shako(2.04,false);musketAt(.47,1.3);}
-    if(type==='grenadier'){busby(2.04,false);musketAt(-.47,1.3);
-      const nade=new THREE.Mesh(new THREE.SphereGeometry(.13,7,6),M.stoneD);nade.position.set(.47,1.0,0);anim.add(nade);}
-    if(type==='grenguard'){busby(2.04,true);musketAt(.47,1.3);}
-    if(type==='highlander'){const bonnet=new THREE.Mesh(new THREE.CylinderGeometry(.32,.34,.18,10),M.stoneD);bonnet.position.y=2.28;anim.add(bonnet);
-      const feath=new THREE.Mesh(new THREE.ConeGeometry(.08,.42,5),new THREE.MeshStandardMaterial({color:0xf0f0f0}));feath.position.set(.16,2.5,0);anim.add(feath);
+    if(type==='infantry'){shako(2.20,false);musketAt(.42,1.35);}
+    if(type==='grenadier'){busby(2.20,false);musketAt(-.42,1.35);
+      const nade=new THREE.Mesh(new THREE.SphereGeometry(.13,7,6),M.stoneD);nade.position.set(.42,1.1,0);anim.add(nade);}
+    if(type==='grenguard'){busby(2.20,true);musketAt(.42,1.35);}
+    if(type==='highlander'){const bonnet=new THREE.Mesh(new THREE.CylinderGeometry(.32,.34,.18,10),M.stoneD);bonnet.position.y=2.44;anim.add(bonnet);
+      const feath=new THREE.Mesh(new THREE.ConeGeometry(.08,.42,5),new THREE.MeshStandardMaterial({color:0xf0f0f0}));feath.position.set(.16,2.66,0);anim.add(feath);
       const clay=new THREE.Mesh(new THREE.BoxGeometry(.14,1.9,.14),M.ore);clay.position.set(.5,1.7,0);clay.rotation.z=-.15;anim.add(clay);}
-    if(type==='hero'){const crown=new THREE.Mesh(new THREE.CylinderGeometry(.26,.3,.26,8),M.gold);crown.position.y=2.36;anim.add(crown);
-      for(let ci=0;ci<4;ci++){const pt=new THREE.Mesh(new THREE.ConeGeometry(.05,.16,4),M.gold);const ang=ci/4*Math.PI*2;pt.position.set(Math.cos(ang)*.24,2.55,Math.sin(ang)*.24);anim.add(pt);}
+    if(type==='hero'){const crown=new THREE.Mesh(new THREE.CylinderGeometry(.26,.3,.26,8),M.gold);crown.position.y=2.52;anim.add(crown);
+      for(let ci=0;ci<4;ci++){const pt=new THREE.Mesh(new THREE.ConeGeometry(.05,.16,4),M.gold);const ang=ci/4*Math.PI*2;pt.position.set(Math.cos(ang)*.24,2.7,Math.sin(ang)*.24);anim.add(pt);}
       const cape=new THREE.Mesh(new THREE.PlaneGeometry(.9,1.3),new THREE.MeshStandardMaterial({color:fac.coat,side:THREE.DoubleSide}));cape.position.set(0,1.4,-.42);anim.add(cape);
       const sw=new THREE.Mesh(new THREE.BoxGeometry(.1,1.5,.1),M.ore);sw.position.set(.5,1.5,0);anim.add(sw);} }
   const hb=makeHealthBar();hb.position.y=u.r*2.6+.5;g.add(hb);g.userData.hb=hb;
