@@ -1159,7 +1159,7 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}});
 canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===0){if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
   else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length)commandTarget(s,g.x,g.z);else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('Rally point set');}}}});
-canvas.addEventListener('mouseup',ev=>{if(ev.button!==0||!dragging)return;dragging=false;document.getElementById('dragbox').style.display='none';const p=localXY(ev);const moved=Math.abs(p.x-dragStartSX)>7||Math.abs(p.y-dragStartSY)>7;selBuilding=null;
+window.addEventListener('mouseup',ev=>{if(ev.button!==0||!dragging)return;dragging=false;document.getElementById('dragbox').style.display='none';const p=localXY(ev);const moved=Math.abs(p.x-dragStartSX)>7||Math.abs(p.y-dragStartSY)>7;selBuilding=null;
   if(moved){selected=[];const x1=Math.min(dragStartSX,p.x),x2=Math.max(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y),y2=Math.max(dragStartSY,p.y);const v=new THREE.Vector3();
     for(const e of ents)if(e.owner==='player'){v.set(e.x,heightAtWorld(e.x,e.z)+1,e.z).project(camera);const sxp=(v.x+1)/2*vw,syp=(-v.y+1)/2*vh;if(v.z<1&&sxp>=x1&&sxp<=x2&&syp>=y1&&syp<=y2)selected.push(e.id);}
     if(selected.some(id=>{const e=ents.find(u=>u.id===id);return e&&e.type!=='worker';}))selected=selected.filter(id=>{const e=ents.find(u=>u.id===id);return e&&e.type!=='worker';});if(selected.length)SFX.select();}
@@ -1168,7 +1168,7 @@ canvas.addEventListener('dblclick',ev=>{const p=localXY(ev);const u=pickUnit(p.x
 canvas.addEventListener('wheel',ev=>{ev.preventDefault();camDist=clamp(camDist+Math.sign(ev.deltaY)*7,30,150);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
-  if(k==='escape'){placing=null;attackMove=false;canvas.style.cursor='default';updateGhost();refreshUI();}
+  if(k==='escape'){placing=null;attackMove=false;dragging=false;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();}
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
