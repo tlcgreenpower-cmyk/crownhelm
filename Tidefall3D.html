@@ -1304,11 +1304,13 @@ function loadGame(){ const raw=localStorage.getItem('tidefall_save'); if(!raw){f
   for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;placeMesh(e);}
   camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camDist=s.cam.dist;
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
-let autosaveT=90;
+let autosaveT=40;
+window.addEventListener('beforeunload',()=>{try{saveGame(true);}catch(e){}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){try{saveGame(true);}catch(e){}}});
 let last=0,simAcc=0;
 const SIM_DT=1/30;   // fixed-step sim: game speed independent of frame rate
 function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)frame=0.5;
-  if(running&&!gameOver){ autosaveT-=frame;if(autosaveT<=0){autosaveT=90;saveGame(true);}
+  if(running&&!gameOver){ autosaveT-=frame;if(autosaveT<=0){autosaveT=40;saveGame(true);}
     simAcc+=frame; let steps=0;
     while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
