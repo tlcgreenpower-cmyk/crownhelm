@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b18</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b19</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -986,6 +986,12 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=1.2*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.7*dt;               // villages pay tribute
   for(const b of blds)updateBuilding(b,dt);
+  plSiteT-=dt; if(plSiteT<=0){ plSiteT=1;   // building sites recruit idle help — construction can never silently stall
+    for(const b of blds)if(b.owner==='player'&&!b.done){
+      const crew=ents.filter(u=>u.owner==='player'&&u.cmd==='build'&&u.build===b).length;
+      if(crew<2){ let best=null,bd=70;
+        for(const u of ents)if(u.owner==='player'&&u.type==='worker'&&u.cmd==='idle'){const d=Math.hypot(u.x-b.cx,u.z-b.cz);if(d<bd){bd=d;best=u;}}
+        if(best){best.cmd='build';best.build=b;orderPath(best,b.tx+(b.w>>1),b.ty+b.h,b.id);} } } }
   for(const b of blds)if(b.done&&b.hp<b.maxHp*0.65&&(b.owner==='player'||tileVis(b.cx,b.cz))){ const dmg=1-b.hp/b.maxHp;
     if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
@@ -1012,7 +1018,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
     case 'amove':if(arrived)e.cmd='idle';autoAcq(e,false);break;
     case 'idle':autoAcq(e,true);
-      if(e.type==='worker'&&Math.random()<dt*1.5){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
+      if(e.type==='worker'&&Math.random()<dt*5){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
         else if(Math.random()<0.5){const f=blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&ents.filter(u=>u.cmd==='tend'&&u.tendB===q).length<2);
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}}
       break;
@@ -1490,6 +1496,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
 let autosaveT=40;
 window.addEventListener('beforeunload',()=>{try{saveGame(true);}catch(e){}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){try{saveGame(true);}catch(e){}}});
+let plSiteT=0;
 let last=0,simAcc=0;
 const SIM_DT=1/30;   // fixed-step sim: game speed independent of frame rate
 function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)frame=0.5;
