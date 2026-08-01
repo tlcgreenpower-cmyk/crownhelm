@@ -46,7 +46,7 @@
     <div class="res" title="Wood — chop forests">🪵 <span id="wood">0</span></div>
     <div class="res" title="Metal — mine grey rocks">⛏️ <span id="metal">0</span></div>
     <div class="res" title="Gold — gold veins, Markets & village tribute">🪙 <span id="gold">0</span></div>
-    <div class="res" title="Population / cap — build Houses to raise">👥 <span id="pop">0/0</span></div>
+    <div class="res" title="Population / cap — Houses +8, Halls +15, Castles +12">👥 <span id="pop">0/0</span></div>
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
     <button id="muteBtn">🔊 Sound</button>
@@ -868,8 +868,8 @@ function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; remo
 function removeBuilding(bl){scene.remove(bl.mesh);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;}
 
 // ==================================================== POP / TECH
-function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=12;else if(b.type==='house')c+=6;}
-  c+=villages.filter(v=>v.claimed===o).length*6; return Math.min(c,90);}
+function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=8;else if(b.type==='castle')c+=12;}
+  c+=villages.filter(v=>v.claimed===o).length*6; return Math.min(c,130);}
 function popUsed(o){let p=0;for(const e of ents)if(e.owner===o)p+=COST[e.type].pop;return p;}
 function countType(o,t){return ents.filter(e=>e.owner===o&&e.type===t).length;}
 function countBld(o,t){return blds.filter(b=>b.owner===o&&b.type===t).length;}
@@ -888,13 +888,15 @@ function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx
 
 // ==================================================== COMMANDS
 function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);list.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;const ox=gx+((i%3)-1),oy=gy+(Math.floor(i/3)-1);if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
-function commandTarget(list,x,z){const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));SFX.cmd();return;}
+function commandTarget(list,x,z){const workers0=list.filter(e=>e.type==='worker');
+  // right-click near your own unfinished building = send selected workers to finish it (checked FIRST so nothing steals the click)
+  if(workers0.length){ let ob=null,obd=TILE*3;
+    for(const q of blds)if(q.owner==='player'&&!q.done){const d=Math.hypot(x-q.cx,z-q.cz)-Math.max(q.w,q.h)*TILE*0.5;if(d<obd){obd=d;ob=q;}}
+    if(ob){ workers0.forEach(w=>{w.cmd='build';w.build=ob;orderPath(w,ob.tx+(ob.w>>1),ob.ty+ob.h,ob.id);});
+      flashMsg('Workers sent back to finish the '+BLD[ob.type].name);SFX.cmd();return; } }
+  const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));SFX.cmd();return;}
-  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');
-  // right-click your own unfinished building = send selected workers to build it
-  { const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;const ob=blds.find(q=>q.id===id);
-    if(ob&&ob.owner==='player'&&!ob.done&&workers.length){ workers.forEach(w=>{w.cmd='build';w.build=ob;orderPath(w,ob.tx+(ob.w>>1),ob.ty+ob.h,ob.id);});
-      flashMsg('Workers sent to the building site');SFX.cmd();return; } }if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
+  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
   commandMove(list,x,z,false);}
 function attackOrder(e,t){if(UNIT[e.type].noAtk){e.cmd='move';e.target=null;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);return;}if(e.type==='worker'&&t.owner===e.owner)return;
   if(e.owner==='player'&&t.owner!=='player'&&!isHostile('player',t.owner))declareWar(t.owner,'player');
@@ -964,7 +966,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     else for(const k in ud.limbs) ud.limbs[k].rotation.x*=Math.max(0,1-dt*8); }
   const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;hb.userData.fg.scale.x=Math.max(0.01,e.hp/e.maxHp);hb.userData.fg.position.x=-(1-e.hp/e.maxHp)*0.8;hb.userData.fg.material.color.setHex(e.hp/e.maxHp>0.4?0x6fd07a:0xe0503a);hb.quaternion.copy(camera.quaternion);}else hb.visible=false;}
 }
-function nextBuildSite(e){ let best=null,bd=48;
+function nextBuildSite(e){ let best=null,bd=200;
   for(const b of blds)if(b.owner===e.owner&&!b.done){ const d=Math.hypot(e.x-b.cx,e.z-b.cz);
     if(d<bd&&ents.filter(o=>o.owner===e.owner&&o.cmd==='build'&&o.build===b).length<3){bd=d;best=b;} }
   return best; }
@@ -1119,10 +1121,11 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
   const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);
   if(workers<8&&used+1<=cap&&r.f>=50&&hall.queue.length===0){r.f-=50;hall.queue.push({type:'worker',t:6});return;}
-  if(used>=cap-3&&cap<70&&r.w>=40){if(placeAI(o,'house'))return;}
+  if(used>=cap-3&&cap<110&&r.w>=40){if(placeAI(o,'house'))return;}
   if(countBld(o,'farm')<1&&r.w>=55){if(placeAI(o,'farm'))return;}
   if(countBld(o,'storehouse')<1&&r.w>=45){if(placeAI(o,'storehouse'))return;}
   if(barr.length<1&&r.w>=110){if(placeAI(o,'barracks'))return;}
+  if(barr.length===1&&countType(o,'worker')>=6&&r.w>=160){if(placeAI(o,'barracks'))return;}
   if(!hasBld(o,'gunshop')&&r.w>=120&&r.m>=40){if(placeAI(o,'gunshop'))return;}
   if(!hasBld(o,'church')&&r.w>=100&&Math.random()<.5){if(placeAI(o,'church'))return;}
   if(countBld(o,'farm')<3&&r.w>=55){if(placeAI(o,'farm'))return;}
@@ -1134,7 +1137,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(countBld(o,'tower')<2&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
   if(barr.length&&T.weapon<2&&r.m>=80&&r.f>=80&&Math.random()<.3){r.m-=80;r.f-=80;T.weapon++;return;}
   if(barr.length&&T.armor<2&&r.w>=80&&r.f>=80&&Math.random()<.3){r.w-=80;r.f-=80;T.armor++;return;}
-  if(barr.length&&used+2<=cap){const b0=barr[Math.floor(Math.random()*barr.length)];if(b0.queue.length===0){const c=COST;
+  if(barr.length&&used+2<=cap)for(const b0 of barr){if(b0.queue.length===0){const c=COST;
     if(T.age===2&&r.f>=c.knight.f&&r.m>=c.knight.m&&Math.random()<.4){r.f-=c.knight.f;r.m-=c.knight.m;b0.queue.push({type:'knight',t:c.knight.time});}
     else if(r.f>=c.spear.f&&r.w>=c.spear.w&&Math.random()<.6){r.f-=c.spear.f;r.w-=c.spear.w;b0.queue.push({type:'spear',t:c.spear.time});}
     else if(r.f>=c.archer.f&&r.w>=c.archer.w){r.f-=c.archer.f;r.w-=c.archer.w;b0.queue.push({type:'archer',t:c.archer.time});}
@@ -1150,7 +1153,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   // march on whoever this realm is at war with (the player, or a rival realm via alliances)
   const foes=REALMS.filter(t=>isHostile(o,t)&&blds.some(b=>b.owner===t&&b.type==='hall'));
   if(foes.length&&ai.attackTimer<=0){const army=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk);
-    if(army.length>=4+ai.wave){const foe=foes.includes('player')?'player':foes[0];const tgt=pickTargetFor(foe);
+    if(army.length>=Math.min(8+ai.wave*4,24)){const foe=foes.includes('player')?'player':foes[0];const tgt=pickTargetFor(foe);
       army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;
       if(foe==='player'){SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}}
     else ai.attackTimer=12;}}
