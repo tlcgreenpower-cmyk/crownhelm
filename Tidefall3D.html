@@ -51,6 +51,7 @@
     <div class="spacer"></div>
     <button id="muteBtn">🔊 Sound</button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
+    <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
@@ -233,6 +234,11 @@ function togglePause(){ if(!running||gameOver)return; paused=!paused;
   const ov=document.getElementById('pauseOv'); if(ov)ov.style.display=paused?'flex':'none';
   flashMsg(paused?'⏸ Game paused — press P to resume':'▶ Battle resumes!'); }
 document.getElementById('pauseBtn').onclick=togglePause;
+let gameSpeed=1;
+function setSpeed(s){ gameSpeed=Math.max(1,Math.min(3,s));
+  document.getElementById('speedBtn').textContent='⏩ '+gameSpeed+'×';
+  flashMsg('⏩ Game speed '+gameSpeed+'×'); }
+document.getElementById('speedBtn').onclick=()=>setSpeed(gameSpeed>=3?1:gameSpeed+1);
 document.getElementById('muteBtn').onclick=()=>{audioOn=!audioOn;document.getElementById('muteBtn').textContent=audioOn?'🔊 Sound':'🔇 Muted';if(audioOn)initAudio();};
 
 // ==================================================== THREE CORE
@@ -1289,6 +1295,8 @@ window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
   if(k==='p')togglePause();
+  if(k==='+'||k==='=')setSpeed(gameSpeed+1);
+  if(k==='-'||k==='_')setSpeed(gameSpeed-1);
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
   if(k>='1'&&k<='5'){if(keys['control']||ev.ctrlKey){groups[k]=selUnits().map(e=>e.id);flashMsg('Group '+k+' set');}else{const g=groups[k];if(g&&g.length){selected=g.filter(id=>ents.some(e=>e.id===id));selBuilding=null;const e=ents.find(u=>u.id===selected[0]);if(e)camTarget.set(e.x,0,e.z);SFX.select();refreshUI();}}}});
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
@@ -1433,8 +1441,8 @@ let last=0,simAcc=0;
 const SIM_DT=1/30;   // fixed-step sim: game speed independent of frame rate
 function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)frame=0.5;
   if(running&&!gameOver&&!paused){ autosaveT-=frame;if(autosaveT<=0){autosaveT=40;saveGame(true);}
-    simAcc+=frame; let steps=0;
-    while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
+    simAcc+=frame*gameSpeed; let steps=0;
+    while(simAcc>=SIM_DT&&steps<6*gameSpeed){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
   updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
