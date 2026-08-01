@@ -835,7 +835,7 @@ function findPath(sx,sy,gx,gy,goalId,dom){if(!inB(gx,gy))return null;
 function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom);if(p){e.path=p;e.pi=0;return true;}e.path=null;return false;}
 
 // ==================================================== COMMANDS
-function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);list.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;const ox=gx+((i%3)-1),oy=gy+(Math.floor(i/3)-1);if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});SFX.cmd();}
+function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);list.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;const ox=gx+((i%3)-1),oy=gy+(Math.floor(i/3)-1);if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
 function commandTarget(list,x,z){const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));SFX.cmd();return;}
   const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');
@@ -1231,6 +1231,11 @@ const ringMat=new THREE.MeshBasicMaterial({color:0x7fe0a0,transparent:true,opaci
 let rings=[];
 function updateRings(){rings.forEach(r=>scene.remove(r));rings=[];for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;const r=new THREE.Mesh(ringGeo,ringMat);r.scale.setScalar(UNIT[e.type].r*2);r.position.set(e.x,heightAtWorld(e.x,e.z)+0.12,e.z);r.renderOrder=998;scene.add(r);rings.push(r);}
   if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){const r=new THREE.Mesh(ringGeo,ringMat);r.scale.setScalar(Math.max(b.w,b.h)*TILE*0.6);r.position.set(b.cx,heightAtWorld(b.cx,b.cz)+0.15,b.cz);r.renderOrder=998;scene.add(r);rings.push(r);}}}
+let moveMarks=[];
+function spawnMoveMark(x,z,col){const m=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.95,depthTest:false}));
+  m.scale.setScalar(1.2);m.position.set(x,heightAtWorld(x,z)+.15,z);m.renderOrder=997;scene.add(m);moveMarks.push({m,t:0});}
+function updateMoveMarks(dt){for(const k of moveMarks){k.t+=dt;k.m.scale.setScalar(1.2+k.t*5);k.m.material.opacity=.95*(1-k.t/.55);}
+  moveMarks=moveMarks.filter(k=>{if(k.t>=.55){scene.remove(k.m);k.m.material.dispose();return false;}return true;});}
 const mctx=mini.getContext('2d');
 function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;}const w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;mctx.clearRect(0,0,w,h);
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){if(!explored[ti(x,y)]){mctx.fillStyle='#060d14';}else{const e=elev[ti(x,y)];mctx.fillStyle=e<tideLevel?'#245478':(e>=2.7?'#4a6b3c':'#5c7d3a');}mctx.fillRect(x*sx,y*sy,sx+.5,sy+.5);}
@@ -1299,7 +1304,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else updateCamera(frame);
-  updateGhost();updateRings();updateAmbient(frame,now);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
