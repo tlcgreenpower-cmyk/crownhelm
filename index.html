@@ -1276,7 +1276,7 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
       .sort((a,b2)=>Math.hypot(a.x-nb.cx,a.z-nb.cz)-Math.hypot(b2.x-nb.cx,b2.z-nb.cz)).slice(0,2);
     if(crew.length)flashMsg('Nearby workers head to the site'); }
   crew.forEach(w=>{w.cmd='build';w.build=nb;orderPath(w,tx,ty+b.h,nb.id);});
-  if(!crew.length)flashMsg('Placed — no workers available!');else SFX.cmd();if(!keys['shift']){placing=null;updateGhost();}refreshUI();}
+  if(!crew.length)flashMsg('Placed — no workers available!');else SFX.cmd();if(!(keys['shift']||keys['control'])){placing=null;updateGhost();}refreshUI();}
 
 // ==================================================== CAMERA + INPUT
 let camYaw=0,camPitch=0.92,camDist=80,camTarget=new THREE.Vector3(0,0,0);
@@ -1307,8 +1307,8 @@ function localXY(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX
 canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY=p.y;const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}});
 canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===0){if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
-  else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length)commandTarget(s,g.x,g.z);else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('Rally point set');}}}});
-window.addEventListener('mouseup',ev=>{if(ev.button===0&&wallDrag){const a=wallDrag;wallDrag=null;placeWallLine(a,hoverTile);if(!keys['shift']){placing=null;}updateGhost();refreshUI();return;}
+  else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length)commandTarget(s,g.x,g.z);else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('🚩 Rally flag planted — new recruits will march there');SFX.cmd();refreshUI();}}}});
+window.addEventListener('mouseup',ev=>{if(ev.button===0&&wallDrag){const a=wallDrag;wallDrag=null;placeWallLine(a,hoverTile);if(!(keys['shift']||keys['control'])){placing=null;}updateGhost();refreshUI();return;}
   if(ev.button!==0||!dragging)return;dragging=false;document.getElementById('dragbox').style.display='none';const p=localXY(ev);const moved=Math.abs(p.x-dragStartSX)>7||Math.abs(p.y-dragStartSY)>7;selBuilding=null;
   if(moved){selected=[];const x1=Math.min(dragStartSX,p.x),x2=Math.max(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y),y2=Math.max(dragStartSY,p.y);const v=new THREE.Vector3();
     for(const e of ents)if(e.owner==='player'){v.set(e.x,heightAtWorld(e.x,e.z)+1,e.z).project(camera);const sxp=(v.x+1)/2*vw,syp=(-v.y+1)/2*vh;if(v.z<1&&sxp>=x1&&sxp<=x2&&syp>=y1&&syp<=y2)selected.push(e.id);}
@@ -1335,9 +1335,15 @@ mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();cons
 
 // ==================================================== UI
 const $=id=>document.getElementById(id);
+const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',cannon:'💣',howitzer:'🎆',warboat:'⛵',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
+const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock']);
+function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Idle — click a unit button to train</span>';
+  const q0=b.queue[0]; let s='⚒ <b>Training '+(UNIT_IC[q0.type]||'')+' '+UNIT[q0.type].name+'</b> — '+Math.max(1,Math.ceil(q0.t))+'s';
+  if(b.queue.length>1)s+=' <span style="color:#9fc0d2">· then '+b.queue.slice(1).map(q=>UNIT_IC[q.type]||UNIT[q.type].name).join(' ')+'</span>';
+  return s; }
 function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';const can=c=>res.player.w>=(c.w||0)&&res.player.m>=(c.m||0)&&res.player.f>=(c.f||0)&&res.player.g>=(c.g||0);
-  if(placing){info.innerHTML=`<b>Placing ${BLD[placing].name}</b><br>Left-click to build. Shift = several. Esc cancels.`;return;}
-  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){info.innerHTML=`<b>${BLD[b.type].name}</b> <span style="color:#7fa8bd">(${b.owner})</span><br>HP ${Math.max(0,Math.round(b.hp))}/${b.maxHp}`+(b.done?'':`<br>Building… ${Math.round(b.progress*100)}%`)+(b.queue.length?`<br>Training: ${b.queue.map(q=>UNIT[q.type].name).join(', ')}`:'');
+  if(placing){info.innerHTML=`<b>Placing ${BLD[placing].name}</b><br>Left-click to build. Hold Shift or Ctrl = place several. Esc cancels.`;return;}
+  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){info.innerHTML=`<b>${BLD[b.type].name}</b> <span style="color:#7fa8bd">(${b.owner})</span><br>HP ${Math.max(0,Math.round(b.hp))}/${b.maxHp}`+(b.done?'':`<br>Building… ${Math.round(b.progress*100)}%`)+(b.done&&TRAINERS.has(b.type)&&b.owner==='player'?'<br><span id="qline">'+qlineHTML(b)+'</span><br><span style="color:#6f93a8;font-size:11px">'+(b.rally?'🚩 Rally flag set — right-click ground to move it':'Right-click the ground to plant a rally flag')+'</span>':'');
     if(b.owner==='player'&&b.done){if(b.type==='hall'){trainBtn(cmds,b,'worker','⚒','Worker',can);const T=tech.player;
         if(T.age===1){const c={f:AGE2.f,w:AGE2.w};techBtn(cmds,'⏫','Advance to Age II',`${AGE2.f}🍖 ${AGE2.w}🪵`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;T.ageTimer=AGE2.time;T.ageTo=2;flashMsg('Advancing to the Age of the Drowned Coast…');refreshUI();});}
         else if(T.age===2){const c={f:AGE3.f,w:AGE3.w,m:AGE3.m};techBtn(cmds,'⏫','Advance to Age III',`${AGE3.f}🍖 ${AGE3.w}🪵 ${AGE3.m}⛏️`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;res.player.m-=c.m;T.ageTimer=AGE3.time;T.ageTo=3;flashMsg('Advancing to the Age of Empire…');refreshUI();});}
@@ -1366,7 +1372,9 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
   const pu=popUsed('player'),pc=popCap('player');$('pop').textContent=pu+'/'+pc;
   $('pop').style.color=pu>=pc?'#ff8a6a':'';$('pop').title=pu>=pc?'Population full — build Houses!':'';
   $('age').textContent=tech.player.ageTimer>0?'Advancing…':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
-  $('clock').textContent=Math.floor(elapsed/60)+':'+String(Math.floor(elapsed%60)).padStart(2,'0');}
+  $('clock').textContent=Math.floor(elapsed/60)+':'+String(Math.floor(elapsed%60)).padStart(2,'0');
+  const qe=document.getElementById('qline');
+  if(qe&&selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)qe.innerHTML=qlineHTML(b);}}
 // ---- diplomacy panel ----
 function stanceLabel(o){const d=diplo[o];return d.stance==='war'?'<span style="color:#ff8a6a">AT WAR</span>':d.score>=60?'<span style="color:#9fe6b0">Friend</span>':d.score>=25?'<span style="color:#bfe4a0">Warm</span>':d.score>=-10?'Neutral':'<span style="color:#e0b070">Wary</span>';}
 function renderDiplo(){const p=$('diplo');if(p.classList.contains('hidden'))return;
@@ -1391,8 +1399,25 @@ setInterval(renderDiplo,2000);
 const ringGeo=new THREE.RingGeometry(0.72,0.92,20);ringGeo.rotateX(-Math.PI/2);
 const ringMat=new THREE.MeshBasicMaterial({color:0x7fe0a0,transparent:true,opacity:.9,depthTest:false});
 let rings=[];
+const rallyGrp=new THREE.Group();
+{ const pole=new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,3.8,6),M.wood); pole.position.y=1.9; rallyGrp.add(pole);
+  const banner=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.05),new THREE.MeshStandardMaterial({color:0xbe2e24,side:THREE.DoubleSide}));
+  banner.position.set(.9,3.1,0); rallyGrp.add(banner); rallyGrp.userData.banner=banner;
+  rallyGrp.visible=false; scene.add(rallyGrp); }
+const rallyLineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+const rallyLine=new THREE.Line(rallyLineGeo,new THREE.LineDashedMaterial({color:0xf3e4be,dashSize:1.1,gapSize:.8,transparent:true,opacity:.7,depthTest:false}));
+rallyLine.renderOrder=996; rallyLine.visible=false; scene.add(rallyLine);
 function updateRings(){rings.forEach(r=>scene.remove(r));rings=[];for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;const r=new THREE.Mesh(ringGeo,ringMat);r.scale.setScalar(UNIT[e.type].r*2);r.position.set(e.x,heightAtWorld(e.x,e.z)+0.12,e.z);r.renderOrder=998;scene.add(r);rings.push(r);}
-  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){const r=new THREE.Mesh(ringGeo,ringMat);r.scale.setScalar(Math.max(b.w,b.h)*TILE*0.6);r.position.set(b.cx,heightAtWorld(b.cx,b.cz)+0.15,b.cz);r.renderOrder=998;scene.add(r);rings.push(r);}}}
+  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){const r=new THREE.Mesh(ringGeo,ringMat);r.scale.setScalar(Math.max(b.w,b.h)*TILE*0.6);r.position.set(b.cx,heightAtWorld(b.cx,b.cz)+0.15,b.cz);r.renderOrder=998;scene.add(r);rings.push(r);}}
+  let rb=null; if(selBuilding){const b=blds.find(x=>x.id===selBuilding); if(b&&b.owner==='player'&&b.done&&b.rally)rb=b;}
+  if(rb){ const ry=heightAtWorld(rb.rally.x,rb.rally.z);
+    rallyGrp.visible=true; rallyGrp.position.set(rb.rally.x,ry,rb.rally.z);
+    const bn=rallyGrp.userData.banner; bn.rotation.y=Math.sin(elapsed*2.4)*.28;
+    bn.material.color.setHex((FACTIONS[faction.player]&&FACTIONS[faction.player].coat)||0xf0a840);
+    rallyLine.visible=true;
+    rallyLineGeo.setFromPoints([new THREE.Vector3(rb.cx,heightAtWorld(rb.cx,rb.cz)+2.5,rb.cz),new THREE.Vector3(rb.rally.x,ry+2.9,rb.rally.z)]);
+    rallyLine.computeLineDistances();
+  } else { rallyGrp.visible=false; rallyLine.visible=false; } }
 let moveMarks=[];
 function spawnMoveMark(x,z,col){const m=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.95,depthTest:false}));
   m.scale.setScalar(1.2);m.position.set(x,heightAtWorld(x,z)+.15,z);m.renderOrder=997;scene.add(m);moveMarks.push({m,t:0});}
