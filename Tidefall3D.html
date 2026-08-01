@@ -937,13 +937,18 @@ function findPath(sx,sy,gx,gy,goalId,dom){if(!inB(gx,gy))return null;
 function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom);if(p){e.path=p;e.pi=0;return true;}e.path=null;return false;}
 
 // ==================================================== COMMANDS
-function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);list.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;const ox=gx+((i%3)-1),oy=gy+(Math.floor(i/3)-1);if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
+function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);list.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;const ox=gx+((i%3)-1),oy=gy+(Math.floor(i/3)-1);if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
 function commandTarget(list,x,z){const workers0=list.filter(e=>e.type==='worker');
   // right-click near your own unfinished building = send selected workers to finish it (checked FIRST so nothing steals the click)
   if(workers0.length){ let ob=null,obd=TILE*3;
     for(const q of blds)if(q.owner==='player'&&!q.done){const d=Math.hypot(x-q.cx,z-q.cz)-Math.max(q.w,q.h)*TILE*0.5;if(d<obd){obd=d;ob=q;}}
     if(ob){ workers0.forEach(w=>{w.cmd='build';w.build=ob;orderPath(w,ob.tx+(ob.w>>1),ob.ty+ob.h,ob.id);});
       flashMsg('Workers sent back to finish the '+BLD[ob.type].name);SFX.cmd();return; } }
+  // right-click your own farm = workers tend the rows (+50% harvest each, max 2)
+  if(workers0.length){ const ftx=txFromW(x),fty=tzFromW(z),fid=inB(ftx,fty)?buildGrid[ti(ftx,fty)]:0;
+    const fb=blds.find(q=>q.id===fid&&q.owner==='player'&&q.done&&q.type==='farm');
+    if(fb){ workers0.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;orderPath(w,fb.tx+(fb.w>>1),fb.ty+(fb.h>>1),fb.id);});
+      flashMsg('\u{1F468}\u200D\u{1F33E} Workers tend the farm \u2014 richer harvest!');SFX.cmd();return; } }
   const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));SFX.cmd();return;}
   const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
@@ -953,7 +958,7 @@ function attackOrder(e,t){if(UNIT[e.type].noAtk){e.cmd='move';e.target=null;e.ga
   e.cmd='attack';e.target=t;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);}
 function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostile('player',b.owner))declareWar(b.owner,'player');
   e.cmd='attackb';e.target=b;e.gather=null;e.build=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
-function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather=node;e.target=null;e.build=null;orderPath(e,node.tx,node.ty,0);}
+function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;orderPath(e,node.tx,node.ty,0);}
 function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my){const d=Math.hypot(x-e.x,z-e.z);if(d<bd+UNIT[e.type].r){bd=d;best=e;}}return best;}
 function bldAt(x,z,my){const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;if(!id)return null;const b=blds.find(b=>b.id===id);return(b&&b.owner!==my)?b:null;}
 function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
@@ -962,7 +967,7 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 
 // ==================================================== UPDATE
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
-  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry)res[b.owner].f+=FARM_FOOD*dt;}
+  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(2,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);res[b.owner].f+=FARM_FOOD*(1+0.5*tenders)*dt;}}
   for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*dt;
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=1.2*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.7*dt;               // villages pay tribute
@@ -993,13 +998,22 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
     case 'amove':if(arrived)e.cmd='idle';autoAcq(e,false);break;
     case 'idle':autoAcq(e,true);
-      if(e.type==='worker'&&Math.random()<dt*1.5){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}}
+      if(e.type==='worker'&&Math.random()<dt*1.5){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
+        else if(Math.random()<0.5){const f=blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&ents.filter(u=>u.cmd==='tend'&&u.tendB===q).length<2);
+          if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}}
       break;
     case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||Math.random()<dt*2)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);if(e.carryType&&e.carryType!==n.type)e.carry=0;e.carryType=n.type;const take=Math.min(MINE*dt,CARRY-e.carry,n.amount);e.carry+=take;n.amount-=take;if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0&&n.mesh)n.mesh.visible=false;if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.7+1){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
+    case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
+      e.tendT=(e.tendT||0)-dt;
+      if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4;
+        const tx2=b.tx+Math.floor(Math.random()*b.w),ty2=b.ty+Math.floor(Math.random()*b.h);
+        orderPath(e,tx2,ty2,b.id);
+        if(Math.random()<0.8)spawnPart(e.x,heightAtWorld(e.x,e.z)+0.7,e.z,'chip'); }
+      break;}
   }
   // mesh transforms
   placeMesh(e);
