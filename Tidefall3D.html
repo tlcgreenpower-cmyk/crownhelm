@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b22</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b23</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -89,6 +89,8 @@
       </div>
       <button class="big" id="contBtn" style="display:none;background:#1c4d6d;border-color:#3a86b0;">▶ Continue Your Kingdom</button>
       <button class="big" id="loadMenuBtn" style="display:none;background:#173a2a;border-color:#2f7a52;">📂 Load a Saved Kingdom</button>
+      <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Battleground:</div>
+      <div id="mappick" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:900px;"></div>
       <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Difficulty:</div>
       <div id="diffpick" style="display:flex;gap:10px;justify-content:center;">
         <button class="dif big" data-dif="easy" style="background:#1f5a33;border-color:#3f9a5f;padding:8px 18px;font-size:15px;">🟢 Easy</button>
@@ -127,9 +129,23 @@ document.getElementById('loading').classList.add('hidden');
 document.getElementById('overlay').classList.remove('hidden');
 
 // ==================================================== CONFIG
-const TILE=4,MAP_W=96,MAP_H=64,HSCALE=3.4;
+const TILE=4,HSCALE=3.4;
 const SEA=0.55;                     // static sea level — the world does not flood
-const WORLD_W=MAP_W*TILE,WORLD_H=MAP_H*TILE,HALF_W=WORLD_W/2,HALF_H=WORLD_H/2;
+// ---- battlegrounds: five worlds, four of them three times the land ----
+const MAPS={
+  heartlands:{name:'Heartlands',w:96,h:64,forest:1,clump:1,dep:1,depAmt:1,rivers:1,lakes:0.16,desc:'The classic isle'},
+  greatvale: {name:'The Great Vale',w:168,h:112,forest:1.3,clump:1.7,dep:3,depAmt:1.5,rivers:1,lakes:0.13,desc:'A vast open vale, rich goldfields'},
+  twinrivers:{name:'Twin Rivers',w:168,h:112,forest:1.5,clump:1.5,dep:2,depAmt:1.3,rivers:2,lakes:0.16,desc:'Two great rivers carve the land'},
+  ironhigh:  {name:'Iron Highlands',w:168,h:112,forest:0.9,clump:1.2,dep:4,depAmt:1.8,rivers:0,lakes:0.10,hills:true,desc:'Stony uplands veined with metal'},
+  broadwood: {name:'The Broadwood',w:168,h:112,forest:2.4,clump:2.2,dep:2,depAmt:1.2,rivers:1,lakes:0.18,desc:'One endless forest, clearings to claim'},
+};
+let curMapId=localStorage.getItem('tidefall_map')||'heartlands'; if(!MAPS[curMapId])curMapId='heartlands';
+let MAP_W,MAP_H,WORLD_W,WORLD_H,HALF_W,HALF_H,REALM_SITES;
+function areaScale(){return (MAP_W*MAP_H)/(96*64);}
+function setMap(id){ if(!MAPS[id])id='heartlands'; curMapId=id; const m=MAPS[id];
+  MAP_W=m.w;MAP_H=m.h;WORLD_W=MAP_W*TILE;WORLD_H=MAP_H*TILE;HALF_W=WORLD_W/2;HALF_H=WORLD_H/2;
+  REALM_SITES={player:[15,MAP_H-15],r1:[MAP_W-17,12],r2:[15,12],r3:[MAP_W-17,MAP_H-15]}; }
+setMap(curMapId);
 const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:2,time:8,age:1}, archer:{f:35,w:45,pop:2,time:9,age:1},
   infantry:{f:45,m:35,pop:2,time:9,age:1}, grenadier:{f:50,m:45,pop:2,time:11,age:1}, dragoon:{f:60,m:55,pop:3,time:13,age:2},
@@ -432,26 +448,31 @@ function genMap(){
     const edge=Math.min(x,y,MAP_W-1-x,MAP_H-1-y);
     let e=1.5+noise2(x*0.09,y*0.09)*1.6+noise2(x*0.23,y*0.23)*0.5;      // rolling countryside
     if(edge<3)e=Math.min(e,edge*0.4);                                    // coastal rim
-    if(noise2(x*0.05+40,y*0.05+40)<0.16)e=Math.min(e,0.3);               // lakes
+    if(noise2(x*0.05+40,y*0.05+40)<MAPS[curMapId].lakes)e=Math.min(e,0.3);               // lakes
     elev[ti(x,y)]=e; }
-  for(let y=0;y<MAP_H;y++){const cx=MAP_W/2+Math.sin(y*0.18)*10+Math.sin(y*0.05)*6;   // winding river
+  const MM=MAPS[curMapId], wS=MAP_W/96, hS=MAP_H/64;
+  if(MM.rivers>=1)for(let y=0;y<MAP_H;y++){const cx=MAP_W/2+Math.sin(y*0.18/hS)*10*wS+Math.sin(y*0.05/hS)*6*wS;   // winding river
     for(let x=0;x<MAP_W;x++)if(Math.abs(x-cx)<2.0)elev[ti(x,y)]=Math.min(elev[ti(x,y)],0.32+Math.abs(x-cx)*0.15);}
+  if(MM.rivers>=2)for(let x=0;x<MAP_W;x++){const cy=MAP_H/2+Math.sin(x*0.15/wS)*8*hS+Math.sin(x*0.04/wS)*5*hS;   // second river, east-west
+    for(let y=0;y<MAP_H;y++)if(Math.abs(y-cy)<2.0)elev[ti(x,y)]=Math.min(elev[ti(x,y)],0.32+Math.abs(y-cy)*0.15);}
   // four realm homelands + neutral highlands
-  plateau(16,50,3.4,4);plateau(80,13,3.4,4);plateau(16,13,3.4,4);plateau(80,50,3.4,4);
-  plateau(48,32,3.0,3);plateau(34,42,2.9,2);plateau(62,22,2.9,2);
+  for(const o of REALMS){const st=REALM_SITES[o];plateau(st[0]+1,st[1]+1,3.4,4);}
+  plateau(MAP_W>>1,MAP_H>>1,3.0,3);plateau(Math.round(MAP_W*0.35),Math.round(MAP_H*0.66),2.9,2);plateau(Math.round(MAP_W*0.65),Math.round(MAP_H*0.34),2.9,2);
+  if(MM.hills)for(let i=0;i<12;i++)plateau(Math.round(8+hashN(i,61)*(MAP_W-16)),Math.round(8+hashN(67,i)*(MAP_H-16)),2.9+hashN(i,71)*0.6,2+Math.floor(hashN(73,i)*3));
   hc=new Float32Array((MAP_W+1)*(MAP_H+1));
   for(let y=0;y<=MAP_H;y++)for(let x=0;x<=MAP_W;x++){let s=0,n=0;for(const[dx,dy]of[[-1,-1],[0,-1],[-1,0],[0,0]]){const cx=x+dx,cyy=y+dy;if(inB(cx,cyy)){s+=elev[ti(cx,cyy)];n++;}}hc[y*(MAP_W+1)+x]=(n?s/n:0)*HSCALE;}
   // procedural resources across the whole land
   woodNodes=[];metalNodes=[];goldNodes=[];
   for(let y=4;y<MAP_H-4;y+=3)for(let x=4;x<MAP_W-4;x+=3){ const e=elev[ti(x,y)]; if(e<1.7)continue;
     const h=hashN(x*3.1,y*7.3);
-    if(h<0.09)scatter(x,y);
-    else if(h>0.94&&e>=1.8)metalNodes.push({tx:x,ty:y,amount:1200,type:'metal'});
-    else if(h>0.905&&h<=0.94&&e>=1.8)goldNodes.push({tx:x,ty:y,amount:800,type:'gold'});
+    if(h<0.09*MM.forest)scatter(x,y);
+    else if(h>0.94&&e>=1.8)depositCluster(metalNodes,x,y,'metal',Math.round(1200*MM.depAmt),MM.dep);
+    else if(h>0.905&&h<=0.94&&e>=1.8)depositCluster(goldNodes,x,y,'gold',Math.round(800*MM.depAmt),MM.dep);
   }
   // neutral villages to discover while roaming
   villages=[];
-  for(let y=8;y<MAP_H-8;y+=4)for(let x=8;x<MAP_W-8;x+=4){ if(villages.length>=7)continue;
+  const vcap=Math.min(16,Math.round(7*areaScale()));
+  for(let y=8;y<MAP_H-8;y+=4)for(let x=8;x<MAP_W-8;x+=4){ if(villages.length>=vcap)continue;
     const e=elev[ti(x,y)]; if(e<1.9||e>2.8)continue;
     if(hashN(x*1.7,y*2.9)>0.05)continue;
     let ok=true;
@@ -459,8 +480,12 @@ function genMap(){
     for(const v of villages)if(Math.hypot(x-v.tx,y-v.ty)<12)ok=false;
     if(ok)villages.push({tx:x,ty:y,claimed:null}); }
 }
-const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','Foxholt','Elmsworth'];
-function scatter(cx,cy){for(let i=0;i<7+Math.floor(hashN(cx,cy)*5);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*5),y=cy+Math.round((hashN(cx,cy+i)-.5)*5);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
+const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','Foxholt','Elmsworth','Dunmarsh','Kestrelford','Bramblewick','Oxcombe','Larkstone','Netherby','Gullswick','Ashenfell','Windmere'];
+// clustered ore/gold — big clear deposits you can spot from a hilltop
+function depositCluster(arr,cx,cy,type,amt,n){ arr.push({tx:cx,ty:cy,amount:amt,type});
+  for(let i=1;i<n;i++){ const x=cx+Math.round((hashN(cx+i*3,cy*2+i)-.5)*3.4),y=cy+Math.round((hashN(cx*2+i,cy+i*5)-.5)*3.4);
+    if(inB(x,y)&&elev[ti(x,y)]>=1.7&&!arr.some(q=>q.tx===x&&q.ty===y))arr.push({tx:x,ty:y,amount:amt,type}); } }
+function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=5+CL*2.5;for(let i=0;i<Math.round((7+Math.floor(hashN(cx,cy)*5))*CL);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
 function plateau(cx,cy,val,rad){for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(!inB(x,y))continue;const d=Math.hypot(dx,dy);if(d>rad+.5)continue;elev[ti(x,y)]=Math.max(elev[ti(x,y)],val-(d/(rad+1))*0.5);}}
 function minFootElev(tx,ty,w,h){let m=9;for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++)if(inB(x,y))m=Math.min(m,elev[ti(x,y)]);return m;}
 function heightAtWorld(x,z){ if(!hc)return 0; const gx=(x+HALF_W)/TILE,gz=(z+HALF_H)/TILE;
@@ -622,35 +647,36 @@ function addRock(n){const g=new THREE.Group();
 let ambientGroup=null,cloudGroup=null,birdGroup=null,birds=[];
 function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGroup=new THREE.Group(); scene.add(ambientGroup);
   const m4=new THREE.Matrix4(),col=new THREE.Color(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3();
-  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.11,.62,4),new THREE.MeshStandardMaterial({roughness:1}),9000); let gi=0;
-  for(let i=0;i<30000&&gi<9000;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
+  const A=areaScale(),GCAP=Math.round(9000*A),FCAP=Math.round(1600*A),BCAP=Math.round(1200*A);
+  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.11,.62,4),new THREE.MeshStandardMaterial({roughness:1}),GCAP); let gi=0;
+  for(let i=0;i<30000*A&&gi<GCAP;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.65||e>3.1)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.22,z); grass.setMatrixAt(gi,m4);
     col.setHSL(0.26+hashN(i,9)*0.06,0.5,0.30+hashN(9,i)*0.12); grass.setColorAt(gi,col); gi++; }
   grass.count=gi; ambientGroup.add(grass);
-  const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,5,4),new THREE.MeshStandardMaterial({roughness:.8}),1600); let fi=0;
+  const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,5,4),new THREE.MeshStandardMaterial({roughness:.8}),FCAP); let fi=0;
   const fcols=[0xffffff,0xf0d060,0xe66a8a,0xb07ae0];
-  for(let i=0;i<12000&&fi<1600;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
+  for(let i=0;i<12000*A&&fi<FCAP;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.9)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.12,z); flowers.setMatrixAt(fi,m4);
     col.setHex(fcols[i%4]); flowers.setColorAt(fi,col); fi++; }
   flowers.count=fi; ambientGroup.add(flowers);
-  const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),1200); let bi=0;
-  for(let i=0;i<12000&&bi<1200;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
+  const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),BCAP); let bi=0;
+  for(let i=0;i<12000*A&&bi<BCAP;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.45,0.22+hashN(i,29)*0.08); bushes.setColorAt(bi,col); bi++; }
   bushes.count=bi; ambientGroup.add(bushes);
   if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
   const bm=new THREE.MeshBasicMaterial({color:0x2a2f36,side:THREE.DoubleSide});
-  for(let f=0;f<3;f++){ const cx=(hashN(f,31)-0.5)*WORLD_W*.6, cz=(hashN(37,f)-0.5)*WORLD_H*.6;
+  for(let f=0;f<Math.min(8,Math.round(3*areaScale()));f++){ const cx=(hashN(f,31)-0.5)*WORLD_W*.6, cz=(hashN(37,f)-0.5)*WORLD_H*.6;
     for(let b=0;b<4;b++){ const g=new THREE.Group();
       const w1=new THREE.Mesh(new THREE.PlaneGeometry(.9,.28),bm); w1.position.x=-.45; g.add(w1);
       const w2=w1.clone(); w2.position.x=.45; g.add(w2); birdGroup.add(g);
       birds.push({g,w1,w2,cx,cz,r:8+b*2.2,a:hashN(b,f)*6,h:26+f*5+b,sp:.25+hashN(f,b)*.15}); } } }
-function spawnClouds(){ if(cloudGroup||!NATURE_LIB)return; const srcs=[NATURE_LIB.cloud_big,NATURE_LIB.cloud_small].filter(Boolean); if(!srcs.length)return;
+function spawnClouds(){ if(cloudGroup){scene.remove(cloudGroup);cloudGroup=null;} if(!NATURE_LIB)return; const srcs=[NATURE_LIB.cloud_big,NATURE_LIB.cloud_small].filter(Boolean); if(!srcs.length)return;
   cloudGroup=new THREE.Group(); scene.add(cloudGroup);
-  for(let i=0;i<10;i++){ const m=srcs[i%srcs.length].clone(true);
+  for(let i=0;i<Math.min(20,Math.round(10*Math.sqrt(areaScale())));i++){ const m=srcs[i%srcs.length].clone(true);
     m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.55;o.material.depthWrite=false;}});
     m.scale.setScalar(1.5+hashN(i,41)*1.4);
     m.position.set((hashN(i,43)-0.5)*WORLD_W*1.2,105+hashN(47,i)*45,(hashN(i,53)-0.5)*WORLD_H*1.1);
@@ -671,7 +697,8 @@ function makeSheep(){ const g=new THREE.Group();
   return g; }
 function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
   let flocks=0;
-  for(let y=6;y<MAP_H-6&&flocks<5;y+=3)for(let x=6;x<MAP_W-6&&flocks<5;x+=3){
+  const FLK=Math.min(11,Math.round(5*areaScale()));
+  for(let y=6;y<MAP_H-6&&flocks<FLK;y+=3)for(let x=6;x<MAP_W-6&&flocks<FLK;x+=3){
     if(hashN(x*4.7,y*5.3)>0.028)continue; const e=elev[ti(x,y)]; if(e<1.8||e>2.6)continue;
     let ok=true; for(const o of REALMS){const st=REALM_SITES[o];if(Math.hypot(x-st[0],y-st[1])<12)ok=false;}
     if(!ok)continue; flocks++;
@@ -954,8 +981,8 @@ function addRankPips(e){ const old=e.mesh.userData.pips; if(old)e.mesh.remove(ol
 function passable(tx,ty,goalId,dom){if(!inB(tx,ty))return false;const fl=isFlooded(tx,ty);if(dom==='water'){if(!fl)return false;}else if(fl)return false;const b=buildGrid[ti(tx,ty)];return b===0||b===goalId;}
 function findPath(sx,sy,gx,gy,goalId,dom){if(!inB(gx,gy))return null;
   if(!passable(gx,gy,goalId,dom)){let best=null,bd=1e9;for(let r=1;r<=5&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=gx+dx,y=gy+dy;if(passable(x,y,goalId,dom)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(!best)return null;gx=best[0];gy=best[1];}
-  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-  while(open.length&&it++<6000){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
+  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?14000:6000;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
     if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k!==undefined){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=came[k];}return p.reverse();}
     if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom)||!passable(cur.x,cur.y+dy,goalId,dom))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
 function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom);if(p){e.path=p;e.pi=0;return true;}e.path=null;return false;}
@@ -1485,7 +1512,7 @@ function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&
   const others=AI_REALMS.some(o=>blds.some(b=>b.owner===o&&b.type==='hall'));
   if(!others)endGame(true);else if(!ph)endGame(false);}
 function endGame(win){gameOver=true;running=false;const ov=$('overlay');ov.classList.remove('hidden');ov.innerHTML=`<h1>${win?'You Rule the <span>Realm</span>':'Your <span style="color:#ff7a6a">Kingdom</span> Has Fallen'}</h1><p>${win?'Every rival keep lies in ruins. The whole land answers to your crown.':'Your Keep is lost. Another crown will rule these lands.'}</p><p style="color:#7fa8bd">Reigned ${Math.floor(elapsed/60)}m ${Math.floor(elapsed%60)}s · Age ${tech.player.age}</p><button class="big" id="againBtn">Play Again</button>`;$('againBtn').onclick=()=>location.reload();}
-const REALM_SITES={player:[15,49],r1:[79,12],r2:[15,12],r3:[79,49]};
+// REALM_SITES computed per battleground in setMap()
 function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
   initRealms();elapsed=0;gameOver=false;
@@ -1501,7 +1528,7 @@ function newGame(){for(const e of ents)scene.remove(e.mesh);for(const b of blds)
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
 function saveGame(quiet,key){ if(!running||gameOver)return; key=key||'tidefall_save';
-  const s={v:1,dif:difficulty,meta:{when:Date.now(),fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
+  const s={v:1,map:curMapId,dif:difficulty,meta:{when:Date.now(),fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
@@ -1514,7 +1541,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   document.getElementById('slots').classList.add('hidden');
   let s; try{s=JSON.parse(raw);}catch(e){flashMsg('Save file corrupted');return;}
   $('overlay').classList.add('hidden'); initAudio(); resize();
-  faction={...s.faction}; difficulty=s.dif||difficulty;
+  faction={...s.faction}; difficulty=s.dif||difficulty; setMap(s.map||'heartlands'); paintMaps();
   newGame();   // rebuilds the identical deterministic world, then we restore the saved state over it
   for(const e of ents)scene.remove(e.mesh); ents=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
@@ -1548,6 +1575,15 @@ function start(fac){faction.player=fac||'english';
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
   faction.r1=others[0];faction.r2=others[1];faction.r3=others[2];
   $('overlay').classList.add('hidden');initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
+function paintMaps(){document.querySelectorAll('#mappick .mapbtn').forEach(b=>{b.style.outline=b.dataset.map===curMapId?'3px solid #f3e4be':'none';b.style.opacity=b.dataset.map===curMapId?'1':'.62';});}
+{ const mp=document.getElementById('mappick');
+  for(const id in MAPS){ const m=MAPS[id]; const b=document.createElement('button');
+    b.className='big mapbtn'; b.dataset.map=id;
+    b.style.cssText='background:#14303c;border-color:#2c6157;padding:7px 14px;font-size:14px;display:flex;flex-direction:column;gap:2px;align-items:center;';
+    b.innerHTML='<span>'+m.name+(id==='heartlands'?'':' <small style="color:#8fd0a8">3× land</small>')+'</span><small style="color:#9fc0d2;font-weight:normal">'+m.desc+'</small>';
+    b.onclick=()=>{setMap(id);localStorage.setItem('tidefall_map',id);paintMaps();};
+    mp.appendChild(b); }
+  paintMaps(); }
 function paintDiff(){document.querySelectorAll('#diffpick .dif').forEach(b=>{b.style.outline=b.dataset.dif===difficulty?'3px solid #f3e4be':'none';b.style.opacity=b.dataset.dif===difficulty?'1':'.62';});}
 document.querySelectorAll('#diffpick .dif').forEach(b=>b.onclick=()=>{difficulty=b.dataset.dif;localStorage.setItem('tidefall_diff',difficulty);paintDiff();});
 paintDiff();
