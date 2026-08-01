@@ -654,7 +654,8 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const handR=handL.clone();handR.position.x=.40;anim.add(handR);
     const head=new THREE.Mesh(new THREE.SphereGeometry(.26,9,8),M.skin);head.position.y=2.20;anim.add(head);
     g.userData.limbs={armL,armR,legL,legR}; return head; };
-  const horseMat=new THREE.MeshStandardMaterial({color:type==='cuirassier'?0x8a8a92:0x6b4a30,roughness:.9,flatShading:true});
+  const HORSE_COATS=[0x6b4a30,0x3e2f22,0x8a6a4a,0x2c2825,0x7a5a3a];
+  const horseMat=new THREE.MeshStandardMaterial({color:type==='cuirassier'?0x8a8a92:HORSE_COATS[Math.floor(Math.random()*HORSE_COATS.length)],roughness:.9,flatShading:true});
   const mounted=()=>{ const bodyH=new THREE.Mesh(new THREE.BoxGeometry(.9,.8,2.1),horseMat);bodyH.position.y=1.15;bodyH.castShadow=true;anim.add(bodyH);
     const neck=new THREE.Mesh(new THREE.BoxGeometry(.34,.85,.5),horseMat);neck.position.set(0,1.72,.95);neck.rotation.x=-.45;anim.add(neck);
     const headH=new THREE.Mesh(new THREE.BoxGeometry(.3,.32,.68),horseMat);headH.position.set(0,2.12,1.32);headH.castShadow=true;anim.add(headH);
@@ -662,8 +663,10 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const mkLeg=(x,z)=>{const l=new THREE.Mesh(new THREE.BoxGeometry(.18,.78,.20),horseMat);l.geometry.translate(0,-.39,0);l.position.set(x,1.05,z);l.castShadow=true;anim.add(l);return l;};
     const FL=mkLeg(-.30,.72),FR=mkLeg(.30,.72),BL=mkLeg(-.30,-.72),BR=mkLeg(.30,-.72);
     g.userData.limbs={armL:FL,armR:BR,legL:FR,legR:BL};
-    const saddle=new THREE.Mesh(new THREE.BoxGeometry(.7,.16,.9),trimMat);saddle.position.y=1.58;anim.add(saddle);
-    const rTorso=new THREE.Mesh(new THREE.CylinderGeometry(.26,.34,.8,8),bodyMat);rTorso.position.y=2.05;rTorso.castShadow=true;anim.add(rTorso);
+    const blanket=new THREE.Mesh(new THREE.BoxGeometry(.94,.12,1.3),new THREE.MeshStandardMaterial({color:fac.coat,roughness:.85,flatShading:true}));blanket.position.y=1.55;anim.add(blanket);
+    const saddle=new THREE.Mesh(new THREE.BoxGeometry(.6,.14,.8),trimMat);saddle.position.y=1.64;anim.add(saddle);
+    const mane=new THREE.Mesh(new THREE.BoxGeometry(.12,.7,.5),M.trunk);mane.position.set(0,1.95,.9);mane.rotation.x=-.45;anim.add(mane);
+    const rTorso=new THREE.Mesh(new THREE.CylinderGeometry(.26,.34,.8,8),type==='knight'?M.stone:bodyMat);rTorso.position.y=2.05;rTorso.castShadow=true;anim.add(rTorso);
     const rCross=new THREE.Mesh(new THREE.BoxGeometry(.54,.09,.44),trimMat);rCross.position.y=2.2;anim.add(rCross);
     const rHead=new THREE.Mesh(new THREE.SphereGeometry(.26,8,7),M.skin);rHead.position.y=2.72;anim.add(rHead);
     return rHead; };
@@ -1121,8 +1124,26 @@ function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b
 // ==================================================== PLACEMENT
 function canPlace(tx,ty,w,h){for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++){if(!inB(x,y))return false;if(buildGrid[ti(x,y)]!==0)return false;if(isFlooded(x,y))return false;}return true;}
 function canPlaceDock(tx,ty,w,h){if(!canPlace(tx,ty,w,h))return false;for(let y=ty-1;y<=ty+h;y++)for(let x=tx-1;x<=tx+w;x++)if(inB(x,y)&&isFlooded(x,y))return true;return false;}
-let ghost=null;
-function updateGhost(){if(!placing){if(ghost){scene.remove(ghost);ghost=null;}return;}const b=BLD[placing];const tx=hoverTile.tx,ty=hoverTile.ty,cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;
+let ghost=null,ghostLine=null,wallDrag=null;
+function wallLineTiles(a,b){const t=[];let x0=a.tx,y0=a.ty;const x1=b.tx,y1=b.ty,dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let err=dx-dy;
+  while(t.length<60){t.push([x0,y0]);if(x0===x1&&y0===y1)break;const e2=2*err;if(e2>-dy){err-=dy;x0+=sx;}if(e2<dx){err+=dx;y0+=sy;}}return t;}
+function placeWallLine(a,b){const c=COST.wall;let placed=0,firstW=null;
+  for(const[tx,ty]of wallLineTiles(a,b)){ if(!canPlace(tx,ty,1,1))continue; if(res.player.w<(c.w||0)){flashMsg('Out of wood!');break;}
+    res.player.w-=(c.w||0); const nb=addBuilding('wall',tx,ty,'player',false); if(!firstW)firstW=nb; placed++; }
+  if(firstW){ const crew=ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd!=='build')
+      .sort((q,r)=>Math.hypot(q.x-firstW.cx,q.z-firstW.cz)-Math.hypot(r.x-firstW.cx,r.z-firstW.cz)).slice(0,2);
+    crew.forEach(w=>{w.cmd='build';w.build=firstW;orderPath(w,firstW.tx,firstW.ty+1,firstW.id);}); }
+  if(placed){flashMsg(placed+' wall sections staked out');SFX.cmd();} }
+function updateGhost(){
+  if(placing==='wall'&&wallDrag){ if(ghost){scene.remove(ghost);ghost=null;}
+    if(!ghostLine){ghostLine=new THREE.Group();scene.add(ghostLine);}
+    while(ghostLine.children.length)ghostLine.remove(ghostLine.children[0]);
+    for(const[tx2,ty2]of wallLineTiles(wallDrag,hoverTile)){ const okW=canPlace(tx2,ty2,1,1);
+      const mm=new THREE.Mesh(new THREE.BoxGeometry(TILE*.9,3.2,TILE*.9),okW?M.ghostOk:M.ghostNo);
+      mm.position.set(wx(tx2),heightAtWorld(wx(tx2),wz(ty2))+1.6,wz(ty2));ghostLine.add(mm); }
+    return; }
+  if(ghostLine){scene.remove(ghostLine);ghostLine=null;}
+  if(!placing){if(ghost){scene.remove(ghost);ghost=null;}return;}const b=BLD[placing];const tx=hoverTile.tx,ty=hoverTile.ty,cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;
   const ok=(placing==='dock'?canPlaceDock(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h))&&(COST[placing].age||1)<=tech.player.age&&res.player.w>=(COST[placing].w||0)&&res.player.m>=(COST[placing].m||0);
   if(!ghost){ghost=new THREE.Mesh(new THREE.BoxGeometry(1,4,1),M.ghostOk);scene.add(ghost);}ghost.geometry.dispose();ghost.geometry=new THREE.BoxGeometry(b.w*TILE*.9,4,b.h*TILE*.9);ghost.material=ok?M.ghostOk:M.ghostNo;ghost.position.set(cx,heightAtWorld(cx,cz)+2,cz);}
 function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverTile.ty;if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(res.player.w<(c.w||0)||res.player.m<(c.m||0)||res.player.f<(c.f||0)){flashMsg('Not enough resources');return;}
@@ -1162,9 +1183,10 @@ function pickBuilding(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setF
 function localXY(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(vw/r.width),y:(ev.clientY-r.top)*(vh/r.height)};}
 canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY=p.y;const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}});
-canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===0){if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
+canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===0){if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
   else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length)commandTarget(s,g.x,g.z);else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('Rally point set');}}}});
-window.addEventListener('mouseup',ev=>{if(ev.button!==0||!dragging)return;dragging=false;document.getElementById('dragbox').style.display='none';const p=localXY(ev);const moved=Math.abs(p.x-dragStartSX)>7||Math.abs(p.y-dragStartSY)>7;selBuilding=null;
+window.addEventListener('mouseup',ev=>{if(ev.button===0&&wallDrag){const a=wallDrag;wallDrag=null;placeWallLine(a,hoverTile);if(!keys['shift']){placing=null;}updateGhost();refreshUI();return;}
+  if(ev.button!==0||!dragging)return;dragging=false;document.getElementById('dragbox').style.display='none';const p=localXY(ev);const moved=Math.abs(p.x-dragStartSX)>7||Math.abs(p.y-dragStartSY)>7;selBuilding=null;
   if(moved){selected=[];const x1=Math.min(dragStartSX,p.x),x2=Math.max(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y),y2=Math.max(dragStartSY,p.y);const v=new THREE.Vector3();
     for(const e of ents)if(e.owner==='player'){v.set(e.x,heightAtWorld(e.x,e.z)+1,e.z).project(camera);const sxp=(v.x+1)/2*vw,syp=(-v.y+1)/2*vh;if(v.z<1&&sxp>=x1&&sxp<=x2&&syp>=y1&&syp<=y2)selected.push(e.id);}
     if(selected.some(id=>{const e=ents.find(u=>u.id===id);return e&&e.type!=='worker';}))selected=selected.filter(id=>{const e=ents.find(u=>u.id===id);return e&&e.type!=='worker';});if(selected.length)SFX.select();}
@@ -1173,7 +1195,7 @@ canvas.addEventListener('dblclick',ev=>{const p=localXY(ev);const u=pickUnit(p.x
 canvas.addEventListener('wheel',ev=>{ev.preventDefault();camDist=clamp(camDist+Math.sign(ev.deltaY)*7,30,150);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
-  if(k==='escape'){placing=null;attackMove=false;dragging=false;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();}
+  if(k==='escape'){placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();}
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
