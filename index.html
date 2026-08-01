@@ -261,14 +261,14 @@ function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
   }
   waveT-=dt; if(waveT<=0){ waveT=8+Math.random()*9; noiseBurst(1.4,0.028,420); } }
 function updateDayNight(){ const a=(elapsed%300)/300*Math.PI*2+1.1;   // start at bright noon
-  const dayLight=clamp(Math.sin(a)*0.5+0.62,0.14,1);
-  dayNight=1-clamp((dayLight-0.14)/0.86,0,1);
-  sun.intensity=1.55*Math.max(dayLight,0.18);
+  const dayLight=clamp(Math.sin(a)*0.5+0.62,0.36,1);
+  dayNight=1-clamp((dayLight-0.36)/0.64,0,1);
+  sun.intensity=1.55*Math.max(dayLight,0.42);
   if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
   sun.color.copy(_sunC);
-  hemi.intensity=0.32+0.52*dayLight;
+  hemi.intensity=0.46+0.42*dayLight;
   skyMat.uniforms.uNight.value=dayNight;
-  scene.fog.color.setRGB(0.77-0.62*dayNight,0.86-0.70*dayNight,0.91-0.64*dayNight);
+  scene.fog.color.setRGB(0.77-0.40*dayNight,0.86-0.46*dayNight,0.91-0.40*dayNight);
   LANTERN_MAT.emissiveIntensity=dayNight*2.3; }
 
 // ---- image-based lighting + post-processing (bloom, anti-aliasing) ----
