@@ -597,9 +597,9 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
 function spawnClouds(){ if(cloudGroup||!NATURE_LIB)return; const srcs=[NATURE_LIB.cloud_big,NATURE_LIB.cloud_small].filter(Boolean); if(!srcs.length)return;
   cloudGroup=new THREE.Group(); scene.add(cloudGroup);
   for(let i=0;i<10;i++){ const m=srcs[i%srcs.length].clone(true);
-    m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.7;}});
-    m.scale.setScalar(1.6+hashN(i,41)*2.2);
-    m.position.set((hashN(i,43)-0.5)*WORLD_W*1.2,78+hashN(47,i)*30,(hashN(i,53)-0.5)*WORLD_H*1.1);
+    m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.55;o.material.depthWrite=false;}});
+    m.scale.setScalar(1.5+hashN(i,41)*1.4);
+    m.position.set((hashN(i,43)-0.5)*WORLD_W*1.2,105+hashN(47,i)*45,(hashN(i,53)-0.5)*WORLD_H*1.1);
     m.userData.sp=1.2+hashN(i,59)*1.6; cloudGroup.add(m); } }
 function updateAmbient(dt,now){ for(const b of birds){ b.a+=dt*b.sp; b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.h,b.cz+Math.sin(b.a)*b.r);
     b.g.rotation.y=-b.a; const fl=Math.sin(now*7+b.r)*0.55; b.w1.rotation.y=fl; b.w2.rotation.y=-fl; }
