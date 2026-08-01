@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b19</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b20</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -951,7 +951,14 @@ function findPath(sx,sy,gx,gy,goalId,dom){if(!inB(gx,gy))return null;
 function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom);if(p){e.path=p;e.pi=0;return true;}e.path=null;return false;}
 
 // ==================================================== COMMANDS
-function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);list.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;const ox=gx+((i%3)-1),oy=gy+(Math.floor(i/3)-1);if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
+function commandMove(list,x,z,amove){const gx=txFromW(x),gy=tzFromW(z);
+  // regiments form ranks: melee & cavalry front, muskets/archers centre, guns & healers rear
+  const rank=t=>{const U=UNIT[t];return U.siege?3:(U.heal||U.noAtk)?2:U.ranged?1:0;};
+  const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type));
+  const cols=Math.max(1,Math.ceil(Math.sqrt(ml.length*1.6)));
+  ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
+    const ox=gx+(i%cols)-((cols-1)>>1),oy=gy+Math.floor(i/cols)-((Math.ceil(ml.length/cols)-1)>>1);
+    if(!orderPath(e,ox,oy,0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
 function commandTarget(list,x,z){const workers0=list.filter(e=>e.type==='worker');
   // right-click near your own unfinished building = send selected workers to finish it (checked FIRST so nothing steals the click)
   if(workers0.length){ let ob=null,obd=TILE*3;
