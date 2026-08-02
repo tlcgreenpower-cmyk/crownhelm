@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b49</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b50</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -619,7 +619,7 @@ function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THR
   for(const n of metalNodes)stampShade(n.tx,n.ty,0.7,0.2);
   for(const n of goldNodes)stampShade(n.tx,n.ty,0.7,0.2);
   if(groundTex)groundTex.needsUpdate=true;
-  for(const n of woodNodes)n.mesh=addTree(n);for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);
+  buildTreesInstanced();for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);
   for(const v of villages)v.mesh=addVillage(v);}
 const cotStone=new THREE.MeshStandardMaterial({color:0xa8a49a,roughness:.95,flatShading:true});
 const cotCream=new THREE.MeshStandardMaterial({color:0xe8dcc0,roughness:.9,flatShading:true});
@@ -700,6 +700,35 @@ function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),
   }
   const yy=heightAtWorld(wx(n.tx),wz(n.ty));g.position.set(wx(n.tx),yy,wz(n.ty));
   g.rotation.y=h1*6;g.rotation.z=(h2-.5)*.08;g.scale.setScalar(0.85+h2*0.7);decorGroup.add(g);return g;}
+const _tm4a=new THREE.Matrix4(),_tm4b=new THREE.Matrix4(),_tvA=new THREE.Vector3(),_tvB=new THREE.Vector3(),_te=new THREE.Euler(),_tq2=new THREE.Quaternion();
+function setTreeK(n,k){ if(!n.tim)return; _tq2.setFromEuler(_te.set(0,n.ry,n.rz));
+  _tm4a.compose(_tvA.set(n.px,n.py,n.pz),_tq2,_tvB.setScalar(n.ts*Math.max(k,0.0001)));
+  for(const pt of n.tim){_tm4b.multiplyMatrices(_tm4a,pt.l);pt.im.setMatrixAt(pt.i,_tm4b);pt.im.instanceMatrix.needsUpdate=true;} }
+function buildTreesInstanced(){
+  const L=LEAF_MATS.length,P=PINE_MATS.length,plans=[],counts={};
+  const lm=(x,y,z,ex,ey,ez,sx,sy,sz)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(ex,ey,ez)),new THREE.Vector3(sx,sy,sz));
+  for(const n of woodNodes){ const h1=hashN(n.tx*1.3,n.ty*2.7),h2=hashN(n.ty*3.1,n.tx*1.9),h3=hashN(n.tx*2.9,n.ty*1.7);
+    const parts=[];
+    if(h3<0.68){ const a=Math.floor(h1*L)%L,b=Math.floor(h2*L)%L;
+      parts.push(['tb',lm(0,1.0,0,0,0,0,1,1,1)]);
+      const bl=(x,y,z,s,mi)=>parts.push(['b'+mi,lm(x,y,z,h1*3,h2*3,h3*3,s,s*.82,s)]);
+      bl(0,3.0,0,1.55,a);bl(.95,2.5,.35,1.0,b);bl(-.85,2.6,-.3,.95,b);bl(.15,2.3,-.9,.85,a);
+    } else { const mi=Math.floor(h1*P)%P;
+      parts.push(['tp',lm(0,.7,0,0,0,0,1,1,1)],['c1'+mi,lm(0,2.6,0,0,0,0,1,1,1)],['c2'+mi,lm(0,4.1,0,0,0,0,1,1,1)]); }
+    const px=wx(n.tx),pz=wz(n.ty),py=heightAtWorld(px,pz);
+    plans.push({n,parts,px,py,pz,ry:h1*6,rz:(h2-.5)*.08,ts:0.85+h2*0.7});
+    for(const pp of parts)counts[pp[0]]=(counts[pp[0]]||0)+1; }
+  const geos={tb:new THREE.CylinderGeometry(.20,.38,2.0,7),tp:new THREE.CylinderGeometry(.16,.28,1.4,6),b:new THREE.IcosahedronGeometry(1,0),c1:new THREE.ConeGeometry(1.25,2.9,8),c2:new THREE.ConeGeometry(.85,2.0,8)};
+  const ims={},idx={};
+  for(const key in counts){ let geo,mat;
+    if(key==='tb'){geo=geos.tb;mat=M.trunk;} else if(key==='tp'){geo=geos.tp;mat=M.trunk;}
+    else if(key[0]==='b'){geo=geos.b;mat=LEAF_MATS[+key.slice(1)];}
+    else if(key[1]==='1'){geo=geos.c1;mat=PINE_MATS[+key.slice(2)];}
+    else {geo=geos.c2;mat=PINE_MATS[+key.slice(2)];}
+    const im=new THREE.InstancedMesh(geo,mat,counts[key]);im.castShadow=false;im.receiveShadow=false;decorGroup.add(im);ims[key]=im;idx[key]=0; }
+  for(const pl of plans){ const n=pl.n; n.px=pl.px;n.py=pl.py;n.pz=pl.pz;n.ry=pl.ry;n.rz=pl.rz;n.ts=pl.ts;
+    n.tim=pl.parts.map(pp=>({im:ims[pp[0]],i:idx[pp[0]]++,l:pp[1]}));
+    n.mesh=null; setTreeK(n,1); } }
 function addRock(n){const g=new THREE.Group();
   if(NATURE_LIB){const keys=Object.keys(NATURE_LIB);const src=NATURE_LIB[keys[Math.floor(hashN(n.tx,n.ty)*keys.length)%keys.length]];
     if(src){const m=src.clone(true);const box=new THREE.Box3().setFromObject(m);const s=2.6/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,0.001);
@@ -1242,7 +1271,8 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       else if(arrived||Math.random()<dt*3)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
       break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);if(e.carryType&&e.carryType!==n.type)e.carry=0;e.carryType=n.type;const take=Math.min(MINE*dt,CARRY-e.carry,n.amount);e.carry+=take;n.amount-=take;
-      if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.35+0.65*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0&&n.mesh)n.mesh.visible=false;if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
+      if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.35+0.65*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
+      else if(n.tim){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.35+0.65*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)setTreeK(n,0);}if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
     case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
@@ -1826,7 +1856,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   for(const e of ents)scene.remove(e.mesh); ents=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
   res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed; statKills=s.kills||0;
-  const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0&&arr[i].mesh)arr[i].mesh.visible=false;}});};
+  const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0){if(arr[i].mesh)arr[i].mesh.visible=false;else if(arr[i].tim)setTreeK(arr[i],0);}}});};
   restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);
   (s.vil||[]).forEach((c,i)=>{if(c&&villages[i])claimVillageSilent(villages[i],c);});
   if(s.explored&&s.explored.length===explored.length)explored=Uint8Array.from(s.explored,ch=>+ch);
