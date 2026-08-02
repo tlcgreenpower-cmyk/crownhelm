@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b50</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b51</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -396,7 +396,7 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   await new Promise(res=>{loader.load('assets/pirate/Privateer.glb',g=>{lib['Privateer']={scene:g.scene,clips:g.animations};res();},undefined,()=>res());});
   await Promise.all([['Anne','Characters_Anne'],['Henry','Characters_Henry'],['Mako','Characters_Mako'],['Sharky','Characters_Sharky'],['Barbarossa','Characters_Captain_Barbarossa']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/pirate/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
-  await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female']].map(([k,f])=>new Promise(res=>{
+  await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   loader.load('assets/pirate/glTF/Prop_Cannon.gltf',g=>{PIRATE_CANNON=g.scene;},undefined,()=>{});
   loader.load('assets/pirate/glTF/Ship_Small.gltf',g=>{PIRATE_SHIP=g.scene;},undefined,()=>{});
@@ -817,11 +817,12 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'Knight',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
+const UNIT_CHAR={hero:'GoldKnight',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // professional animated model where one fits this unit type
-  if(CHAR_LIB&&UNIT_CHAR[type]&&CHAR_LIB.lib[UNIT_CHAR[type]]){
-    const src=CHAR_LIB.lib[UNIT_CHAR[type]];
+  let ckey=UNIT_CHAR[type]; if(type==='worker'&&CHAR_LIB&&CHAR_LIB.lib.WorkerM)ckey=Math.random()<0.5?'WorkerM':'WorkerF';
+  if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
+    const src=CHAR_LIB.lib[ckey];
     const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.88,u.r*.98,.08,14),tm);ring.position.y=.04;ring.castShadow=true;g.add(ring);
     const ch=CHAR_LIB.clone(src.scene);
     const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
@@ -834,6 +835,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const atkClip=type==='privateer'?pick(/Sword/i,/Punch/i)
       :type==='archer'?pick(/2H_Ranged_Shooting/,/2H_Ranged_Shoot/,/1H_Ranged_Shooting/)
       :(type==='monk'||type==='priest'||type==='cardinal')?pick(/Spellcast/i,/1H_Ranged_Shooting/)
+      :(type==='infantry'||type==='grenadier')?pick(/Shoot_OneHanded/i,/Shoot/i,/Punch/i)
       :pick(/2H_Melee_Attack_Chop/,/1H_Melee_Attack_Slice_Diagonal/,/1H_Melee_Attack_Chop/,/SwordSlash/,/Punch/i);
     const deathClip=pick(/^Death_A$/,/Death_A(?!_)/,/Death_B(?!_)/,/Death/i), cheerClip=pick(/^Cheer/i,/Cheer/i,/Victory/i,/Wave/i,/Yes/i);
     g.userData.attackA=atkClip?mixer.clipAction(atkClip):null;
