@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b70</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b71</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -184,7 +184,7 @@ const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:2,time:8,age:1}, archer:{f:35,w:45,pop:2,time:9,age:1},
   infantry:{f:45,m:35,pop:2,time:9,age:1}, grenadier:{f:50,m:45,pop:2,time:11,age:1}, dragoon:{f:60,m:55,pop:3,time:13,age:2},
   highlander:{f:120,m:90,g:80,pop:4,time:17,age:3}, grenguard:{f:100,m:100,g:80,pop:3,time:16,age:3}, wolfrider:{f:110,m:100,g:90,pop:4,time:16,age:3}, cuirassier:{f:140,m:110,g:100,pop:4,time:18,age:3},
-  knight:{f:70,m:60,pop:3,time:14,age:2}, catapult:{w:120,m:100,pop:4,time:20,age:2},
+  knight:{f:70,m:60,pop:3,time:14,age:2}, catapult:{w:120,m:100,pop:4,time:20,age:2}, ram:{w:110,m:40,pop:3,time:18,age:2},
   cannon:{w:100,m:120,pop:4,time:20,age:2}, howitzer:{w:130,m:140,pop:4,time:22,age:2},
   hero:{f:150,w:80,m:150,pop:5,time:24,age:1},
   monk:{f:60,pop:2,time:10,age:1}, priest:{f:90,pop:2,time:12,age:1}, doctor:{f:70,w:20,pop:2,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:4,time:20,age:2},
@@ -217,8 +217,8 @@ const UNIT={
   archer:{hp:62,speed:13,range:17,dmg:9,cd:1.1,r:1.0,vis:10,dom:'land',color:0x7ac8e0,name:'Skirmisher'},
   infantry:{hp:110,speed:12,range:16,dmg:13,cd:1.5,r:1.05,vis:9,dom:'land',color:0xcccccc,name:'Infantry',coat:true,ranged:true},
   grenadier:{hp:118,speed:11.5,range:13,dmg:16,cd:2.0,r:1.05,vis:9,dom:'land',color:0xcccccc,name:'Grenadier',coat:true,ranged:true,arc:true},
-  dragoon:{hp:150,speed:17,range:15,dmg:12,cd:1.4,r:1.15,vis:10,dom:'land',color:0xcccccc,name:'Dragoon',coat:true,ranged:true},
-  knight:{hp:195,speed:19,range:2.8,dmg:20,cd:.9,r:1.2,vis:9,dom:'land',color:0xe0894d,name:'Knight'},
+  dragoon:{hp:150,speed:17,range:15,dmg:12,cd:1.4,r:1.15,vis:10,dom:'land',color:0xcccccc,name:'Dragoon',coat:true,ranged:true,cav:true},
+  knight:{hp:195,speed:19,range:2.8,dmg:20,cd:.9,r:1.2,vis:9,dom:'land',color:0xe0894d,name:'Knight',cav:true},
   cannon:{hp:120,speed:7,range:30,dmg:26,cd:3.2,r:1.7,vis:10,dom:'land',color:0x44444c,name:'Cannon',siege:true,ranged:true},
   howitzer:{hp:110,speed:6.5,range:35,dmg:22,cd:3.8,r:1.7,vis:10,dom:'land',color:0x55554a,name:'Howitzer',siege:true,ranged:true,arc:true},
   hero:{hp:470,speed:15,range:3,dmg:34,cd:.7,r:1.5,vis:12,dom:'land',color:0xf2d24a,name:'King',coat:true},
@@ -228,9 +228,10 @@ const UNIT={
   cardinal:{hp:220,speed:11,range:0,dmg:0,cd:1,r:1.25,vis:11,dom:'land',color:0xc23a3a,name:'Cardinal',heal:14,healrad:12,aura:true,noAtk:true},
   highlander:{hp:290,speed:13,range:2.8,dmg:32,cd:.9,r:1.25,vis:9,dom:'land',color:0xcccccc,name:'Highlander Charger',coat:true,uniq:true},
   grenguard:{hp:165,speed:12,range:18,dmg:22,cd:1.5,r:1.1,vis:10,dom:'land',color:0xcccccc,name:'Grenadier Guard',coat:true,ranged:true,uniq:true},
-  wolfrider:{hp:225,speed:23,range:2.8,dmg:24,cd:.8,r:1.2,vis:11,dom:'land',color:0xcccccc,name:'Wolfhound Rider',coat:true,uniq:true},
-  cuirassier:{hp:310,speed:18,range:2.8,dmg:28,cd:.9,r:1.3,vis:10,dom:'land',color:0xcccccc,name:'Cuirassier',coat:true,uniq:true},
+  wolfrider:{hp:225,speed:23,range:2.8,dmg:24,cd:.8,r:1.2,vis:11,dom:'land',color:0xcccccc,name:'Wolfhound Rider',coat:true,uniq:true,cav:true},
+  cuirassier:{hp:310,speed:18,range:2.8,dmg:28,cd:.9,r:1.3,vis:10,dom:'land',color:0xcccccc,name:'Cuirassier',coat:true,uniq:true,cav:true},
   catapult:{hp:130,speed:7.5,range:26,dmg:14,cd:3,r:1.5,vis:9,dom:'land',color:0x9a8a72,name:'Catapult',siege:true,ranged:true,arc:true},
+  ram:{hp:340,speed:6.5,range:2.8,dmg:30,cd:2,r:1.6,vis:6,dom:'land',color:0x7a5c38,name:'Battering Ram',siege:true,ramOnly:true},
   warboat:{hp:250,speed:16,range:18,dmg:16,cd:1.3,r:1.7,vis:11,dom:'water',color:0x6fb0c8,name:'Warboat',ranged:true},
   privateer:{hp:135,speed:13,range:13,dmg:15,cd:1.3,r:1.05,vis:11,dom:'land',color:0x3a3f4a,name:'Privateer',ranged:true},
   viking:{hp:130,speed:14,range:2.4,dmg:14,cd:.8,r:1.05,vis:8,dom:'land',color:0x8a6b4a,name:'Viking Raider'},
@@ -994,7 +995,14 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
       const helm2=new THREE.Mesh(new THREE.ConeGeometry(.26,.5,8),M.gold);helm2.position.y=3.0;anim.add(helm2);
       const sab=new THREE.Mesh(new THREE.BoxGeometry(.08,1.3,.08),M.ore);sab.rotation.z=.5;sab.position.set(.6,1.9,-.3);anim.add(sab);} }
   else { artic();
-    if(type==='worker'){strawHat(2.20);const tool=new THREE.Mesh(new THREE.BoxGeometry(.1,1.0,.1),M.wood);tool.position.set(.5,1.15,.1);tool.rotation.z=-.3;anim.add(tool);
+    if(type==='ram'){ const roof=new THREE.Mesh(new THREE.BoxGeometry(2.6,.28,1.5),M.thatch);roof.position.y=2.0;roof.castShadow=true;g.add(roof);
+    const roof2=new THREE.Mesh(new THREE.BoxGeometry(2.2,.24,1.2),M.wood);roof2.position.y=2.22;g.add(roof2);
+    for(const pp of[[-1.1,-.6],[1.1,-.6],[-1.1,.6],[1.1,.6]]){const post=new THREE.Mesh(new THREE.BoxGeometry(.16,1.9,.16),M.wood);post.position.set(pp[0],1.0,pp[1]);g.add(post);}
+    const log=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,3.0,8),M.trunk);log.rotation.z=Math.PI/2;log.position.y=1.15;log.castShadow=true;g.add(log);
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(.34,.22,.5,8),M.ore);head.rotation.z=Math.PI/2;head.position.set(-1.6,1.15,0);g.add(head);
+    for(const wx2 of[-.9,.9])for(const wz2 of[-.65,.65]){const wh=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,.16,10),M.stoneD);wh.rotation.x=Math.PI/2;wh.position.set(wx2,.3,wz2);g.add(wh);}
+    const hbr=makeHealthBar();hbr.position.y=3.1;g.add(hbr);g.userData.hb=hbr;g.userData.noBob=true;return g; }
+  if(type==='worker'){strawHat(2.20);const tool=new THREE.Mesh(new THREE.BoxGeometry(.1,1.0,.1),M.wood);tool.position.set(.5,1.15,.1);tool.rotation.z=-.3;anim.add(tool);
       const toolHead=new THREE.Mesh(new THREE.BoxGeometry(.3,.16,.1),M.ore);toolHead.position.set(.66,1.62,.1);anim.add(toolHead);}
     if(type==='spear'){const kettle=new THREE.Mesh(new THREE.ConeGeometry(.4,.3,10),M.ore);kettle.position.y=2.46;anim.add(kettle);
       const sp=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2.7,5),M.wood);sp.position.set(.5,1.6,0);anim.add(sp);
@@ -1255,7 +1263,7 @@ function commandTarget(list,x,z){astarBudget+=list.length+6;const workers0=list.
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
   const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
   commandMove(list,x,z,false);}
-function attackOrder(e,t){if(UNIT[e.type].noAtk){e.cmd='move';e.target=null;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);return;}if(e.type==='worker'&&t.owner===e.owner)return;
+function attackOrder(e,t){if(UNIT[e.type].noAtk||UNIT[e.type].ramOnly){e.cmd='move';e.target=null;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);return;}if(e.type==='worker'&&t.owner===e.owner)return;
   if(e.owner==='player'&&t.owner!=='player'&&!isHostile('player',t.owner))declareWar(t.owner,'player');
   e.cmd='attack';e.target=t;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);}
 function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostile('player',b.owner))declareWar(b.owner,'player');
@@ -1401,7 +1409,7 @@ function nextBuildSite(e){ let best=null,bd=200;
   for(const b of blds)if(b.owner===e.owner&&!b.done){ const d=Math.hypot(e.x-b.cx,e.z-b.cz);
     if(d<bd&&ents.filter(o=>o.owner===e.owner&&o.cmd==='build'&&o.build===b).length<3){bd=d;best=b;} }
   return best; }
-function autoAcq(e,chase){if(e.type==='worker'||UNIT[e.type].noAtk||e.stance==='hold'||e.cmd==='attack'||e.cmd==='attackb')return;let tgt=null,bd=UNIT[e.type].range+(UNIT[e.type].ranged?7:11);for(const o of ents)if(isHostile(e.owner,o.owner)){const d=Math.hypot(e.x-o.x,e.z-o.z);if(d<bd){bd=d;tgt=o;}}if(tgt){e.cmd='attack';e.target=tgt;}}
+function autoAcq(e,chase){if(e.type==='worker'||UNIT[e.type].noAtk||UNIT[e.type].ramOnly||e.stance==='hold'||e.cmd==='attack'||e.cmd==='attackb')return;let tgt=null,bd=UNIT[e.type].range+(UNIT[e.type].ranged?7:11);for(const o of ents)if(isHostile(e.owner,o.owner)){const d=Math.hypot(e.x-o.x,e.z-o.z);if(d<bd){bd=d;tgt=o;}}if(tgt){e.cmd='attack';e.target=tgt;}}
 function muzzleFX(e,U){ if(e.owner!=='player'&&!tileVis(e.x,e.z))return; const mx=e.x+Math.cos(e.dir)*1.3, mz=e.z+Math.sin(e.dir)*1.3, my=heightAtWorld(e.x,e.z)+1.6;
   spawnPart(mx,my,mz,'flash');
   const n=U.siege?5:3; for(let i=0;i<n;i++)spawnPart(mx,my,mz,'musket');
@@ -1412,9 +1420,16 @@ function playOnce(e,key){ const ud=e.mesh.userData; const a=ud&&ud[key]; if(!a||
   ud.oneA=a; ud.oneT=Math.max(0.3,a.getClip().duration*0.9);
   const cur=ud.animMode==='walk'?ud.walkA:ud.idleA; if(cur)cur.fadeOut(0.1);
   a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.fadeIn(0.1).play(); }
-function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk)return;const U=UNIT[e.type];e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
-  if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player')U.siege?SFX.boom():SFX.bow();}
-  else{t.hp-=effDmg(e);const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player')SFX.hit();}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
+function counterBonus(e,t){const U=UNIT[e.type],T=UNIT[t.type];let b=0;
+  if(e.type==='spear'&&T.cav)b=16;
+  if(e.type==='samurai'&&T.uniq)b=10;
+  if(U.cav&&T.ranged&&!T.siege)b=6;
+  if(e.type==='archer'&&(t.type==='spear'||t.type==='viking'))b=5;
+  if(e.type==='viking'&&T.siege)b=10;
+  return b;}
+function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk||UNIT[e.type].ramOnly)return;const U=UNIT[e.type];e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
+  if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e)+counterBonus(e,t),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player')U.siege?SFX.boom():SFX.bow();}
+  else{t.hp-=effDmg(e)+counterBonus(e,t);const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player')SFX.hit();}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
 function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;const U=UNIT[e.type];e.cd=U.cd;e.atk=0.2;const mult=U.siege?4:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4;
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player')SFX.boom();}
   else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);}if(b.owner==='player'&&e.owner!=='player')pingAttack(b.cx,b.cz);}
@@ -1805,7 +1820,7 @@ mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();cons
 // ==================================================== UI
 const $=id=>document.getElementById(id);
 for(const k in COST){if(COST[k].time)COST[k].time=Math.round(COST[k].time*1.4);}
-const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',cannon:'💣',howitzer:'🎆',warboat:'⛵',privateer:'🏴‍☠️',viking:'🪓',samurai:'🗡️',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
+const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',ram:'🐑',cannon:'💣',howitzer:'🎆',warboat:'⛵',privateer:'🏴‍☠️',viking:'🪓',samurai:'🗡️',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
 const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock']);
 function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Idle — click a unit button to train</span>';
   const q0=b.queue[0]; let s='⚒ <b>Training '+(UNIT_IC[q0.type]||'')+' '+UNIT[q0.type].name+'</b> — '+Math.max(1,Math.ceil(q0.t))+'s';
@@ -1824,7 +1839,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2)trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);}
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
-      if(b.type==='siege')trainBtn(cmds,b,'catapult','⊙','Catapult',can);
+      if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);}
       if(b.type==='dock'){trainBtn(cmds,b,'warboat','⛵','Warboat',can);if(tech.player.age>=2)trainBtn(cmds,b,'privateer','🏴‍☠️','Privateer',can);}
       const UPG={tower:['🪨','Boulder Thrower','80🪵 60⛏️',{w:80,m:60},'Hurls splash boulders (2× damage)'],
         wall:['🧱','Fortify','40⛏️',{m:40},'+50% wall strength'],
