@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b62</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b63</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -697,7 +697,7 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
   const name=VILLAGE_NAMES[villages.indexOf(v)%VILLAGE_NAMES.length];
   if(owner==='player'){ SFX.age(); flashMsg('🏘 The village of '+name+' joins your realm! (+6 pop, +1 worker, +30 gold)'); }
   else if(u){ const n=nearestNode(u,realmWant(owner)); if(n)gatherOrder(u,n); } }
-function addGold(n){const g=new THREE.Group();
+function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
   const goldRock=new THREE.MeshStandardMaterial({color:0xc9a23a,roughness:.55,metalness:.35,flatShading:true});
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.6,0),goldRock);r.position.y=.95;r.castShadow=true;r.rotation.set(hashN(n.tx,3),hashN(n.ty,4),hashN(n.tx,n.ty));g.add(r);
   const r2=new THREE.Mesh(new THREE.DodecahedronGeometry(.9,0),goldRock);r2.position.set(1.3,.5,.4);r2.castShadow=true;r2.rotation.set(hashN(n.ty,5),hashN(n.tx,6),1);g.add(r2);
@@ -754,7 +754,7 @@ function buildTreesInstanced(){
     n.mesh=null; setTreeK(n,1); } }
 const ironGrey=new THREE.MeshStandardMaterial({color:0x7d8288,roughness:.9,flatShading:true});
 const ironGreyD=new THREE.MeshStandardMaterial({color:0x5c6167,roughness:.95,flatShading:true});
-function addRock(n){const g=new THREE.Group();
+function addRock(n){const g=new THREE.Group();g.scale.setScalar(2);
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.7,0),ironGrey);r.position.y=1.0;r.castShadow=true;r.rotation.set(hashN(n.tx,1),hashN(n.ty,2),hashN(n.tx,n.ty));g.add(r);
   const r2=new THREE.Mesh(new THREE.DodecahedronGeometry(1.0,0),ironGreyD);r2.position.set(-1.3,.55,.5);r2.castShadow=true;r2.rotation.set(1,hashN(n.tx,7),0);g.add(r2);
   for(const[dx,dz,s]of[[.6,.35,.5],[-.4,-.55,.44],[.1,.7,.4]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),M.ore);v.position.set(dx,1.7+dz*.3,dz);v.castShadow=true;g.add(v);}
@@ -1323,8 +1323,8 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       else if(arrived||Math.random()<dt*1.2)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
       break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);if(e.carryType&&e.carryType!==n.type)e.carry=0;e.carryType=n.type;const take=Math.min(MINE*dt,CARRY-e.carry,n.amount);e.carry+=take;n.amount-=take;
-      if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.35+0.65*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
-      else if(n.tim){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.35+0.65*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)setTreeK(n,0);}if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
+      if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.15+0.85*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
+      else if(n.tim){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)setTreeK(n,0);}if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
     case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
