@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b57</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b58</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -288,6 +288,7 @@ let QUAL=localStorage.getItem('tidefall_quality')||'med';
 function applyQuality(){
   renderer.shadowMap.enabled=QUAL!=='low';
   renderer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?1.5:QUAL==='med'?1.25:1));
+  if(typeof composer!=='undefined'&&composer)composer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?1.5:QUAL==='med'?1.25:1));
   scene&&scene.traverse(o=>{if(o.isMesh&&o.material)o.material.needsUpdate=true;});
   for(const e of (typeof ents!=='undefined'?ents:[]))e.mesh.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});
   const qb=document.getElementById('qualBtn'); if(qb)qb.textContent='⚙ '+(QUAL==='high'?'High':QUAL==='med'?'Medium':'Fast');
@@ -845,8 +846,11 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   else { const sp=1.7*dt; s.x+=(s.tx-s.x)/d*sp; s.z+=(s.tz-s.z)/d*sp;
     s.mesh.rotation.y=Math.atan2(s.tx-s.x,s.tz-s.z); }
   if(s.mesh.userData.head)s.mesh.userData.head.rotation.x=(d<0.5&&s.graze>0)?0.7:0;   // head down to graze
+  const sdx=s.x-camTarget.x,sdz=s.z-camTarget.z,sfar=(sdx*sdx+sdz*sdz)>12000;
+  if(s.mesh.visible===sfar)s.mesh.visible=!sfar;
   const sud=s.mesh.userData;
-  if(sud.mixer){ sud.mixer.update(dt); const want=d<0.5?'idle':'walk';
+  if(sud.mixer&&sfar){ /* hidden: skip skinning */ }
+  else if(sud.mixer){ sud.mixer.update(dt); const want=d<0.5?'idle':'walk';
     if(want!==sud.mode&&sud.walkA&&sud.idleA){ const to=want==='walk'?sud.walkA:sud.idleA, from=want==='walk'?sud.idleA:sud.walkA;
       to.reset().fadeIn(0.2).play(); from.fadeOut(0.2); sud.mode=want; } }
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
@@ -1455,7 +1459,11 @@ function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
   else { moving=true; const sp=3.2*dt; c.x+=(c.tx-c.x)/d*sp; c.z+=(c.tz-c.z)/d*sp;
     c.mesh.rotation.y=-Math.atan2(c.tz-c.z,c.tx-c.x)+Math.PI/2; }
   // animate: real skeletal animation if we have it, else procedural limb swing
-  if(c.mixer){ c.mixer.update(dt);
+  const cdx=c.x-camTarget.x,cdz=c.z-camTarget.z;
+  if(c.mesh.visible&&(cdx*cdx+cdz*cdz)>9000)c.mesh.visible=false;
+  else if(!c.mesh.visible&&(cdx*cdx+cdz*cdz)<=9000&&(tileVis(c.x,c.z)||c.own==='player'))c.mesh.visible=true;
+  if(c.mixer&&!c.mesh.visible){ /* hidden: skip skinning */ }
+  else if(c.mixer){ c.mixer.update(dt);
     const want=moving?'walk':'idle';
     if(want!==c.mode&&c.walkA&&c.idleA){ const to=moving?c.walkA:c.idleA, from=moving?c.idleA:c.walkA;
       to.reset().fadeIn(0.18).play(); from.fadeOut(0.18); c.mode=want; } }
@@ -1617,15 +1625,44 @@ const impMat=new THREE.MeshStandardMaterial({roughness:.85});
 const impMesh=new THREE.InstancedMesh(impGeo,impMat,IMP_CAP);
 impMesh.castShadow=false; impMesh.count=0; impMesh.frustumCulled=false; scene.add(impMesh);
 const _impM=new THREE.Matrix4(),_impC=new THREE.Color();
-function updateUnitLOD(){ if(!ents.length){impMesh.count=0;return;}
+const bImpGeo=new THREE.BoxGeometry(1,1,1); bImpGeo.translate(0,0.5,0);
+const bImpMesh=new THREE.InstancedMesh(bImpGeo,new THREE.MeshStandardMaterial({color:0x9a978e,roughness:.95}),420);
+const bImpRoof=new THREE.InstancedMesh(new THREE.ConeGeometry(0.72,0.62,4),new THREE.MeshStandardMaterial({roughness:.8}),420);
+bImpMesh.castShadow=false;bImpRoof.castShadow=false;bImpMesh.frustumCulled=false;bImpRoof.frustumCulled=false;
+bImpMesh.count=0;bImpRoof.count=0;scene.add(bImpMesh);scene.add(bImpRoof);
+const _impQ=new THREE.Quaternion(),_impS=new THREE.Vector3(),_impP=new THREE.Vector3();
+function updateUnitLOD(){
+  if(!elev||!visNow){impMesh.count=0;bImpMesh.count=0;bImpRoof.count=0;return;}   // render loop runs before Play — guard the map arrays
   const LODD=Math.max(26,4600/Math.max(camDist,1)); const L2=LODD*LODD; let n=0;
-  for(const e of ents){ const dx=e.x-camTarget.x,dz=e.z-camTarget.z;
+  for(const e of ents){
+    const inFog=e.owner!=='player'&&!tileVis(e.x,e.z);
+    if(inFog){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // fogged troops show NOWHERE — not even as imposters
+    const dx=e.x-camTarget.x,dz=e.z-camTarget.z;
     const far=(dx*dx+dz*dz)>L2 && n<IMP_CAP;
     if(far){ if(e.mesh.visible)e.mesh.visible=false;
       _impM.makeTranslation(e.x,heightAtWorld(e.x,e.z),e.z); impMesh.setMatrixAt(n,_impM);
       _impC.setHex((FACTIONS[faction[e.owner]]||FACTIONS.english).coat); impMesh.setColorAt(n,_impC); n++; }
     else if(!e.mesh.visible)e.mesh.visible=true; }
-  impMesh.count=n; impMesh.instanceMatrix.needsUpdate=true; if(impMesh.instanceColor)impMesh.instanceColor.needsUpdate=true; }
+  impMesh.count=n; impMesh.instanceMatrix.needsUpdate=true; if(impMesh.instanceColor)impMesh.instanceColor.needsUpdate=true;
+  // buildings: same trick, bigger threshold — walls grey, roofs in the owner's coat colour
+  const BL=LODD*1.7, B2=BL*BL; let m=0;
+  for(const b of blds){ if(!b.done)continue;
+    const explOK=b.owner==='player'||explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))]===1;
+    if(!explOK)continue;
+    const dx=b.cx-camTarget.x,dz=b.cz-camTarget.z;
+    const far=(dx*dx+dz*dz)>B2 && m<420;
+    if(far){ if(b.mesh.visible)b.mesh.visible=false;
+      const wpx=b.w*TILE*.92,hpx2=b.h*TILE*.92,hgt=b.type==='wall'?3.2:b.type==='hall'||b.type==='castle'?9:5;
+      const gy=heightAtWorld(b.cx,b.cz);
+      _impP.set(b.cx,gy,b.cz);_impQ.identity();_impS.set(wpx,hgt,hpx2);
+      _impM.compose(_impP,_impQ,_impS); bImpMesh.setMatrixAt(m,_impM);
+      _impP.y=gy+hgt;_impS.set(Math.max(wpx,hpx2),Math.max(wpx,hpx2)*.8,Math.max(wpx,hpx2));
+      _impM.compose(_impP,_impQ,_impS); bImpRoof.setMatrixAt(m,_impM);
+      _impC.setHex(b.owner?(FACTIONS[faction[b.owner]]||FACTIONS.english).coat:0x8a6b4a); bImpRoof.setColorAt(m,_impC); m++; }
+    else if(!far&&!b.mesh.visible&&explOK)b.mesh.visible=true; }
+  bImpMesh.count=m;bImpRoof.count=m;
+  bImpMesh.instanceMatrix.needsUpdate=true;bImpRoof.instanceMatrix.needsUpdate=true;
+  if(bImpRoof.instanceColor)bImpRoof.instanceColor.needsUpdate=true; }
 function updateCamera(dt){const sp=48*dt*(camDist/80),m=18;const fwd=[-Math.sin(camYaw),-Math.cos(camYaw)],rgt=[Math.cos(camYaw),-Math.sin(camYaw)];let fx=0,fz=0;
   if(keys['arrowup']||keys['w']){fx+=fwd[0];fz+=fwd[1];}if(keys['arrowdown']||keys['s']){fx-=fwd[0];fz-=fwd[1];}
   if(keys['arrowleft']||keys['a']){fx-=rgt[0];fz-=rgt[1];}if(keys['arrowright']||keys['d']){fx+=rgt[0];fz+=rgt[1];}   // keyboard-only panning — no edge scroll
@@ -1948,7 +1985,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
   updateGhost();updateRings();updateUnitLOD();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
-  drawMini();if(composer)composer.render();else renderer.render(scene,camera);
+  drawMini();if(composer&&QUAL!=='low')composer.render();else renderer.render(scene,camera);
   _fc++;const _nw=performance.now();if(_nw-_ft>1000){lastFps=_fc;_fc=0;_ft=_nw;}
   requestAnimationFrame(loop);}
 let _ft=performance.now(),_fc=0,lastFps=0;
