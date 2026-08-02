@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b66</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b67</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -71,6 +71,7 @@
       <button class="big" id="bBack" style="background:#17303f;border-color:#2c5164;">← Back to menu</button>
     </div>
   </div>
+  <div id="nodeTip" style="display:none;position:fixed;z-index:30;background:rgba(10,24,34,.94);border:1px solid #2c5164;border-radius:6px;padding:4px 10px;font-size:12px;color:#dff0f9;pointer-events:none;"></div>
   <div id="stage">
     <canvas id="view"></canvas>
     <canvas id="mini" width="200" height="134"></canvas>
@@ -1723,6 +1724,10 @@ function pickUnit(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromC
 function pickBuilding(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);const meshes=blds.filter(b=>b.owner==='player').map(b=>b.mesh);const h=raycaster.intersectObjects(meshes,true);if(h.length){let o=h[0].object;while(o.parent&&!blds.some(b=>b.mesh===o))o=o.parent;return blds.find(b=>b.mesh===o)||null;}return null;}
 function localXY(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(vw/r.width),y:(ev.clientY-r.top)*(vh/r.height)};}
 canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY=p.y;const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
+  { const tip=document.getElementById('nodeTip'); const nd=(running&&!placing&&!dragging&&!rDrag)?nodeAt(g.x,g.z):null;
+    if(nd){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
+      tip.textContent=(nd.type==='wood'?'🌲 Timber: ':nd.type==='gold'?'🪙 Gold left: ':nd.type==='food'?'🐑 Meat left: ':'⛏️ Iron left: ')+Math.max(0,Math.round(nd.amount)); }
+    else tip.style.display='none'; }
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}
   if(rDrag){ const dx=g.x-rDrag.gx,dz=g.z-rDrag.gz,d=Math.hypot(dx,dz);
     if(!rDrag.moved&&d>3)rDrag.moved=true;
