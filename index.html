@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b45</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b46</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1110,10 +1110,20 @@ function formTiles(n,gx,gy,fdir){ // tile targets for n units — shared by orde
     else { ox=gx+Math.round(c*-fz-rw*fx); oy=gy+Math.round(c*fx-rw*fz); }
     out.push([ox,oy]); }
   return out; }
+function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[faction[e.owner]]||FACTIONS.english;
+  const grp=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,5.0,5),M.wood);pole.position.y=2.5;grp.add(pole);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(.12,6,5),M.gold);tip.position.y=5.05;grp.add(tip);
+  const fl=new THREE.Group();fl.position.y=4.35;
+  const cloth=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.05,.06),new THREE.MeshStandardMaterial({color:f.coat,roughness:.75}));cloth.geometry.translate(.85,0,0);cloth.castShadow=true;fl.add(cloth);
+  const trim=new THREE.Mesh(new THREE.BoxGeometry(1.7,.2,.07),new THREE.MeshStandardMaterial({color:f.trim,roughness:.6}));trim.geometry.translate(.85,0,0);trim.position.y=-.42;fl.add(trim);
+  grp.add(fl);grp.position.set(-.35,0,-.35);
+  e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function commandMove(list,x,z,amove,fdir){const gx=txFromW(x),gy=tzFromW(z);
   // regiments sort into station: melee & cavalry front, muskets/archers centre, guns & healers rear
   const rank=t=>{const U=UNIT[t];return U.siege?3:(U.heal||U.noAtk)?2:U.ranged?1:0;};
   const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type));
+  if(ml.length>=8&&!ml.some(u=>u.mesh.userData.banner)){const bearer=ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk&&UNIT[u.type].dom==='land')||ml[0];giveBanner(bearer);}
   const tiles=formTiles(ml.length,gx,gy,fdir);
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
     if(!orderPath(e,tiles[i][0],tiles[i][1],0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
@@ -1238,6 +1248,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     if(mv){ const s=Math.sin(e.walk*10)*0.65;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
     else for(const k in ud.limbs) ud.limbs[k].rotation.x*=Math.max(0,1-dt*8); }
+  const bn=e.mesh.userData.banner;if(bn)bn.rotation.y=Math.sin(elapsed*4+e.id)*0.4;
   const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;const hr=e.hp/e.maxHp;
     hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*0.85;
     hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
