@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b60</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b61</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -988,11 +988,11 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   const hb=makeHealthBar();hb.position.y=u.r*2.6+.5;g.add(hb);g.userData.hb=hb;
   return g;}
 function makeHealthBar(){const grp=new THREE.Group();
-  const frame=new THREE.Mesh(new THREE.PlaneGeometry(1.9,.4),new THREE.MeshBasicMaterial({color:0x060a0e,transparent:true,opacity:.92}));
-  const bg=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.24),new THREE.MeshBasicMaterial({color:0x2a1010}));bg.position.z=.01;
-  const fg=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.24),new THREE.MeshBasicMaterial({color:0x54e468}));fg.position.z=.02;
-  grp.add(frame,bg,fg);grp.userData.fg=fg;grp.visible=false;grp.renderOrder=999;
-  frame.material.depthTest=false;bg.material.depthTest=false;fg.material.depthTest=false;return grp;}
+  const mk=(w,ht,col,op,ro,z)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,ht),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthTest:false,depthWrite:false}));m.renderOrder=ro;m.position.z=z;grp.add(m);return m;};
+  mk(1.9,.4,0x060a0e,.92,996,0);            // frame draws FIRST
+  mk(1.7,.24,0x2a1010,1,997,.01);           // empty track
+  const fg=mk(1.7,.24,0x54e468,1,998,.02);  // health fill on top
+  grp.userData.fg=fg;grp.visible=false;return grp;}
 function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
   // farms: hand-built square tilled field — soil furrows, golden wheat rows, fence posts
   if(type==='farm'){
