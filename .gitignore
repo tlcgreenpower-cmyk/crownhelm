@@ -1,1 +1,10 @@
 source-art/
+assets/*.zip
+assets/history/glTF/*
+!assets/history/glTF/Viking_Male.gltf
+!assets/history/glTF/Kimono_Male.gltf
+!assets/history/glTF/Ninja_Male.gltf
+!assets/history/glTF/Knight_Golden_Male.gltf
+!assets/history/glTF/Soldier_Male.gltf
+!assets/history/glTF/Worker_Male.gltf
+!assets/history/glTF/Worker_Female.gltf
