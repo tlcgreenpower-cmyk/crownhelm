@@ -50,6 +50,7 @@
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
     <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤 <span id="idleN">0</span></button>
+    <button id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚙ Medium</button>
     <button id="muteBtn">🔊 Sound</button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
     <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
@@ -57,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b54</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b55</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -278,6 +279,14 @@ const canvas=document.getElementById('view');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+let QUAL=localStorage.getItem('tidefall_quality')||'med';
+function applyQuality(){
+  renderer.shadowMap.enabled=QUAL!=='low';
+  renderer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?1.5:QUAL==='med'?1.25:1));
+  scene&&scene.traverse(o=>{if(o.isMesh&&o.material)o.material.needsUpdate=true;});
+  for(const e of (typeof ents!=='undefined'?ents:[]))e.mesh.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});
+  const qb=document.getElementById('qualBtn'); if(qb)qb.textContent='⚙ '+(QUAL==='high'?'High':QUAL==='med'?'Medium':'Fast');
+}
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.30;
 const scene=new THREE.Scene();
@@ -844,7 +853,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const ch=CHAR_LIB.clone(src.scene);
     const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
     ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:2.4)/hgt);
-    ch.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(ch);
+    ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
     const mixer=new THREE.AnimationMixer(ch);
     const find=re=>src.clips.find(c=>re.test(c.name));
     const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
@@ -1768,6 +1777,9 @@ function renderForces(){const p=$('forces');if(p.classList.contains('hidden'))re
     row.onclick=()=>{ selected=ents.filter(e=>e.owner==='player'&&e.type===t).map(e=>e.id); selBuilding=null;
       const e0=ents.find(e=>e.id===selected[0]); if(e0)camTarget.set(e0.x,0,e0.z); SFX.select(); refreshUI(); };
     p.appendChild(row); } }
+document.getElementById('qualBtn').onclick=()=>{QUAL=QUAL==='med'?'low':QUAL==='low'?'high':'med';localStorage.setItem('tidefall_quality',QUAL);applyQuality();
+  flashMsg('⚙ Graphics: '+(QUAL==='high'?'High — full shadows':QUAL==='med'?'Medium — balanced':'Fast — smoothest, no shadows'));};
+applyQuality();
 document.getElementById('forcesBtn').onclick=()=>{const p=$('forces');p.classList.toggle('hidden');renderForces();};
 setInterval(renderDiplo,2000);
 
