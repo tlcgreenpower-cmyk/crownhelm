@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b58</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b59</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1159,9 +1159,10 @@ function addRankPips(e){ const old=e.mesh.userData.pips; if(old)e.mesh.remove(ol
 // ==================================================== PATHFINDING
 const gateOwner=new Map();
 function passable(tx,ty,goalId,dom,own){if(!inB(tx,ty))return false;const fl=isFlooded(tx,ty);if(dom==='water'){if(!fl)return false;}else if(fl)return false;const b=buildGrid[ti(tx,ty)];return b===0||b===goalId||(own!==undefined&&gateOwner.get(b)===own);}
-function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
+let astarBudget=14;
+function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;if(astarBudget<=0)return null;astarBudget--;
   if(!passable(gx,gy,goalId,dom,own)){let best=null,bd=1e9;for(let r=1;r<=5&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=gx+dx,y=gy+dy;if(passable(x,y,goalId,dom,own)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(!best)return null;gx=best[0];gy=best[1];}
-  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?14000:6000;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?7000:4500;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
   while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
     if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k!==undefined){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=came[k];}return p.reverse();}
     if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
@@ -1193,9 +1194,11 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   const trim=new THREE.Mesh(new THREE.BoxGeometry(1.7,.2,.07),new THREE.MeshStandardMaterial({color:f.trim,roughness:.6}));trim.geometry.translate(.85,0,0);trim.position.y=-.42;fl.add(trim);
   grp.add(fl);grp.position.set(-.35,0,-.35);
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
+function ml0Count(l){return l.length;}
 function commandMove(list,x,z,amove,fdir){const gx=txFromW(x),gy=tzFromW(z);
   // regiments sort into station: melee & cavalry front, muskets/archers centre, guns & healers rear
   const rank=t=>{const U=UNIT[t];return U.siege?3:(U.heal||U.noAtk)?2:U.ranged?1:0;};
+  astarBudget+=ml0Count(list);
   const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type));
   if(ml.length>=8&&!ml.some(u=>u.mesh.userData.banner)){const bearer=ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk&&UNIT[u.type].dom==='land')||ml[0];giveBanner(bearer);}
   const tiles=formTiles(ml.length,gx,gy,fdir);
@@ -1249,6 +1252,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
   animFrame++;
+  astarBudget=14;
   for(const e of ents)updateUnit(e,dt);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
@@ -1266,6 +1270,11 @@ function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){
 function destroyBuilding(b){removeBuildUI(b);if(Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<90)camShake=Math.min(1.6,camShake+1.0);const y=heightAtWorld(b.cx,b.cz)+3;for(let i=0;i<16;i++)spawnPart(b.cx,y,b.cz,'debris');SFX.boom();removeBuilding(b);}
 function fleeWater(e){const tx=txFromW(e.x),ty=tzFromW(e.z);let best=null,bd=1e9;for(let r=1;r<=6;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=tx+dx,y=ty+dy;if(passable(x,y,0,'land')){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(best){e.cmd='move';orderPath(e,best[0],best[1],0);}}
 function updateBuilding(b,dt){if(!b.done){b.mesh.scale.y=0.05+0.95*b.progress;updateBuildUI(b,dt);return;}
+  const bhb=b.mesh.userData.hb;
+  if(bhb){ if(b.hp<b.maxHp-1&&b.mesh.visible){ bhb.visible=true; const hr=Math.max(0,b.hp/b.maxHp);
+      bhb.userData.fg.scale.x=Math.max(0.01,hr); bhb.userData.fg.position.x=-(1-hr)*0.85;
+      bhb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
+      bhb.quaternion.copy(camera.quaternion); } else bhb.visible=false; }
   if(!b._stamped&&b.type!=='wall'){ const ex=explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))];
     if(b.owner==='player'||ex){ stampDirt(b.cx,b.cz,Math.max(b.w,b.h)+0.6); b._stamped=true; } }
   if(b.mesh.userData.flag)b.mesh.userData.flag.rotation.y=Math.sin(elapsed*3+b.id)*0.3;
@@ -1293,11 +1302,11 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
     case 'amove':if(arrived)e.cmd='idle';autoAcq(e,false);break;
     case 'idle':autoAcq(e,true);
-      if(e.type==='worker'&&Math.random()<dt*5){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
+      if(e.type==='worker'&&Math.random()<dt*2){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
         else if(Math.random()<0.5){const f=blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&ents.filter(u=>u.cmd==='tend'&&u.tendB===q).length<2);
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}}
       break;
-    case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||Math.random()<dt*2)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
+    case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
     case 'hunt':{const s=e.hunt;
       if(!s||!sheep.includes(s)){ e.hunt=null; const n2=nearestNode(e,'food');
@@ -1310,7 +1319,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
         meatNodes.push(node); e.hunt=null;
         if(e.owner==='player')flashMsg('🐑 Mutton! 90 food on the ground — workers butcher it');
         gatherOrder(e,node); }
-      else if(arrived||Math.random()<dt*3)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
+      else if(arrived||Math.random()<dt*1.2)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
       break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);if(e.carryType&&e.carryType!==n.type)e.carry=0;e.carryType=n.type;const take=Math.min(MINE*dt,CARRY-e.carry,n.amount);e.carry+=take;n.amount-=take;
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.35+0.65*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
@@ -1634,23 +1643,24 @@ const _impQ=new THREE.Quaternion(),_impS=new THREE.Vector3(),_impP=new THREE.Vec
 function updateUnitLOD(){
   if(!elev||!visNow){impMesh.count=0;bImpMesh.count=0;bImpRoof.count=0;return;}   // render loop runs before Play — guard the map arrays
   const LODD=Math.max(26,4600/Math.max(camDist,1)); const L2=LODD*LODD; let n=0;
+  const selSet=selected.length?new Set(selected):null;
   for(const e of ents){
     const inFog=e.owner!=='player'&&!tileVis(e.x,e.z);
     if(inFog){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // fogged troops show NOWHERE — not even as imposters
     const dx=e.x-camTarget.x,dz=e.z-camTarget.z;
-    const far=(dx*dx+dz*dz)>L2 && n<IMP_CAP;
+    const far=(dx*dx+dz*dz)>L2 && n<IMP_CAP && !(selSet&&selSet.has(e.id));
     if(far){ if(e.mesh.visible)e.mesh.visible=false;
       _impM.makeTranslation(e.x,heightAtWorld(e.x,e.z),e.z); impMesh.setMatrixAt(n,_impM);
       _impC.setHex((FACTIONS[faction[e.owner]]||FACTIONS.english).coat); impMesh.setColorAt(n,_impC); n++; }
     else if(!e.mesh.visible)e.mesh.visible=true; }
   impMesh.count=n; impMesh.instanceMatrix.needsUpdate=true; if(impMesh.instanceColor)impMesh.instanceColor.needsUpdate=true;
   // buildings: same trick, bigger threshold — walls grey, roofs in the owner's coat colour
-  const BL=LODD*1.7, B2=BL*BL; let m=0;
+  const BL=LODD*3.4, B2=BL*BL; let m=0;
   for(const b of blds){ if(!b.done)continue;
     const explOK=b.owner==='player'||explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))]===1;
     if(!explOK)continue;
     const dx=b.cx-camTarget.x,dz=b.cz-camTarget.z;
-    const far=(dx*dx+dz*dz)>B2 && m<420;
+    const far=(dx*dx+dz*dz)>B2 && m<420 && b.hp>=b.maxHp-1;
     if(far){ if(b.mesh.visible)b.mesh.visible=false;
       const wpx=b.w*TILE*.92,hpx2=b.h*TILE*.92,hgt=b.type==='wall'?3.2:b.type==='hall'||b.type==='castle'?9:5;
       const gy=heightAtWorld(b.cx,b.cz);
