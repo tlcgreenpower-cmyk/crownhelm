@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b46</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b47</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -752,7 +752,7 @@ function updateAmbient(dt,now){ for(const b of birds){ b.a+=dt*b.sp; b.g.positio
   if(cloudGroup)for(const c of cloudGroup.children){ c.position.x+=dt*c.userData.sp; if(c.position.x>HALF_W+80)c.position.x=-HALF_W-80; } }
 
 // ---- wandering sheep flocks ----
-let sheep=[];
+let sheep=[],meatNodes=[];
 const woolMat=new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:1,flatShading:true});
 const sheepDark=new THREE.MeshStandardMaterial({color:0x3a3532,roughness:.9,flatShading:true});
 function makeSheep(){ const g=new THREE.Group();
@@ -775,7 +775,10 @@ function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
 function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   const d=Math.hypot(s.tx-s.x,s.tz-s.z);
   if(d<0.5){ s.graze=Math.max(0,s.graze-dt);
-    if(s.wait<=0){ s.tx=s.hx+(Math.random()-.5)*12; s.tz=s.hz+(Math.random()-.5)*12;
+    if(s.wait<=0){ let pu=null,pd=9;
+      for(const u of ents)if(u.owner==='player'&&UNIT[u.type].dom==='land'){const d2=Math.hypot(u.x-s.x,u.z-s.z);if(d2<pd){pd=d2;pu=u;}}
+      if(pu){ s.tx=pu.x+(Math.random()-.5)*4; s.tz=pu.z+(Math.random()-.5)*4; s.hx=s.tx; s.hz=s.tz; }   // the flock follows the shepherd
+      else { s.tx=s.hx+(Math.random()-.5)*12; s.tz=s.hz+(Math.random()-.5)*12; }
       const t1=txFromW(s.tx),t2=tzFromW(s.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){s.tx=s.hx;s.tz=s.hz;}
       s.wait=4+Math.random()*7; s.graze=2+Math.random()*3; } }
   else { const sp=1.7*dt; s.x+=(s.tx-s.x)/d*sp; s.z+=(s.tz-s.z)/d*sp;
@@ -1128,6 +1131,10 @@ function commandMove(list,x,z,amove,fdir){const gx=txFromW(x),gy=tzFromW(z);
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
     if(!orderPath(e,tiles[i][0],tiles[i][1],0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
 function commandTarget(list,x,z){const workers0=list.filter(e=>e.type==='worker');
+  if(workers0.length){ let bs=null,bd0=3.5;
+    for(const s of sheep){const d=Math.hypot(x-s.x,z-s.z);if(d<bd0){bd0=d;bs=s;}}
+    if(bs){ workers0.forEach(w=>{w.cmd='hunt';w.hunt=bs;w.gather=null;w.build=null;w.target=null;w.tendB=null;orderPath(w,txFromW(bs.x),tzFromW(bs.z),0);});
+      flashMsg('🐑 To the flock! Workers close in for mutton');SFX.cmd();return; } }
   // right-click near your own unfinished building = send selected workers to finish it (checked FIRST so nothing steals the click)
   if(workers0.length){ let ob=null,obd=TILE*3;
     for(const q of blds)if(q.owner==='player'&&!q.done){const d=Math.hypot(x-q.cx,z-q.cz)-Math.max(q.w,q.h)*TILE*0.5;if(d<obd){obd=d;ob=q;}}
@@ -1150,9 +1157,9 @@ function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostil
 function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;orderPath(e,node.tx,node.ty,0);}
 function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my){const d=Math.hypot(x-e.x,z-e.z);if(d<bd+UNIT[e.type].r){bd=d;best=e;}}return best;}
 function bldAt(x,z,my){const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;if(!id)return null;const b=blds.find(b=>b.id===id);return(b&&b.owner!==my)?b:null;}
-function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
+function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes,meatNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
 function nearestDrop(e){let best=null,bd=1e9;for(const b of blds)if(b.owner===e.owner&&b.done&&BLD[b.type].drop){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}return best;}
-function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:metalNodes;for(const n of arr)if(n.amount>0){const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
+function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
 
 // ==================================================== UPDATE
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
@@ -1219,9 +1226,22 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       break;
     case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||Math.random()<dt*2)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
+    case 'hunt':{const s=e.hunt;
+      if(!s||!sheep.includes(s)){ e.hunt=null; const n2=nearestNode(e,'food');
+        if(n2&&Math.hypot(e.x-wx(n2.tx),e.z-wz(n2.ty))<16)gatherOrder(e,n2);else e.cmd='idle'; break; }
+      const dh=Math.hypot(e.x-s.x,e.z-s.z);
+      if(dh<2.6){ sheep.splice(sheep.indexOf(s),1);
+        for(let i=0;i<6;i++)spawnPart(s.x,heightAtWorld(s.x,s.z)+.7,s.z,'spark');SFX.hit();
+        s.mesh.rotation.z=Math.PI/2; s.mesh.position.y=heightAtWorld(s.x,s.z)+.3;
+        const node={tx:txFromW(s.x),ty:tzFromW(s.z),amount:90,type:'food',mesh:s.mesh};
+        meatNodes.push(node); e.hunt=null;
+        if(e.owner==='player')flashMsg('🐑 Mutton! 90 food on the ground — workers butcher it');
+        gatherOrder(e,node); }
+      else if(arrived||Math.random()<dt*3)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
+      break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);if(e.carryType&&e.carryType!==n.type)e.carry=0;e.carryType=n.type;const take=Math.min(MINE*dt,CARRY-e.carry,n.amount);e.carry+=take;n.amount-=take;
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.35+0.65*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0&&n.mesh)n.mesh.visible=false;if(e.carry>=CARRY||n.amount<=0){const dp=nearestDrop(e);if(dp){e.cmd='return';orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);}else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
-    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
+    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
     case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
       e.tendT=(e.tendT||0)-dt;
@@ -1764,6 +1784,7 @@ function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom
 // REALM_SITES computed per battleground in setMap()
 function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H; sc.updateProjectionMatrix(); }
 function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
+  for(const n of meatNodes)if(n.mesh)scene.remove(n.mesh); meatNodes=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
   initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
