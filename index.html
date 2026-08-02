@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b42</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b43</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -913,8 +913,12 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
       const sw=new THREE.Mesh(new THREE.BoxGeometry(.1,1.5,.1),M.ore);sw.position.set(.5,1.5,0);anim.add(sw);} }
   const hb=makeHealthBar();hb.position.y=u.r*2.6+.5;g.add(hb);g.userData.hb=hb;
   return g;}
-function makeHealthBar(){const grp=new THREE.Group();const bg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x220808}));
-  const fg=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.24),new THREE.MeshBasicMaterial({color:0x6fd07a}));fg.position.z=.01;grp.add(bg,fg);grp.userData.fg=fg;grp.visible=false;grp.renderOrder=999;bg.material.depthTest=false;fg.material.depthTest=false;return grp;}
+function makeHealthBar(){const grp=new THREE.Group();
+  const frame=new THREE.Mesh(new THREE.PlaneGeometry(1.9,.4),new THREE.MeshBasicMaterial({color:0x060a0e,transparent:true,opacity:.92}));
+  const bg=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.24),new THREE.MeshBasicMaterial({color:0x2a1010}));bg.position.z=.01;
+  const fg=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.24),new THREE.MeshBasicMaterial({color:0x54e468}));fg.position.z=.02;
+  grp.add(frame,bg,fg);grp.userData.fg=fg;grp.visible=false;grp.renderOrder=999;
+  frame.material.depthTest=false;bg.material.depthTest=false;fg.material.depthTest=false;return grp;}
 function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
   // farms: hand-built square tilled field — soil furrows, golden wheat rows, fence posts
   if(type==='farm'){
@@ -1113,8 +1117,8 @@ function commandTarget(list,x,z){const workers0=list.filter(e=>e.type==='worker'
     const fb=blds.find(q=>q.id===fid&&q.owner==='player'&&q.done&&q.type==='farm');
     if(fb){ workers0.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;orderPath(w,fb.tx+(fb.w>>1),fb.ty+(fb.h>>1),fb.id);});
       flashMsg('\u{1F468}\u200D\u{1F33E} Workers tend the farm \u2014 richer harvest!');SFX.cmd();return; } }
-  const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));SFX.cmd();return;}
-  const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));SFX.cmd();return;}
+  const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));spawnMoveMark(eu.x,eu.z,0xff4632);flashMsg('⚔ Attack! Your men charge the '+(UNIT[eu.type].name));SFX.cmd();return;}
+  const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
   const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
   commandMove(list,x,z,false);}
 function attackOrder(e,t){if(UNIT[e.type].noAtk){e.cmd='move';e.target=null;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);return;}if(e.type==='worker'&&t.owner===e.owner)return;
@@ -1223,7 +1227,10 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     if(mv){ const s=Math.sin(e.walk*10)*0.65;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
     else for(const k in ud.limbs) ud.limbs[k].rotation.x*=Math.max(0,1-dt*8); }
-  const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;hb.userData.fg.scale.x=Math.max(0.01,e.hp/e.maxHp);hb.userData.fg.position.x=-(1-e.hp/e.maxHp)*0.8;hb.userData.fg.material.color.setHex(e.hp/e.maxHp>0.4?0x6fd07a:0xe0503a);hb.quaternion.copy(camera.quaternion);}else hb.visible=false;}
+  const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;const hr=e.hp/e.maxHp;
+    hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*0.85;
+    hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
+    hb.quaternion.copy(e.mesh.quaternion).invert().multiply(camera.quaternion);}else hb.visible=false;}
 }
 function nextBuildSite(e){ let best=null,bd=200;
   for(const b of blds)if(b.owner===e.owner&&!b.done){ const d=Math.hypot(e.x-b.cx,e.z-b.cz);
