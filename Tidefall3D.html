@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b61</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b62</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -697,9 +697,12 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
   const name=VILLAGE_NAMES[villages.indexOf(v)%VILLAGE_NAMES.length];
   if(owner==='player'){ SFX.age(); flashMsg('🏘 The village of '+name+' joins your realm! (+6 pop, +1 worker, +30 gold)'); }
   else if(u){ const n=nearestNode(u,realmWant(owner)); if(n)gatherOrder(u,n); } }
-function addGold(n){const g=new THREE.Group();const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.1,0),M.stoneD);r.position.y=.65;r.castShadow=true;r.rotation.set(hashN(n.tx,3),hashN(n.ty,4),hashN(n.tx,n.ty));
-  for(const[dx,dz]of[[.4,.2],[-.3,.4],[.1,-.4]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.34,0),M.gold);v.position.set(dx,1.0+dz*.2,dz);v.castShadow=true;g.add(v);}
-  g.add(r);g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
+function addGold(n){const g=new THREE.Group();
+  const goldRock=new THREE.MeshStandardMaterial({color:0xc9a23a,roughness:.55,metalness:.35,flatShading:true});
+  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.6,0),goldRock);r.position.y=.95;r.castShadow=true;r.rotation.set(hashN(n.tx,3),hashN(n.ty,4),hashN(n.tx,n.ty));g.add(r);
+  const r2=new THREE.Mesh(new THREE.DodecahedronGeometry(.9,0),goldRock);r2.position.set(1.3,.5,.4);r2.castShadow=true;r2.rotation.set(hashN(n.ty,5),hashN(n.tx,6),1);g.add(r2);
+  for(const[dx,dz,s]of[[.6,.3,.5],[-.45,.6,.42],[.15,-.6,.46],[-.7,-.3,.38],[1.3,.4,.34]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),M.gold);v.position.set(dx,1.5+dz*.3,dz);v.castShadow=true;g.add(v);}
+  g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
 const PINE_MATS=[0x338549,0x3a9553,0x2e7742].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.9,flatShading:true}));
 function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),h2=hashN(n.ty*3.1,n.tx*1.9),h3=hashN(n.tx*2.9,n.ty*1.7);
@@ -749,15 +752,13 @@ function buildTreesInstanced(){
   for(const pl of plans){ const n=pl.n; n.px=pl.px;n.py=pl.py;n.pz=pl.pz;n.ry=pl.ry;n.rz=pl.rz;n.ts=pl.ts;
     n.tim=pl.parts.map(pp=>({im:ims[pp[0]],i:idx[pp[0]]++,l:pp[1]}));
     n.mesh=null; setTreeK(n,1); } }
+const ironGrey=new THREE.MeshStandardMaterial({color:0x7d8288,roughness:.9,flatShading:true});
+const ironGreyD=new THREE.MeshStandardMaterial({color:0x5c6167,roughness:.95,flatShading:true});
 function addRock(n){const g=new THREE.Group();
-  if(NATURE_LIB){const keys=Object.keys(NATURE_LIB);const src=NATURE_LIB[keys[Math.floor(hashN(n.tx,n.ty)*keys.length)%keys.length]];
-    if(src){const m=src.clone(true);const box=new THREE.Box3().setFromObject(m);const s=2.6/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,0.001);
-      m.scale.setScalar(s);m.position.y=-box.min.y*s;m.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(m);
-      const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),M.ore);v.position.set(.5,1.0,.3);v.castShadow=true;g.add(v);
-      g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}}
-  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.15,0),M.rock);r.position.y=.7;r.castShadow=true;r.rotation.set(hashN(n.tx,1),hashN(n.ty,2),hashN(n.tx,n.ty));
-  const v=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),M.ore);v.position.set(.5,1.15,.3);v.castShadow=true;
-  g.add(r,v);g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
+  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.7,0),ironGrey);r.position.y=1.0;r.castShadow=true;r.rotation.set(hashN(n.tx,1),hashN(n.ty,2),hashN(n.tx,n.ty));g.add(r);
+  const r2=new THREE.Mesh(new THREE.DodecahedronGeometry(1.0,0),ironGreyD);r2.position.set(-1.3,.55,.5);r2.castShadow=true;r2.rotation.set(1,hashN(n.tx,7),0);g.add(r2);
+  for(const[dx,dz,s]of[[.6,.35,.5],[-.4,-.55,.44],[.1,.7,.4]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),M.ore);v.position.set(dx,1.7+dz*.3,dz);v.castShadow=true;g.add(v);}
+  g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 
 // ==================================================== AMBIENT LIFE (grass, flowers, bushes, birds, clouds)
 let ambientGroup=null,cloudGroup=null,birdGroup=null,birds=[];
