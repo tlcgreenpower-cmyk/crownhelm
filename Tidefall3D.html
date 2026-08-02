@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b65</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b66</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -532,8 +532,8 @@ function genMap(){
     const plain=Math.max(0,Math.sin(x*0.07+1.7)*Math.sin(y*0.09+5.2)-0.5);          // deliberate open ground
     let fmul=0.3+2.8*corner+1.9*grove; if(plain>0)fmul*=0.12;
     if(h<0.09*MM.forest*fmul)scatter(x,y);
-    else if(h>0.94&&e>=1.8)depositCluster(metalNodes,x,y,'metal',Math.round(1200*MM.depAmt),MM.dep);
-    else if(h>0.905&&h<=0.94&&e>=1.8)depositCluster(goldNodes,x,y,'gold',Math.round(800*MM.depAmt),MM.dep);
+    else if(h>0.982&&e>=1.8)depositCluster(metalNodes,x,y,'metal',Math.round(1200*MM.depAmt),MM.dep);
+    else if(h>0.9715&&h<=0.982&&e>=1.8)depositCluster(goldNodes,x,y,'gold',Math.round(800*MM.depAmt),MM.dep);
   }
   // neutral villages to discover while roaming
   villages=[];
