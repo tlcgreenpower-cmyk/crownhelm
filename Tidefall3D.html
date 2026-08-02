@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b38</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b39</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -118,6 +118,8 @@
 } }
 </script>
 <style id="polish">
+  #overlay{background:linear-gradient(rgba(5,12,18,.78),rgba(5,12,18,.9)),url('assets/council.jpg') center/cover !important;}
+  #overlay h1{text-shadow:0 4px 18px rgba(0,0,0,.8);}
   .res{background:linear-gradient(180deg,#1c3849,#112635);border:1px solid #31566b;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.35);}
   .btn:hover{transform:translateY(-1px);filter:brightness(1.13);transition:transform .08s,filter .08s;}
   button:hover{filter:brightness(1.12);}
@@ -809,7 +811,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   const base=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.66,u.r*.74,.08,14),tm);base.position.y=.04;base.castShadow=true;g.add(base);
   const anim=new THREE.Group();g.add(anim);g.userData.anim=anim;
   if(type==='warboat'){
-    if(PIRATE_SHIP){ const s=PIRATE_SHIP.clone(true);
+    if(PIRATE_SHIP_L||PIRATE_SHIP){ const s=(PIRATE_SHIP_L||PIRATE_SHIP).clone(true);
       const box=new THREE.Box3().setFromObject(s),len=Math.max(box.max.z-box.min.z,box.max.x-box.min.x)||1;
       s.scale.setScalar(7.5/len); s.position.y=0.15;
       s.traverse(o=>{if(o.isMesh)o.castShadow=true;}); anim.add(s);
