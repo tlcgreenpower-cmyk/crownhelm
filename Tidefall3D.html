@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b48</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b49</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1179,7 +1179,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
   for(const e of ents)updateUnit(e,dt);
-  separateUnits();
+  sepFlip=!sepFlip; if(sepFlip)separateUnits();
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
   for(const b of blds)if((b.type==='tower'||b.type==='castle'||b.type==='watch')&&b.done){b.cd-=dt;if(b.cd<=0){const isC=b.type==='castle',isW=b.type==='watch';const rng=isC?30:isW?18:TOWER_RANGE,dm=isC?26:isW?9:TOWER_DMG;let tgt=null,bd=rng;for(const e of ents)if(isHostile(b.owner,e.owner)){const d=Math.hypot(b.cx-e.x,b.cz-e.z);if(d<bd){bd=d;tgt=e;}}if(tgt){b.cd=isC?0.6:isW?1.1:TOWER_CD;spawnProj(b.cx,heightAtWorld(b.cx,b.cz)+(isC?9:isW?5:7),b.cz,tgt,dm,b.owner,isC?'ball':'arrow');}}}
   updateProjectiles(dt);updateParticles(dt);updateCorpses(dt);updateCitizens(dt);updateVillages(dt);advanceAge(dt);
@@ -1204,6 +1204,7 @@ function updateBuilding(b,dt){if(!b.done){b.mesh.scale.y=0.05+0.95*b.progress;up
     u.x+=((u.id%5)-2)*0.6; u.z+=(((u.id*3)%5)-2)*0.6;
     if(b.rally){u.cmd='move';orderPath(u,txFromW(b.rally.x),tzFromW(b.rally.z),0);}else if(b.owner!=='player'&&type==='worker'){const n=nearestNode(u,realmWant(b.owner));if(n)gatherOrder(u,n);}}}}
 function spawnSpot(b,type){const dom=UNIT[type].dom;for(let r=0;r<9;r++)for(const[dx,dy]of[[b.w>>1,b.h+r],[b.w+r,b.h>>1],[-1-r,b.h>>1],[b.w>>1,-1-r]]){const x=b.tx+dx,y=b.ty+dy;if(passable(x,y,0,dom))return{x:wx(x),z:wz(y)};}return{x:b.cx,z:b.cz+b.h*TILE};}
+let sepFlip=false;
 function separateUnits(){ const cell=3, grid=new Map();
   for(const e of ents){ const k=((e.x/cell)|0)*4096+((e.z/cell)|0); let a=grid.get(k); if(!a){a=[];grid.set(k,a);} a.push(e); }
   for(const e of ents){ const cx=(e.x/cell)|0, cz=(e.z/cell)|0;
@@ -1724,8 +1725,11 @@ const rallyGrp=new THREE.Group();
 const rallyLineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
 const rallyLine=new THREE.Line(rallyLineGeo,new THREE.LineDashedMaterial({color:0xf3e4be,dashSize:1.1,gapSize:.8,transparent:true,opacity:.7,depthTest:false}));
 rallyLine.renderOrder=996; rallyLine.visible=false; scene.add(rallyLine);
-function updateRings(){rings.forEach(r=>scene.remove(r));rings=[];for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;const r=new THREE.Mesh(ringGeo,ringMat);r.scale.setScalar(UNIT[e.type].r*2);r.position.set(e.x,heightAtWorld(e.x,e.z)+0.12,e.z);r.renderOrder=998;scene.add(r);rings.push(r);}
-  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){const r=new THREE.Mesh(ringGeo,ringMat);r.scale.setScalar(Math.max(b.w,b.h)*TILE*0.6);r.position.set(b.cx,heightAtWorld(b.cx,b.cz)+0.15,b.cz);r.renderOrder=998;scene.add(r);rings.push(r);}}
+function updateRings(){let need=0;
+  const place=(x,z,s)=>{let r=rings[need];if(!r){r=new THREE.Mesh(ringGeo,ringMat);r.renderOrder=998;scene.add(r);rings.push(r);}r.visible=true;r.scale.setScalar(s);r.position.set(x,heightAtWorld(x,z)+0.12,z);need++;};
+  for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;place(e.x,e.z,UNIT[e.type].r*2);}
+  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)place(b.cx,b.cz,Math.max(b.w,b.h)*TILE*0.6);}
+  for(let i=need;i<rings.length;i++)rings[i].visible=false;
   let rb=null; if(selBuilding){const b=blds.find(x=>x.id===selBuilding); if(b&&b.owner==='player'&&b.done&&b.rally)rb=b;}
   if(rb){ const ry=heightAtWorld(rb.rally.x,rb.rally.z);
     rallyGrp.visible=true; rallyGrp.position.set(rb.rally.x,ry,rb.rally.z);
@@ -1741,8 +1745,12 @@ function spawnMoveMark(x,z,col){const m=new THREE.Mesh(ringGeo,new THREE.MeshBas
 function updateMoveMarks(dt){for(const k of moveMarks){k.t+=dt;k.m.scale.setScalar(1.2+k.t*5);k.m.material.opacity=.95*(1-k.t/.55);}
   moveMarks=moveMarks.filter(k=>{if(k.t>=.55){scene.remove(k.m);k.m.material.dispose();return false;}return true;});}
 const mctx=mini.getContext('2d');
+const miniTerr=document.createElement('canvas');let miniTerrAt=-99;
+function drawMiniTerrain(){miniTerr.width=mini.width;miniTerr.height=mini.height;const c=miniTerr.getContext('2d'),w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;
+  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){if(!explored[ti(x,y)]){c.fillStyle='#060d14';}else{const e=elev[ti(x,y)];c.fillStyle=e<tideLevel?'#245478':(e>=2.7?'#4a6b3c':'#5c7d3a');}c.fillRect(x*sx,y*sy,sx+.5,sy+.5);}}
 function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;}const w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;mctx.clearRect(0,0,w,h);
-  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){if(!explored[ti(x,y)]){mctx.fillStyle='#060d14';}else{const e=elev[ti(x,y)];mctx.fillStyle=e<tideLevel?'#245478':(e>=2.7?'#4a6b3c':'#5c7d3a');}mctx.fillRect(x*sx,y*sy,sx+.5,sy+.5);}
+  if(performance.now()-miniTerrAt>900){miniTerrAt=performance.now();drawMiniTerrain();}
+  mctx.drawImage(miniTerr,0,0);
   for(const b of blds){if(b.owner!=='player'&&!explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))])continue;mctx.fillStyle=ownerCss(b.owner);mctx.fillRect(b.tx*sx,b.ty*sy,Math.max(2,b.w*sx),Math.max(2,b.h*sy));}
   for(const e of ents){const tx=txFromW(e.x),ty=tzFromW(e.z);if(e.owner!=='player'&&(!inB(tx,ty)||visNow[ti(tx,ty)]!==1))continue;mctx.fillStyle=e.owner==='player'?'#bfe4ff':ownerCss(e.owner);mctx.fillRect((e.x/TILE+MAP_W/2)*sx-1,(e.z/TILE+MAP_H/2)*sy-1,2,2);}
   for(const v of villages){ if(!explored[ti(v.tx,v.ty)])continue;
