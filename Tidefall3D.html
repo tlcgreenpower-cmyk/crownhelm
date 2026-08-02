@@ -49,13 +49,14 @@
     <div class="res" title="Population / cap — Houses +8, Halls +15, Castles +12">👥 <span id="pop">0/0</span></div>
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
+    <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤 <span id="idleN">0</span></button>
     <button id="muteBtn">🔊 Sound</button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
     <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b40</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b41</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -275,7 +276,7 @@ const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.08;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.30;
 const scene=new THREE.Scene();
 const SUNDIR=new THREE.Vector3(0.5,0.8,0.35).normalize();
 scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
@@ -314,13 +315,12 @@ function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
     else if(Math.random()<0.4)beep(900+Math.random()*250,0.5,'sine',0.012,700);            // owl by night
   }
   waveT-=dt; if(waveT<=0){ waveT=8+Math.random()*9; noiseBurst(1.4,0.028,420); } }
-function updateDayNight(){ const a=(elapsed%300)/300*Math.PI*2+1.1;   // start at bright noon
-  const dayLight=clamp(Math.sin(a)*0.5+0.62,0.36,1);
-  dayNight=1-clamp((dayLight-0.36)/0.64,0,1);
-  sun.intensity=1.55*Math.max(dayLight,0.42)*(1-0.45*rainI);
+function updateDayNight(){ const dayLight=1, a=0;   // permanent bright daylight (owner request b41)
+  dayNight=0;
+  sun.intensity=1.85*Math.max(dayLight,0.42)*(1-0.15*rainI);
   if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
   sun.color.copy(_sunC);
-  hemi.intensity=0.46+0.42*dayLight;
+  hemi.intensity=0.55+0.60*dayLight;
   skyMat.uniforms.uNight.value=dayNight;
   scene.fog.color.setRGB(0.77-0.40*dayNight,0.86-0.46*dayNight,0.91-0.40*dayNight);
   LANTERN_MAT.emissiveIntensity=dayNight*2.3;
@@ -1507,10 +1507,19 @@ window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true
   if(k==='+'||k==='=')setSpeed(gameSpeed+1);
   if(k==='-'||k==='_')setSpeed(gameSpeed-1);
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
+  if(k==='.'&&running)selectIdle();
   if(k>='1'&&k<='5'){if(keys['control']||ev.ctrlKey){groups[k]=selUnits().map(e=>e.id);flashMsg('Group '+k+' set');}else{const g=groups[k];if(g&&g.length){selected=g.filter(id=>ents.some(e=>e.id===id));selBuilding=null;const e=ents.find(u=>u.id===selected[0]);if(e)camTarget.set(e.x,0,e.z);SFX.select();refreshUI();}}}});
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 function selUnits(){return selected.map(id=>ents.find(e=>e.id===id)).filter(Boolean);}
+let idleCycle=0;
+function idleWorkers(){return ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd==='idle');}
+function selectIdle(){const iw=idleWorkers();
+  if(!iw.length){flashMsg('💤 No lazy workers — everyone is grafting!');return;}
+  selected=iw.map(e=>e.id);selBuilding=null;placing=null;updateGhost();
+  const e=iw[idleCycle%iw.length];idleCycle++;camTarget.set(e.x,0,e.z);
+  SFX.select();refreshUI();flashMsg('💤 '+iw.length+' lazy worker'+(iw.length>1?'s':'')+' rounded up — right-click a resource to put them to work');}
+document.getElementById('idleBtn').onclick=()=>{if(running)selectIdle();};
 // minimap click
 const mini=document.getElementById('mini');
 mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();const mx=(ev.clientX-r.left)/r.width,my=(ev.clientY-r.top)/r.height;camTarget.set(mx*WORLD_W-HALF_W,0,my*WORLD_H-HALF_H);});
@@ -1553,6 +1562,9 @@ function flashMsg(t){const m=$('msg');m.textContent=t;m.style.opacity=1;clearTim
 function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').textContent=Math.floor(res.player.w);$('metal').textContent=Math.floor(res.player.m);$('gold').textContent=Math.floor(res.player.g);
   const pu=popUsed('player'),pc=popCap('player');$('pop').textContent=pu+'/'+pc;
   $('pop').style.color=pu>=pc?'#ff8a6a':'';$('pop').title=pu>=pc?'Population full — build Houses!':'';
+  const nIdle=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'&&e.cmd==='idle'?1:0),0);
+  $('idleN').textContent=nIdle;const ib=$('idleBtn');
+  ib.style.borderColor=nIdle?'#c9a44a':'#2c5164';ib.style.color=nIdle?'#f3e4be':'#5f7f92';ib.style.opacity=nIdle?'1':'.6';
   $('age').textContent=tech.player.ageTimer>0?'Advancing…':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
   $('clock').textContent=Math.floor(elapsed/60)+':'+String(Math.floor(elapsed%60)).padStart(2,'0');
   const qe=document.getElementById('qline');
