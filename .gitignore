@@ -10,3 +10,7 @@ assets/history/glTF/*
 !assets/history/glTF/Worker_Female.gltf
 !assets/history/glTF/Knight_Male.gltf
 !assets/history/glTF/BlueSoldier_Male.gltf
+assets/animals/*
+!assets/animals/Sheep.glb
+assets/nature/*
+assets/*.zip

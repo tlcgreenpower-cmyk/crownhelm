@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b53</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b54</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -398,6 +398,7 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
     loader.load('assets/pirate/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
+  loader.load('assets/animals/Sheep.glb',g=>{lib['SheepA']={scene:g.scene,clips:g.animations};},undefined,()=>{});
   loader.load('assets/pirate/glTF/Prop_Cannon.gltf',g=>{PIRATE_CANNON=g.scene;},undefined,()=>{});
   loader.load('assets/pirate/glTF/Ship_Small.gltf',g=>{PIRATE_SHIP=g.scene;},undefined,()=>{});
   loader.load('assets/pirate/glTF/Ship_Large.gltf',g=>{PIRATE_SHIP_L=g.scene;},undefined,()=>{});
@@ -785,7 +786,19 @@ function updateAmbient(dt,now){ for(const b of birds){ b.a+=dt*b.sp; b.g.positio
 let sheep=[],meatNodes=[];
 const woolMat=new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:1,flatShading:true});
 const sheepDark=new THREE.MeshStandardMaterial({color:0x3a3532,roughness:.9,flatShading:true});
-function makeSheep(){ const g=new THREE.Group();
+function makeSheep(){
+  if(CHAR_LIB&&CHAR_LIB.lib.SheepA){ const src=CHAR_LIB.lib.SheepA;
+    const gg=new THREE.Group(); const ch=CHAR_LIB.clone(src.scene);
+    const box=new THREE.Box3().setFromObject(ch), hgt=box.max.y-box.min.y||1;
+    ch.scale.setScalar(1.25/hgt); ch.position.y=-box.min.y*(1.25/hgt);
+    ch.traverse(o=>{if(o.isMesh){o.castShadow=true;}}); gg.add(ch);
+    const mixer=new THREE.AnimationMixer(ch);
+    const find=re=>src.clips.find(c=>re.test(c.name));
+    const wc=find(/walk/i)||find(/run/i), ic=find(/idle/i)||src.clips[0];
+    gg.userData.mixer=mixer; gg.userData.walkA=wc?mixer.clipAction(wc):null; gg.userData.idleA=ic?mixer.clipAction(ic):null; gg.userData.mode='idle';
+    if(gg.userData.idleA)gg.userData.idleA.play();
+    return gg; }
+  const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,0),woolMat);body.scale.set(1,.8,1.25);body.position.y=.62;body.castShadow=true;g.add(body);
   const head=new THREE.Mesh(new THREE.BoxGeometry(.26,.28,.42),sheepDark);head.position.set(0,.72,.62);g.add(head);g.userData.head=head;
   for(const[lx,lz]of[[-.22,.3],[.22,.3],[-.22,-.3],[.22,-.3]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.09,.32,.09),sheepDark);leg.position.set(lx,.18,lz);g.add(leg);}
@@ -813,7 +826,11 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
       s.wait=4+Math.random()*7; s.graze=2+Math.random()*3; } }
   else { const sp=1.7*dt; s.x+=(s.tx-s.x)/d*sp; s.z+=(s.tz-s.z)/d*sp;
     s.mesh.rotation.y=Math.atan2(s.tx-s.x,s.tz-s.z); }
-  s.mesh.userData.head.rotation.x=(d<0.5&&s.graze>0)?0.7:0;   // head down to graze
+  if(s.mesh.userData.head)s.mesh.userData.head.rotation.x=(d<0.5&&s.graze>0)?0.7:0;   // head down to graze
+  const sud=s.mesh.userData;
+  if(sud.mixer){ sud.mixer.update(dt); const want=d<0.5?'idle':'walk';
+    if(want!==sud.mode&&sud.walkA&&sud.idleA){ const to=want==='walk'?sud.walkA:sud.idleA, from=want==='walk'?sud.idleA:sud.walkA;
+      to.reset().fadeIn(0.2).play(); from.fadeOut(0.2); sud.mode=want; } }
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
