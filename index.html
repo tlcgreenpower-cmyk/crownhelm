@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b35</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b36</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -379,7 +379,7 @@ try{
 }catch(e){ composer=null; showErr('post-processing unavailable (falling back): '+e.message); }
 
 // ---- professional animated characters (KayKit, CC0) — graceful fallback if unavailable ----
-let CHAR_LIB=null;
+let CHAR_LIB=null,PIRATE_CANNON=null;
 (async()=>{ try{
   const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
   const SK=await import('three/addons/utils/SkeletonUtils.js');
@@ -387,6 +387,9 @@ let CHAR_LIB=null;
   await Promise.all(['Rogue_Hooded','Mage','Barbarian','Knight'].map(n=>new Promise(res=>{
     loader.load('assets/'+n+'.glb',g=>{lib[n]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   await new Promise(res=>{loader.load('assets/pirate/Privateer.glb',g=>{lib['Privateer']={scene:g.scene,clips:g.animations};res();},undefined,()=>res());});
+  await Promise.all([['Anne','Characters_Anne'],['Henry','Characters_Henry'],['Mako','Characters_Mako'],['Sharky','Characters_Sharky'],['Barbarossa','Characters_Captain_Barbarossa']].map(([k,f])=>new Promise(res=>{
+    loader.load('assets/pirate/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
+  loader.load('assets/pirate/glTF/Prop_Cannon.gltf',g=>{PIRATE_CANNON=g.scene;},undefined,()=>{});
   if(Object.keys(lib).length) CHAR_LIB={lib,clone:SK.clone};
 }catch(e){/* stay on procedural villagers */} })();
 
@@ -806,7 +809,13 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(type==='warboat'){const hull=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.5,u.r*1.0,u.r*2.6,8),M.wood);hull.rotation.z=Math.PI/2;hull.position.y=.5;hull.castShadow=true;
     const mast=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,3,5),M.trunk);mast.position.y=2;const sail=new THREE.Mesh(new THREE.PlaneGeometry(1.8,2),new THREE.MeshStandardMaterial({color:fac.coat,side:THREE.DoubleSide}));sail.position.set(0,2,0);
     anim.add(hull,mast,sail);const hbw=makeHealthBar();hbw.position.y=4;g.add(hbw);g.userData.hb=hbw;g.userData.noBob=true;return g;}
-  if(type==='cannon'||type==='howitzer'){const carriage=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,2.3),M.wood);carriage.position.y=.75;carriage.castShadow=true;anim.add(carriage);
+  if(type==='cannon'||type==='howitzer'){
+    if(PIRATE_CANNON){ const c=PIRATE_CANNON.clone(true);
+      const box=new THREE.Box3().setFromObject(c),len=Math.max(box.max.z-box.min.z,box.max.x-box.min.x)||1;
+      c.scale.setScalar((type==='howitzer'?2.6:3.2)/len); c.position.y=0.1; c.rotation.y=Math.PI;
+      c.traverse(o=>{if(o.isMesh)o.castShadow=true;}); anim.add(c);
+      const hbp=makeHealthBar();hbp.position.y=3.4;g.add(hbp);g.userData.hb=hbp;g.userData.noBob=true;return g; }
+    const carriage=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,2.3),M.wood);carriage.position.y=.75;carriage.castShadow=true;anim.add(carriage);
     for(const sx of[-.85,.85]){const wl=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.24,10),M.stoneD);wl.rotation.z=Math.PI/2;wl.position.set(sx,.7,0);wl.castShadow=true;anim.add(wl);}
     const barrel=new THREE.Mesh(new THREE.CylinderGeometry(type==='howitzer'?.42:.3,type==='howitzer'?.5:.34,type==='howitzer'?1.5:2.6,12),unitMat[type]);
     barrel.rotation.x=type==='howitzer'?-1.0:Math.PI/2;barrel.position.set(0,type==='howitzer'?1.4:1.25,type==='howitzer'?0:.5);barrel.castShadow=true;anim.add(barrel);
@@ -1234,7 +1243,7 @@ function spawnPart(x,y,z,type){if(parts.length>240)return;const m=new THREE.Mesh
 const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
 const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
 const strawMat=new THREE.MeshStandardMaterial({color:0xd8b96a,roughness:1,flatShading:true});
-const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian'];
+const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian','Anne','Henry','Mako','Sharky'];
 function spawnCitizen(b){ if(citizens.length>=34)return;
   const sx1=b.cx+(Math.random()-.5)*10,sz1=b.cz+7+Math.random()*4;
   if(CHAR_LIB){ const src=CHAR_LIB.lib[CIT_CHARS[citizens.length%CIT_CHARS.length]];
