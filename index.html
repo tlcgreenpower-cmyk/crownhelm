@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b47</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b48</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -92,6 +92,7 @@
       </div>
       <button class="big" id="contBtn" style="display:none;background:#1c4d6d;border-color:#3a86b0;">▶ Continue Your Kingdom</button>
       <button class="big" id="loadMenuBtn" style="display:none;background:#173a2a;border-color:#2f7a52;">📂 Load a Saved Kingdom</button>
+      <button class="big" id="paradeBtn" style="background:#4a3a14;border-color:#c9a44a;">🎖 Unit Parade — see every soldier up close</button>
       <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Battleground:</div>
       <div id="mappick" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:900px;"></div>
       <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Difficulty:</div>
@@ -189,7 +190,7 @@ function isHostile(a,b){ if(a===b)return false;
 const isFriend=o=>diplo[o]&&diplo[o].stance!=='war'&&diplo[o].score>=60;
 function realmName(o){return o==='player'?'You':FACTIONS[faction[o]].name;}
 const UNIT={
-  worker:{hp:45,speed:14,range:2.4,dmg:3,cd:.8,r:.9,vis:8,dom:'land',color:0xd7dee2,name:'Worker'},
+  worker:{hp:45,speed:10,range:2.4,dmg:3,cd:.8,r:.9,vis:8,dom:'land',color:0xd7dee2,name:'Worker'},
   spear:{hp:105,speed:12,range:2.6,dmg:11,cd:.9,r:1.05,vis:8,dom:'land',color:0x9aa6b0,name:'Pikeman',coat:true},
   archer:{hp:62,speed:13,range:17,dmg:9,cd:1.1,r:1.0,vis:10,dom:'land',color:0x7ac8e0,name:'Skirmisher'},
   infantry:{hp:110,speed:12,range:16,dmg:13,cd:1.5,r:1.05,vis:9,dom:'land',color:0xcccccc,name:'Infantry',coat:true,ranged:true},
@@ -506,7 +507,7 @@ const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','
 function depositCluster(arr,cx,cy,type,amt,n){ arr.push({tx:cx,ty:cy,amount:amt,type});
   for(let i=1;i<n;i++){ const x=cx+Math.round((hashN(cx+i*3,cy*2+i)-.5)*3.4),y=cy+Math.round((hashN(cx*2+i,cy+i*5)-.5)*3.4);
     if(inB(x,y)&&elev[ti(x,y)]>=1.7&&!arr.some(q=>q.tx===x&&q.ty===y))arr.push({tx:x,ty:y,amount:amt,type}); } }
-function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=5+CL*2.5;for(let i=0;i<Math.round((7+Math.floor(hashN(cx,cy)*5))*CL);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
+function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=6+CL*3;for(let i=0;i<Math.round((11+Math.floor(hashN(cx,cy)*7))*CL);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
 function plateau(cx,cy,val,rad){for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(!inB(x,y))continue;const d=Math.hypot(dx,dy);if(d>rad+.5)continue;elev[ti(x,y)]=Math.max(elev[ti(x,y)],val-(d/(rad+1))*0.5);}}
 function minFootElev(tx,ty,w,h){let m=9;for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++)if(inB(x,y))m=Math.min(m,elev[ti(x,y)]);return m;}
 function heightAtWorld(x,z){ if(!hc)return 0; const gx=(x+HALF_W)/TILE,gz=(z+HALF_H)/TILE;
@@ -663,7 +664,7 @@ function addVillage(v){ const g=new THREE.Group();const cx0=wx(v.tx),cz0=wz(v.ty
   spawnCitizen({cx:cx0,cz:cz0});spawnCitizen({cx:cx0,cz:cz0});
   return g;}
 function tileVis(x,z){const tx=txFromW(x),ty=tzFromW(z);return inB(tx,ty)&&visNow[ti(tx,ty)]===1;}
-let vilT=0,atkPing={t:99,x:0,z:0},statKills=0,freePlay=false;
+let vilT=0,atkPing={t:99,x:0,z:0},statKills=0,freePlay=false,paradeMode=false;
 function pingAttack(x,z){ if(atkPing.t>8){ atkPing={t:0,x,z}; SFX.wave(); flashMsg('⚔ Your forces are under attack!'); } }
 function updateVillages(dt){ vilT-=dt; if(vilT>0)return; vilT=0.5;
   for(const v of villages){ if(v.claimed)continue;
@@ -685,17 +686,17 @@ function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),
   if(h3<0.68){ // broadleaf: tapered trunk + clustered rounded canopies
     const mA=LEAF_MATS[Math.floor(h1*LEAF_MATS.length)%LEAF_MATS.length];
     const mB=LEAF_MATS[Math.floor(h2*LEAF_MATS.length)%LEAF_MATS.length];
-    const t=new THREE.Mesh(new THREE.CylinderGeometry(.20,.38,2.0,7),M.trunk);t.position.y=1.0;t.castShadow=true;g.add(t);
-    const blob=(x,y,z,s,m)=>{const b=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),m);b.position.set(x,y,z);b.scale.y=.82;b.rotation.set(h1*3,h2*3,h3*3);b.castShadow=true;g.add(b);};
+    const t=new THREE.Mesh(new THREE.CylinderGeometry(.20,.38,2.0,7),M.trunk);t.position.y=1.0;t.castShadow=false;g.add(t);
+    const blob=(x,y,z,s,m)=>{const b=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),m);b.position.set(x,y,z);b.scale.y=.82;b.rotation.set(h1*3,h2*3,h3*3);b.castShadow=false;g.add(b);};
     blob(0,3.0,0,1.55,mA);
     blob(.95,2.5,.35,1.0,mB);
     blob(-.85,2.6,-.3,.95,mB);
     blob(.15,2.3,-.9,.85,mA);
   } else { // pine: soft-proportioned twin cones
     const m=PINE_MATS[Math.floor(h1*PINE_MATS.length)%PINE_MATS.length];
-    const t=new THREE.Mesh(new THREE.CylinderGeometry(.16,.28,1.4,6),M.trunk);t.position.y=.7;t.castShadow=true;g.add(t);
-    const c1=new THREE.Mesh(new THREE.ConeGeometry(1.25,2.9,8),m);c1.position.y=2.6;c1.castShadow=true;g.add(c1);
-    const c2=new THREE.Mesh(new THREE.ConeGeometry(.85,2.0,8),m);c2.position.y=4.1;c2.castShadow=true;g.add(c2);
+    const t=new THREE.Mesh(new THREE.CylinderGeometry(.16,.28,1.4,6),M.trunk);t.position.y=.7;t.castShadow=false;g.add(t);
+    const c1=new THREE.Mesh(new THREE.ConeGeometry(1.25,2.9,8),m);c1.position.y=2.6;c1.castShadow=false;g.add(c1);
+    const c2=new THREE.Mesh(new THREE.ConeGeometry(.85,2.0,8),m);c2.position.y=4.1;c2.castShadow=false;g.add(c2);
   }
   const yy=heightAtWorld(wx(n.tx),wz(n.ty));g.position.set(wx(n.tx),yy,wz(n.ty));
   g.rotation.y=h1*6;g.rotation.z=(h2-.5)*.08;g.scale.setScalar(0.85+h2*0.7);decorGroup.add(g);return g;}
@@ -1189,7 +1190,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
       corpses.push({mesh:e.mesh,t:0,mixer:udd.mixer}); }
     else corpses.push({mesh:e.mesh,t:0});
     SFX.die();selected=selected.filter(id=>id!==e.id);for(const k in groups)groups[k]=groups[k].filter(id=>id!==e.id);return false;}return true;});
-  for(const o of AI_REALMS)realmBrain(o,dt);atkPing.t+=dt;computeVision();checkWin();}
+  if(!paradeMode)for(const o of AI_REALMS)realmBrain(o,dt);atkPing.t+=dt;computeVision();if(!paradeMode)checkWin();}
 function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of Empire — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}}}
 function destroyBuilding(b){removeBuildUI(b);if(Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<90)camShake=Math.min(1.6,camShake+1.0);const y=heightAtWorld(b.cx,b.cz)+3;for(let i=0;i<16;i++)spawnPart(b.cx,y,b.cz,'debris');SFX.boom();removeBuilding(b);}
 function fleeWater(e){const tx=txFromW(e.x),ty=tzFromW(e.z);let best=null,bd=1e9;for(let r=1;r<=6;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=tx+dx,y=ty+dy;if(passable(x,y,0,'land')){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(best){e.cmd='move';orderPath(e,best[0],best[1],0);}}
@@ -1585,7 +1586,7 @@ window.addEventListener('mouseup',ev=>{
     if(selected.some(id=>{const e=ents.find(u=>u.id===id);return e&&e.type!=='worker';}))selected=selected.filter(id=>{const e=ents.find(u=>u.id===id);return e&&e.type!=='worker';});if(selected.length)SFX.select();}
   else{const u=pickUnit(p.x,p.y);if(u){selected=[u.id];SFX.select();}else{selected=[];const b=pickBuilding(p.x,p.y);if(b){selBuilding=b.id;SFX.select();}}}refreshUI();});
 canvas.addEventListener('dblclick',ev=>{const p=localXY(ev);const u=pickUnit(p.x,p.y);if(u){selected=[];const v=new THREE.Vector3();for(const e of ents)if(e.owner==='player'&&e.type===u.type){v.set(e.x,e.mesh.position.y,e.z).project(camera);if(v.z<1&&Math.abs(v.x)<1&&Math.abs(v.y)<1)selected.push(e.id);}if(!selected.length)selected=[u.id];SFX.select();refreshUI();}});
-canvas.addEventListener('wheel',ev=>{ev.preventDefault();camDist=clamp(camDist+Math.sign(ev.deltaY)*7,30,150);},{passive:false});
+canvas.addEventListener('wheel',ev=>{ev.preventDefault();camDist=clamp(camDist+Math.sign(ev.deltaY)*7,13,150);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
   if(k==='escape'){const busy=placing||attackMove||dragging||wallDrag;placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();
@@ -1798,7 +1799,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
-function saveGame(quiet,key){ if(!running||gameOver)return; key=key||'tidefall_save';
+function saveGame(quiet,key){ if(!running||gameOver||paradeMode)return; key=key||'tidefall_save';
   const s={v:1,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
@@ -1844,6 +1845,14 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
   else{ updateCamera(frame); if(paused)simAcc=0; }
   updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
+document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('tidefall_fac')||'english');
+  const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
+  const tx0=ph.tx+(ph.w>>1), ty0=ph.ty+ph.h+3; let col=0,row=0;
+  for(const t in UNIT){ if(UNIT[t].dom!=='land')continue;
+    const u=spawnUnit(t,'player',tx0-8+col*2,ty0+row*3); if(u){u.dir=Math.PI;u.disp=Math.PI;}
+    col++; if(col>8){col=0;row++;} }
+  camTarget.set(ph.cx,0,ph.cz+18); camDist=16;
+  flashMsg('🎖 The regiment on parade — wheel to zoom, Q/E to walk the line. Esc pauses; reload the page to leave.'); };
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
