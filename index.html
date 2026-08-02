@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b51</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b52</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1209,6 +1209,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
   for(const b of blds)if(b.done&&b.hp<b.maxHp*0.65&&(b.owner==='player'||tileVis(b.cx,b.cz))){ const dmg=1-b.hp/b.maxHp;
     if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
+  animFrame++;
   for(const e of ents)updateUnit(e,dt);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
@@ -1235,7 +1236,7 @@ function updateBuilding(b,dt){if(!b.done){b.mesh.scale.y=0.05+0.95*b.progress;up
     u.x+=((u.id%5)-2)*0.6; u.z+=(((u.id*3)%5)-2)*0.6;
     if(b.rally){u.cmd='move';orderPath(u,txFromW(b.rally.x),tzFromW(b.rally.z),0);}else if(b.owner!=='player'&&type==='worker'){const n=nearestNode(u,realmWant(b.owner));if(n)gatherOrder(u,n);}}}}
 function spawnSpot(b,type){const dom=UNIT[type].dom;for(let r=0;r<9;r++)for(const[dx,dy]of[[b.w>>1,b.h+r],[b.w+r,b.h>>1],[-1-r,b.h>>1],[b.w>>1,-1-r]]){const x=b.tx+dx,y=b.ty+dy;if(passable(x,y,0,dom))return{x:wx(x),z:wz(y)};}return{x:b.cx,z:b.cz+b.h*TILE};}
-let sepFlip=false;
+let sepFlip=false,animFrame=0;
 function separateUnits(){ const cell=3, grid=new Map();
   for(const e of ents){ const k=((e.x/cell)|0)*4096+((e.z/cell)|0); let a=grid.get(k); if(!a){a=[];grid.set(k,a);} a.push(e); }
   for(const e of ents){ const cx=(e.x/cell)|0, cz=(e.z/cell)|0;
@@ -1291,7 +1292,9 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
   e.mesh.rotation.y=-e.disp+Math.PI/2;
   const anim=e.mesh.userData.anim;if(anim&&!e.mesh.userData.noBob){const bob=moving?Math.abs(Math.sin(e.walk*10))*0.28:0;anim.position.y=bob;anim.rotation.x=(e.atk>0?-0.5:moving?Math.sin(e.walk*10)*0.08:0);}
   const ud=e.mesh.userData;
-  if(ud.mixer){ ud.mixer.update(dt);
+  if(ud.mixer){ const dcx=e.x-camTarget.x,dcz=e.z-camTarget.z,far=(dcx*dcx+dcz*dcz)>5200;
+    if(far){ ud.lodAcc=(ud.lodAcc||0)+dt; if(((e.id+animFrame)&3)===0){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} }
+    else { if(ud.lodAcc){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} ud.mixer.update(dt); }
     if((ud.oneT||0)>0){ ud.oneT-=dt;
       if(ud.oneT<=0){ if(ud.oneA)ud.oneA.fadeOut(0.15); ud.oneA=null;
         const back=ud.animMode==='walk'?ud.walkA:ud.idleA; if(back)back.reset().fadeIn(0.15).play(); } }
@@ -1370,7 +1373,7 @@ const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new
 const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
 const strawMat=new THREE.MeshStandardMaterial({color:0xd8b96a,roughness:1,flatShading:true});
 const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian','Anne','Henry','Mako','Sharky','WorkerM','WorkerF','Ninja','Soldier'];
-function spawnCitizen(b){ if(citizens.length>=34)return;
+function spawnCitizen(b){ if(citizens.length>=22)return;
   const sx1=b.cx+(Math.random()-.5)*10,sz1=b.cz+7+Math.random()*4;
   if(CHAR_LIB){ const src=CHAR_LIB.lib[CIT_CHARS[citizens.length%CIT_CHARS.length]];
     if(src){ const g=CHAR_LIB.clone(src.scene);
