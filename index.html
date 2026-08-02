@@ -55,7 +55,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b36</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b37</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -653,7 +653,7 @@ function addVillage(v){ const g=new THREE.Group();const cx0=wx(v.tx),cz0=wz(v.ty
   spawnCitizen({cx:cx0,cz:cz0});spawnCitizen({cx:cx0,cz:cz0});
   return g;}
 function tileVis(x,z){const tx=txFromW(x),ty=tzFromW(z);return inB(tx,ty)&&visNow[ti(tx,ty)]===1;}
-let vilT=0,atkPing={t:99,x:0,z:0};
+let vilT=0,atkPing={t:99,x:0,z:0},statKills=0,freePlay=false;
 function pingAttack(x,z){ if(atkPing.t>8){ atkPing={t:0,x,z}; SFX.wave(); flashMsg('⚔ Your forces are under attack!'); } }
 function updateVillages(dt){ vilT-=dt; if(vilT>0)return; vilT=0.5;
   for(const v of villages){ if(v.claimed)continue;
@@ -1199,7 +1199,7 @@ function playOnce(e,key){ const ud=e.mesh.userData; const a=ud&&ud[key]; if(!a||
   a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.fadeIn(0.1).play(); }
 function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk)return;const U=UNIT[e.type];e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player')U.siege?SFX.boom():SFX.bow();}
-  else{t.hp-=effDmg(e);const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0)gainXp(e,25);if(e.owner==='player')SFX.hit();}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
+  else{t.hp-=effDmg(e);const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player')SFX.hit();}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
 function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;const U=UNIT[e.type];e.cd=U.cd;e.atk=0.2;const mult=U.siege?4:(e.type==='knight'?0.6:1);
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player')SFX.boom();}
   else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);}if(b.owner==='player'&&e.owner!=='player')pingAttack(b.cx,b.cz);}
@@ -1224,7 +1224,7 @@ function updateProjectiles(dt){for(const p of projs){p.t+=dt;const tx=p.target.x
   p.mesh.position.set(p.px,p.py,p.pz);if(p.kind==='arrow')p.mesh.lookAt(tx,ty,tz);else p.mesh.rotation.x+=dt*8;}
   projs=projs.filter(p=>{if(p.dead){scene.remove(p.mesh);return false;}return true;});}
 function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
-  if(p.target.bld){if(blds.includes(p.target.bld)){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(ents.includes(p.target)){p.target.hp-=p.dmg;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
+  if(p.target.bld){if(blds.includes(p.target.bld)){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(ents.includes(p.target)){p.target.hp-=p.dmg;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
 const partGeo=new THREE.SphereGeometry(0.18,5,4);
 const partMats={smoke:new THREE.MeshBasicMaterial({color:0x9098a0,transparent:true}),splash:new THREE.MeshBasicMaterial({color:0x9fd6ec}),chip:new THREE.MeshBasicMaterial({color:0xa9803f}),spark:new THREE.MeshBasicMaterial({color:0xffdca0}),debris:new THREE.MeshBasicMaterial({color:0xb08050}),blood:new THREE.MeshBasicMaterial({color:0xa03828}),heal:new THREE.MeshBasicMaterial({color:0x9ff0b0,transparent:true}),
 musket:new THREE.MeshBasicMaterial({color:0xd8dade,transparent:true}),flash:new THREE.MeshBasicMaterial({color:0xffdf80,transparent:true}),flame:new THREE.MeshBasicMaterial({color:0xff8a30,transparent:true})};
@@ -1606,13 +1606,36 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
 function ownerCss(o){return '#'+FACTIONS[faction[o]].coat.toString(16).padStart(6,'0');}
 function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&&b.type==='hall');
   const others=AI_REALMS.some(o=>blds.some(b=>b.owner===o&&b.type==='hall'));
-  if(!others)endGame(true);else if(!ph)endGame(false);}
-function endGame(win){gameOver=true;running=false;const ov=$('overlay');ov.classList.remove('hidden');ov.innerHTML=`<h1>${win?'You Rule the <span>Realm</span>':'Your <span style="color:#ff7a6a">Kingdom</span> Has Fallen'}</h1><p>${win?'Every rival keep lies in ruins. The whole land answers to your crown.':'Your Keep is lost. Another crown will rule these lands.'}</p><p style="color:#7fa8bd">Reigned ${Math.floor(elapsed/60)}m ${Math.floor(elapsed%60)}s · Age ${tech.player.age}</p><button class="big" id="againBtn">Play Again</button>`;$('againBtn').onclick=()=>location.reload();}
+  if(!others&&!freePlay)endGame(true);else if(!ph)endGame(false);}
+function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom();
+  const vets=ents.filter(e=>e.owner==='player'&&(e.rank||0)>0).length;
+  const vils=villages.filter(v=>v.claimed==='player').length;
+  const bldsUp=blds.filter(b=>b.owner==='player'&&b.done).length;
+  const stat=(ic,lab,val)=>`<div style="background:rgba(20,40,54,.8);border:1px solid #2c5164;border-radius:10px;padding:10px 18px;min-width:120px"><div style="font-size:22px">${ic}</div><div style="font-size:20px;font-weight:700;color:#f3e4be">${val}</div><div style="font-size:12px;color:#9fc0d2">${lab}</div></div>`;
+  const ov=$('overlay');ov.classList.remove('hidden');
+  ov.innerHTML=`<div style="font-size:56px">${win?'🏆':'⚔️'}</div>
+    <h1>${win?'You Rule the <span>Realm</span>':'Your <span style="color:#ff7a6a">Kingdom</span> Has Fallen'}</h1>
+    <p>${win?'Every rival keep lies in ruins. From coast to coast, the land answers to your crown.':'Your Keep is lost. Another crown will rule these lands — but crowns can be won back.'}</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:10px 0 4px">
+      ${stat('👑','Reign',Math.floor(elapsed/60)+'m '+Math.floor(elapsed%60)+'s')}
+      ${stat('🗡','Foes felled',statKills)}
+      ${stat('🎖','Veterans',vets)}
+      ${stat('🏛','Buildings',bldsUp)}
+      ${stat('🏘','Villages sworn',vils)}
+      ${stat('📜','Age reached',tech.player.age)}
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center">
+      ${win?'<button class="big" id="ruleBtn" style="background:#1c4d6d;border-color:#3a86b0">👑 Continue Ruling</button>':''}
+      <button class="big" id="againBtn">⚔ Play Again</button>
+    </div>`;
+  $('againBtn').onclick=()=>location.reload();
+  const rb=document.getElementById('ruleBtn');
+  if(rb)rb.onclick=()=>{freePlay=true;gameOver=false;running=true;ov.classList.add('hidden');flashMsg('👑 You rule in peace — build your kingdom as you please.');};}
 // REALM_SITES computed per battleground in setMap()
 function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H; sc.updateProjectionMatrix(); }
 function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
-  initRealms();elapsed=0;gameOver=false;
+  initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
     addBuilding('hall',hx,hy,o,true);
@@ -1625,7 +1648,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
 function saveGame(quiet,key){ if(!running||gameOver)return; key=key||'tidefall_save';
-  const s={v:1,map:curMapId,dif:difficulty,meta:{when:Date.now(),fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
+  const s={v:1,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
@@ -1642,7 +1665,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   newGame();   // rebuilds the identical deterministic world, then we restore the saved state over it
   for(const e of ents)scene.remove(e.mesh); ents=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
-  res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed;
+  res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed; statKills=s.kills||0;
   const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0&&arr[i].mesh)arr[i].mesh.visible=false;}});};
   restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);
   (s.vil||[]).forEach((c,i)=>{if(c&&villages[i])claimVillageSilent(villages[i],c);});
