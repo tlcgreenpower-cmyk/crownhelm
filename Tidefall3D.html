@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b56</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b57</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1327,7 +1327,8 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
   e.mesh.rotation.y=-e.disp+Math.PI/2;
   const anim=e.mesh.userData.anim;if(anim&&!e.mesh.userData.noBob){const bob=moving?Math.abs(Math.sin(e.walk*10))*0.28:0;anim.position.y=bob;anim.rotation.x=(e.atk>0?-0.5:moving?Math.sin(e.walk*10)*0.08:0);}
   const ud=e.mesh.userData;
-  if(ud.mixer){ const dcx=e.x-camTarget.x,dcz=e.z-camTarget.z,far=(dcx*dcx+dcz*dcz)>5200;
+  if(ud.mixer&&!e.mesh.visible){ /* imposter LOD: no skinning while hidden */ }
+  else if(ud.mixer){ const dcx=e.x-camTarget.x,dcz=e.z-camTarget.z,far=(dcx*dcx+dcz*dcz)>5200;
     if(far){ ud.lodAcc=(ud.lodAcc||0)+dt; if(((e.id+animFrame)&3)===0){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} }
     else { if(ud.lodAcc){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} ud.mixer.update(dt); }
     if((ud.oneT||0)>0){ ud.oneT-=dt;
@@ -1610,6 +1611,21 @@ function updateSlotMarks(ang){ const s=selUnits().filter(e=>UNIT[e.type].dom!=='
 function hideSlotMarks(){slotMarks.forEach(m=>m.visible=false);}
 function resize(){const s=document.getElementById('stage');vw=s.clientWidth;vh=s.clientHeight;renderer.setSize(vw,vh,false);camera.aspect=vw/vh;camera.updateProjectionMatrix();if(composer)composer.setSize(vw,vh);}
 window.addEventListener('resize',resize);
+const IMP_CAP=600;
+const impGeo=new THREE.CapsuleGeometry(.5,1.2,3,6); impGeo.translate(0,1.1,0);
+const impMat=new THREE.MeshStandardMaterial({roughness:.85});
+const impMesh=new THREE.InstancedMesh(impGeo,impMat,IMP_CAP);
+impMesh.castShadow=false; impMesh.count=0; impMesh.frustumCulled=false; scene.add(impMesh);
+const _impM=new THREE.Matrix4(),_impC=new THREE.Color();
+function updateUnitLOD(){ if(!ents.length){impMesh.count=0;return;}
+  const LODD=Math.max(26,4600/Math.max(camDist,1)); const L2=LODD*LODD; let n=0;
+  for(const e of ents){ const dx=e.x-camTarget.x,dz=e.z-camTarget.z;
+    const far=(dx*dx+dz*dz)>L2 && n<IMP_CAP;
+    if(far){ if(e.mesh.visible)e.mesh.visible=false;
+      _impM.makeTranslation(e.x,heightAtWorld(e.x,e.z),e.z); impMesh.setMatrixAt(n,_impM);
+      _impC.setHex((FACTIONS[faction[e.owner]]||FACTIONS.english).coat); impMesh.setColorAt(n,_impC); n++; }
+    else if(!e.mesh.visible)e.mesh.visible=true; }
+  impMesh.count=n; impMesh.instanceMatrix.needsUpdate=true; if(impMesh.instanceColor)impMesh.instanceColor.needsUpdate=true; }
 function updateCamera(dt){const sp=48*dt*(camDist/80),m=18;const fwd=[-Math.sin(camYaw),-Math.cos(camYaw)],rgt=[Math.cos(camYaw),-Math.sin(camYaw)];let fx=0,fz=0;
   if(keys['arrowup']||keys['w']){fx+=fwd[0];fz+=fwd[1];}if(keys['arrowdown']||keys['s']){fx-=fwd[0];fz-=fwd[1];}
   if(keys['arrowleft']||keys['a']){fx-=rgt[0];fz-=rgt[1];}if(keys['arrowright']||keys['d']){fx+=rgt[0];fz+=rgt[1];}   // keyboard-only panning — no edge scroll
@@ -1931,8 +1947,14 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6*gameSpeed){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
-  updateGhost();updateRings();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
-  drawMini();if(composer)composer.render();else renderer.render(scene,camera);requestAnimationFrame(loop);}
+  updateGhost();updateRings();updateUnitLOD();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  drawMini();if(composer)composer.render();else renderer.render(scene,camera);
+  _fc++;const _nw=performance.now();if(_nw-_ft>1000){lastFps=_fc;_fc=0;_ft=_nw;}
+  requestAnimationFrame(loop);}
+let _ft=performance.now(),_fc=0,lastFps=0;
+window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
+  return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
+    calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};}};
 document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('tidefall_fac')||'english');
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
   const tx0=ph.tx+(ph.w>>1), ty0=ph.ty+ph.h+3; let col=0,row=0;
