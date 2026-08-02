@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b44</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b45</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -236,7 +236,7 @@ function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
   for(const o of AI_REALMS){ realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:30+Math.random()*50,warCheck:120+Math.random()*120};
     diplo[o]={score:10,stance:'neutral'}; } }
 initRealms();
-let selected=[],selBuilding=null,placing=null,groups={},attackMove=false;
+let selected=[],selBuilding=null,placing=null,groups={},attackMove=false,buildCat=null;
 let running=false,gameOver=false,tideLevel=SEA,elapsed=0,waterY=SEA*HSCALE;
 let audioOn=true,actx=null;
 const ti=(tx,ty)=>ty*MAP_W+tx,inB=(tx,ty)=>tx>=0&&ty>=0&&tx<MAP_W&&ty<MAP_H;
@@ -1617,7 +1617,17 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         fb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#dff0f9;background:'+(formation===k?'#2c5c7a':'#17303f')+';border:1px solid '+(formation===k?'#8fd4f0':'#2c5164');
         fb.onclick=()=>{formation=k;flashMsg('Formation: '+FORMS[k].name+' — right-click-drag to place it');refreshUI();};fr.appendChild(fb); }
       info.appendChild(fr); }
-    if(sel.some(e=>e.type==='worker')){buildBtn(cmds,'house','🏠','House',can);buildBtn(cmds,'farm','🌾','Farm',can);buildBtn(cmds,'mill','🌬️','Mill',can);buildBtn(cmds,'storehouse','📦','Storehouse',can);buildBtn(cmds,'market','⚖️','Market',can);buildBtn(cmds,'barracks','⚔','Barracks',can);buildBtn(cmds,'gunshop','🔫','Gun Shop',can);buildBtn(cmds,'church','⛪','Church',can);buildBtn(cmds,'watch','🔭','Watch House',can);buildBtn(cmds,'tower','🗼','Tower',can);buildBtn(cmds,'wall','🧱','Wall',can);buildBtn(cmds,'gate','🚪','Gate',can);buildBtn(cmds,'statue','🗽','Statue',can);buildBtn(cmds,'garden','🌷','Garden',can);if(tech.player.age>=2){buildBtn(cmds,'siege','⊙','Siege Wk.',can);buildBtn(cmds,'dock','⚓','Dock',can);buildBtn(cmds,'castle','🏰','Castle',can);}}}
+    if(sel.some(e=>e.type==='worker')){
+      const CATS={
+        town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['storehouse','📦','Storehouse'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
+        mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
+        def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House']]}};
+      const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
+      if(buildCat&&CATS[buildCat]){
+        catBtn('◀','Back',()=>{buildCat=null;refreshUI();},true);
+        for(const it of CATS[buildCat].items){ if((it[3]||1)>tech.player.age)continue; buildBtn(cmds,it[0],it[1],it[2],can); } }
+      else for(const k in CATS)catBtn(CATS[k].ic,CATS[k].name,((kk)=>()=>{buildCat=kk;refreshUI();})(k),false);
+    }}
   else info.innerHTML='Nothing selected.<br><span style="color:#6f93a6">Drag to select. Click your Keep to train workers &amp; advance the Age. Press H for home.</span>';}
 function bumpHp(){for(const e of ents)if(e.owner==='player'){const nm=Math.round(UNIT[e.type].hp*(1+tech.player.armor*0.15)),ratio=e.hp/e.maxHp;e.maxHp=nm;e.hp=nm*ratio;}}
 function trainBtn(cmds,b,type,ic,label,can,dis){const c=COST[type];const en=!dis&&can(c)&&popUsed('player')+c.pop<=popCap('player')&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.f?c.f+'🍖 ':''}${c.w?c.w+'🪵 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'🪙 ':''}· 👥${c.pop}</small>`;
