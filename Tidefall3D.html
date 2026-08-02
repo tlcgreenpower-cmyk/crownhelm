@@ -57,7 +57,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b52</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b53</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1698,9 +1698,15 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
     }}
   else info.innerHTML='Nothing selected.<br><span style="color:#6f93a6">Drag to select. Click your Keep to train workers &amp; advance the Age. Press H for home.</span>';}
 function bumpHp(){for(const e of ents)if(e.owner==='player'){const nm=Math.round(UNIT[e.type].hp*(1+tech.player.armor*0.15)),ratio=e.hp/e.maxHp;e.maxHp=nm;e.hp=nm*ratio;}}
+function shortOf(c){const r=res.player,parts=[];
+  if(c.f&&r.f<c.f)parts.push(Math.ceil(c.f-r.f)+'🍖 food');
+  if(c.w&&r.w<c.w)parts.push(Math.ceil(c.w-r.w)+'🪵 wood');
+  if(c.m&&r.m<c.m)parts.push(Math.ceil(c.m-r.m)+'⛏️ metal');
+  if(c.g&&r.g<c.g)parts.push(Math.ceil(c.g-r.g)+'🪙 gold');
+  return parts.join(' + ');}
 function trainBtn(cmds,b,type,ic,label,can,dis){const c=COST[type];const en=!dis&&can(c)&&popUsed('player')+c.pop<=popCap('player')&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.f?c.f+'🍖 ':''}${c.w?c.w+'🪵 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'🪙 ':''}· 👥${c.pop}</small>`;
-  btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(dis){flashMsg('You already have a Hero');return;}if(!can(c)){flashMsg('Not enough resources');return;}if(popUsed('player')+c.pop>popCap('player')){flashMsg('Need more Houses (pop cap)');return;}res.player.f-=(c.f||0);res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.g-=(c.g||0);b.queue.push({type,t:c.time});SFX.cmd();refreshUI();};cmds.appendChild(btn);}
-function buildBtn(cmds,type,ic,label,can){const c=COST[type];const en=can(c)&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.w?c.w+'🪵 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'🪙':''}</small>`;btn.onclick=()=>{if(!en){flashMsg('Locked or too costly');return;}placing=type;updateGhost();refreshUI();};cmds.appendChild(btn);}
+  btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(dis){flashMsg('You already have a Hero');return;}if(!can(c)){flashMsg('Need '+shortOf(c)+' more for a '+label);return;}if(popUsed('player')+c.pop>popCap('player')){flashMsg('Need more Houses (pop cap)');return;}res.player.f-=(c.f||0);res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.g-=(c.g||0);b.queue.push({type,t:c.time});SFX.cmd();refreshUI();};cmds.appendChild(btn);}
+function buildBtn(cmds,type,ic,label,can){const c=COST[type];const en=can(c)&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.w?c.w+'🪵 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'🪙':''}</small>`;btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance to Age '+(c.age)+' first — at your Keep');return;}if(!can(c)){flashMsg('Need '+shortOf(c)+' more for a '+label);return;}placing=type;updateGhost();refreshUI();};cmds.appendChild(btn);}
 function techBtn(cmds,ic,label,cost,en,fn,maxed){const btn=document.createElement('div');btn.className='btn'+(en&&!maxed?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${maxed?label.replace(/\d+$/,'MAX'):label}<small>${maxed?'maxed':cost}</small>`;btn.onclick=()=>{if(maxed){flashMsg('Maxed');return;}if(!en){flashMsg('Not enough resources');return;}fn();};cmds.appendChild(btn);}
 function marketBtn(cmds,label,cost,fn){const btn=document.createElement('div');btn.className='btn';btn.innerHTML=`${label}<small>${cost}</small>`;btn.onclick=fn;cmds.appendChild(btn);}
 function trade(k,amt,gold){const r=res.player;if(amt<0&&r[k]<-amt){flashMsg('Not enough to sell');return;}if(gold<0&&r.g<-gold){flashMsg('Not enough gold');return;}r[k]+=amt;r.g+=gold;SFX.cmd();updateHUD();refreshUI();}
