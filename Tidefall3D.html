@@ -58,7 +58,18 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b63</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b64</span>
+  </div>
+  <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
+    <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
+    <div style="color:#9fc0d2;font-size:13px;">Pick a brush, then click & drag on the map. Land shape stays as the Heartlands isle — you paint what grows on it.</div>
+    <div id="bTools" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;"></div>
+    <canvas id="bCanvas" width="768" height="512" style="border:2px solid #2c5164;border-radius:8px;cursor:crosshair;background:#3f7a35;max-width:92vw;"></canvas>
+    <div style="display:flex;gap:10px;">
+      <button class="big" id="bSave" style="background:#1f5a33;border-color:#3f9a5f;">💾 Save — play it from the menu</button>
+      <button class="big" id="bClear" style="background:#5a2a20;border-color:#a05a3f;">🗑 Clear all</button>
+      <button class="big" id="bBack" style="background:#17303f;border-color:#2c5164;">← Back to menu</button>
+    </div>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -99,6 +110,7 @@
       <button class="big" id="contBtn" style="display:none;background:#1c4d6d;border-color:#3a86b0;">▶ Continue Your Kingdom</button>
       <button class="big" id="loadMenuBtn" style="display:none;background:#173a2a;border-color:#2f7a52;">📂 Load a Saved Kingdom</button>
       <button class="big" id="paradeBtn" style="background:#4a3a14;border-color:#c9a44a;">🎖 Unit Parade — see every soldier up close</button>
+      <button class="big" id="builderBtn" style="background:#14384a;border-color:#3a86b0;">🛠 Map Builder — design your own battleground</button>
       <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Battleground:</div>
       <div id="mappick" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:900px;"></div>
       <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Difficulty:</div>
@@ -156,6 +168,7 @@ const MAPS={
   twinrivers:{name:'Twin Rivers',w:168,h:112,forest:1.5,clump:1.5,dep:2,depAmt:1.3,rivers:2,lakes:0.16,desc:'Two great rivers carve the land'},
   ironhigh:  {name:'Iron Highlands',w:168,h:112,forest:0.9,clump:1.2,dep:4,depAmt:1.8,rivers:0,lakes:0.10,hills:true,desc:'Stony uplands veined with metal'},
   broadwood: {name:'The Broadwood',w:168,h:112,forest:2.4,clump:2.2,dep:2,depAmt:1.2,rivers:1,lakes:0.18,desc:'One endless forest, clearings to claim'},
+  custom:    {name:'My Map',w:96,h:64,forest:1,clump:1,dep:1,depAmt:1,rivers:1,lakes:0.16,custom:true,desc:'Your own design from the Map Builder'},
 };
 let curMapId=localStorage.getItem('tidefall_map')||'heartlands'; if(!MAPS[curMapId])curMapId='heartlands';
 let MAP_W,MAP_H,WORLD_W,WORLD_H,HALF_W,HALF_H,REALM_SITES;
@@ -505,9 +518,20 @@ function genMap(){
   for(let y=0;y<=MAP_H;y++)for(let x=0;x<=MAP_W;x++){let s=0,n=0;for(const[dx,dy]of[[-1,-1],[0,-1],[-1,0],[0,0]]){const cx=x+dx,cyy=y+dy;if(inB(cx,cyy)){s+=elev[ti(cx,cyy)];n++;}}hc[y*(MAP_W+1)+x]=(n?s/n:0)*HSCALE;}
   // procedural resources across the whole land
   woodNodes=[];metalNodes=[];goldNodes=[];
+  const CUSTOM=MM.custom?(()=>{try{return JSON.parse(localStorage.getItem('tidefall_custom_map'))}catch(e){return null}})():null;
+  if(CUSTOM){
+    for(const i of CUSTOM.f||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}
+    for(const i of CUSTOM.m||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)metalNodes.push({tx:x,ty:y,amount:1200,type:'metal'});}
+    for(const i of CUSTOM.g||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)goldNodes.push({tx:x,ty:y,amount:800,type:'gold'});}
+  } else
   for(let y=4;y<MAP_H-4;y+=3)for(let x=4;x<MAP_W-4;x+=3){ const e=elev[ti(x,y)]; if(e<1.7)continue;
     const h=hashN(x*3.1,y*7.3);
-    if(h<0.09*MM.forest)scatter(x,y);
+    const cornX=Math.min(x,MAP_W-x)/MAP_W, cornY=Math.min(y,MAP_H-y)/MAP_H;
+    const corner=Math.max(0,1-(cornX+cornY)*3.0);                                   // ~1 deep in each corner
+    const grove=Math.max(0,Math.sin(x*0.11+7)*Math.sin(y*0.13+3)-0.55)*2.2;         // scattered woodland patches
+    const plain=Math.max(0,Math.sin(x*0.07+1.7)*Math.sin(y*0.09+5.2)-0.5);          // deliberate open ground
+    let fmul=0.3+2.8*corner+1.9*grove; if(plain>0)fmul*=0.12;
+    if(h<0.09*MM.forest*fmul)scatter(x,y);
     else if(h>0.94&&e>=1.8)depositCluster(metalNodes,x,y,'metal',Math.round(1200*MM.depAmt),MM.dep);
     else if(h>0.905&&h<=0.94&&e>=1.8)depositCluster(goldNodes,x,y,'gold',Math.round(800*MM.depAmt),MM.dep);
   }
@@ -1160,8 +1184,10 @@ function addRankPips(e){ const old=e.mesh.userData.pips; if(old)e.mesh.remove(ol
 // ==================================================== PATHFINDING
 const gateOwner=new Map();
 function passable(tx,ty,goalId,dom,own){if(!inB(tx,ty))return false;const fl=isFlooded(tx,ty);if(dom==='water'){if(!fl)return false;}else if(fl)return false;const b=buildGrid[ti(tx,ty)];return b===0||b===goalId||(own!==undefined&&gateOwner.get(b)===own);}
-let astarBudget=24;
-function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;if(astarBudget<=0)return null;astarBudget--;
+let astarBudget=24,astarBudgetAI=24;
+function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
+  if(own&&own!=='player'){if(astarBudgetAI<=0)return null;astarBudgetAI--;}
+  else{if(astarBudget<=0)return null;astarBudget--;}
   if(!passable(gx,gy,goalId,dom,own)){let best=null,bd=1e9;for(let r=1;r<=5&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=gx+dx,y=gy+dy;if(passable(x,y,goalId,dom,own)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(!best)return null;gx=best[0];gy=best[1];}
   if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?7000:4500;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
   while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
@@ -1253,7 +1279,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
   animFrame++;
-  astarBudget=24;
+  astarBudget=24;astarBudgetAI=24;
   for(const e of ents)updateUnit(e,dt);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
@@ -2003,6 +2029,54 @@ let _ft=performance.now(),_fc=0,lastFps=0;
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};}};
+(()=>{ const BW=96,BH=64,cell=8; let layout={f:[],m:[],g:[]}; let brush='f',bsize=2,painting=false;
+  try{const s=JSON.parse(localStorage.getItem('tidefall_custom_map'));if(s)layout={f:s.f||[],m:s.m||[],g:s.g||[]};}catch(e){}
+  const sets={f:new Set(layout.f),m:new Set(layout.m),g:new Set(layout.g)};
+  const bc=document.getElementById('bCanvas'),bx=bc.getContext('2d');
+  const BRUSHES=[['f','🌲 Forest','#2f8a3a'],['m','⛏ Iron','#8b9096'],['g','🪙 Gold','#d8b02a'],['e','🧽 Erase','#333']];
+  const tools=document.getElementById('bTools');
+  const sizes=[1,2,3];
+  function toolbar(){ tools.innerHTML='';
+    for(const[k,label,col]of BRUSHES){ const b=document.createElement('button'); b.className='big';
+      b.style.cssText='padding:6px 14px;font-size:14px;background:'+(brush===k?'#1c4d6d':'#17303f')+';border:2px solid '+(brush===k?'#7fc4e8':'#2c5164');
+      b.textContent=label; b.onclick=()=>{brush=k;toolbar();}; tools.appendChild(b); }
+    for(const s of sizes){ const b=document.createElement('button'); b.className='big';
+      b.style.cssText='padding:6px 12px;font-size:14px;background:'+(bsize===s?'#1c4d6d':'#17303f')+';border:2px solid '+(bsize===s?'#7fc4e8':'#2c5164');
+      b.textContent='●'.repeat(s); b.onclick=()=>{bsize=s;toolbar();}; tools.appendChild(b); } }
+  function draw(){ bx.fillStyle='#3f7a35'; bx.fillRect(0,0,bc.width,bc.height);
+    bx.fillStyle='rgba(90,140,200,.55)'; bx.fillRect(0,0,bc.width,10); bx.fillRect(0,bc.height-10,bc.width,10);
+    bx.fillRect(0,0,10,bc.height); bx.fillRect(bc.width-10,0,10,bc.height);   // coast hint
+    const dot=(set,col)=>{ bx.fillStyle=col; for(const i of set){ const x=i%BW,y=(i-x)/BW; bx.fillRect(x*cell,y*cell,cell,cell); } };
+    dot(sets.f,'#2f8a3a'); dot(sets.m,'#8b9096'); dot(sets.g,'#d8b02a');
+    bx.fillStyle='rgba(255,255,255,.65)'; bx.font='10px sans-serif';
+    bx.fillText('YOU',15*cell-8,(BH-15)*cell); bx.fillText('AI',(BW-17)*cell,12*cell); bx.fillText('AI',15*cell-4,12*cell); bx.fillText('AI',(BW-17)*cell,(BH-15)*cell); }
+  function paint(ev){ const r=bc.getBoundingClientRect(); const px=(ev.clientX-r.left)*(bc.width/r.width),py=(ev.clientY-r.top)*(bc.height/r.height);
+    const tx=Math.floor(px/cell),ty=Math.floor(py/cell);
+    for(let dy=-bsize+1;dy<bsize;dy++)for(let dx=-bsize+1;dx<bsize;dx++){ const x=tx+dx,y=ty+dy;
+      if(x<2||y<2||x>=BW-2||y>=BH-2)continue; const i=x+y*BW;
+      if(brush==='e'){sets.f.delete(i);sets.m.delete(i);sets.g.delete(i);}
+      else{sets.f.delete(i);sets.m.delete(i);sets.g.delete(i);sets[brush].add(i);} }
+    draw(); }
+  bc.addEventListener('mousedown',ev=>{painting=true;paint(ev);});
+  bc.addEventListener('mousemove',ev=>{if(painting)paint(ev);});
+  window.addEventListener('mouseup',()=>painting=false);
+  document.getElementById('builderBtn').onclick=()=>{ document.getElementById('builder').style.display='flex'; toolbar(); draw(); };
+  document.getElementById('bBack').onclick=()=>{ document.getElementById('builder').style.display='none'; };
+  document.getElementById('bClear').onclick=()=>{ sets.f.clear();sets.m.clear();sets.g.clear(); draw(); };
+  document.getElementById('bSave').onclick=()=>{ localStorage.setItem('tidefall_custom_map',JSON.stringify({f:[...sets.f],m:[...sets.m],g:[...sets.g]}));
+    addCustomMapBtn(); document.getElementById('builder').style.display='none';
+    flashMsg('🛠 Map saved — pick “My Map” as the battleground and choose a regiment!'); };
+})();
+function addCustomMapBtn(){ const mp=document.getElementById('mappick');
+  if(document.querySelector('#mappick [data-map=custom]'))return;
+  if(!localStorage.getItem('tidefall_custom_map'))return;
+  const m=MAPS.custom; const b=document.createElement('button');
+  b.className='big mapbtn'; b.dataset.map='custom';
+  b.style.cssText='background:#14304a;border-color:#3a86b0;padding:7px 14px;font-size:14px;display:flex;flex-direction:column;gap:2px;align-items:center;';
+  b.innerHTML='<span>🛠 '+m.name+'</span><small style="color:#9fc0d2;font-weight:normal">'+m.desc+'</small>';
+  b.onclick=()=>{setMap('custom');localStorage.setItem('tidefall_map','custom');paintMaps();};
+  mp.appendChild(b); }
+addCustomMapBtn();
 document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('tidefall_fac')||'english');
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
   const tx0=ph.tx+(ph.w>>1), ty0=ph.ty+ph.h+3; let col=0,row=0;
@@ -2018,7 +2092,7 @@ function start(fac){faction.player=fac||'english';
   $('overlay').classList.add('hidden');initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
 function paintMaps(){document.querySelectorAll('#mappick .mapbtn').forEach(b=>{b.style.outline=b.dataset.map===curMapId?'3px solid #f3e4be':'none';b.style.opacity=b.dataset.map===curMapId?'1':'.62';});}
 { const mp=document.getElementById('mappick');
-  for(const id in MAPS){ const m=MAPS[id]; const b=document.createElement('button');
+  for(const id in MAPS){ if(MAPS[id].custom)continue; const m=MAPS[id]; const b=document.createElement('button');
     b.className='big mapbtn'; b.dataset.map=id;
     b.style.cssText='background:#14303c;border-color:#2c6157;padding:7px 14px;font-size:14px;display:flex;flex-direction:column;gap:2px;align-items:center;';
     b.innerHTML='<span>'+m.name+(id==='heartlands'?'':' <small style="color:#8fd0a8">3× land</small>')+'</span><small style="color:#9fc0d2;font-weight:normal">'+m.desc+'</small>';
