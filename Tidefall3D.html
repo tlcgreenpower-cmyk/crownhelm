@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b59</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b60</span>
   </div>
   <div id="stage">
     <canvas id="view"></canvas>
@@ -1159,7 +1159,7 @@ function addRankPips(e){ const old=e.mesh.userData.pips; if(old)e.mesh.remove(ol
 // ==================================================== PATHFINDING
 const gateOwner=new Map();
 function passable(tx,ty,goalId,dom,own){if(!inB(tx,ty))return false;const fl=isFlooded(tx,ty);if(dom==='water'){if(!fl)return false;}else if(fl)return false;const b=buildGrid[ti(tx,ty)];return b===0||b===goalId||(own!==undefined&&gateOwner.get(b)===own);}
-let astarBudget=14;
+let astarBudget=24;
 function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;if(astarBudget<=0)return null;astarBudget--;
   if(!passable(gx,gy,goalId,dom,own)){let best=null,bd=1e9;for(let r=1;r<=5&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=gx+dx,y=gy+dy;if(passable(x,y,goalId,dom,own)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(!best)return null;gx=best[0];gy=best[1];}
   if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?7000:4500;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
@@ -1204,7 +1204,7 @@ function commandMove(list,x,z,amove,fdir){const gx=txFromW(x),gy=tzFromW(z);
   const tiles=formTiles(ml.length,gx,gy,fdir);
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
     if(!orderPath(e,tiles[i][0],tiles[i][1],0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
-function commandTarget(list,x,z){const workers0=list.filter(e=>e.type==='worker');
+function commandTarget(list,x,z){astarBudget+=list.length+6;const workers0=list.filter(e=>e.type==='worker');
   if(workers0.length){ let bs=null,bd0=3.5;
     for(const s of sheep){const d=Math.hypot(x-s.x,z-s.z);if(d<bd0){bd0=d;bs=s;}}
     if(bs){ workers0.forEach(w=>{w.cmd='hunt';w.hunt=bs;w.gather=null;w.build=null;w.target=null;w.tendB=null;orderPath(w,txFromW(bs.x),tzFromW(bs.z),0);});
@@ -1252,7 +1252,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
   animFrame++;
-  astarBudget=14;
+  astarBudget=24;
   for(const e of ents)updateUnit(e,dt);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
@@ -1306,7 +1306,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
         else if(Math.random()<0.5){const f=blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&ents.filter(u=>u.cmd==='tend'&&u.tendB===q).length<2);
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}}
       break;
-    case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
+    case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.cmd='idle';e.path=null;break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
     case 'hunt':{const s=e.hunt;
       if(!s||!sheep.includes(s)){ e.hunt=null; const n2=nearestNode(e,'food');
