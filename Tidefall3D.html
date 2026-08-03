@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b73</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b74</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1056,7 +1056,7 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
     m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
     g.add(m);
     const lan=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),LANTERN_MAT);lan.position.set(wpx*.34,2.1,hpx*.40);g.add(lan);
-    const hbm=makeHealthBar();hbm.scale.setScalar(1.8);hbm.position.y=(box.max.y-box.min.y)*s+2;g.add(hbm);g.userData.hb=hbm;
+    const hbm=makeHealthBar();hbm.scale.setScalar(2.6);hbm.position.y=(box.max.y-box.min.y)*s+2;g.add(hbm);g.userData.hb=hbm;
     return g; }
   const OM=ownerMats(owner),A=OM.A,roof=OM.roof;
   if(type==='wall'&&NEUTRAL_LIB&&NEUTRAL_LIB.wall_straight){ const m=NEUTRAL_LIB.wall_straight.clone(true);
@@ -1333,7 +1333,7 @@ function destroyBuilding(b){removeBuildUI(b);if(Math.hypot(b.cx-camTarget.x,b.cz
 function fleeWater(e){const tx=txFromW(e.x),ty=tzFromW(e.z);let best=null,bd=1e9;for(let r=1;r<=6;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=tx+dx,y=ty+dy;if(passable(x,y,0,'land')){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(best){e.cmd='move';orderPath(e,best[0],best[1],0);}}
 function updateBuilding(b,dt){if(!b.done){b.mesh.scale.y=0.05+0.95*b.progress;updateBuildUI(b,dt);return;}
   const bhb=b.mesh.userData.hb;
-  if(bhb){ if(b.hp<b.maxHp-1&&b.mesh.visible){ bhb.visible=true; const hr=Math.max(0,b.hp/b.maxHp);
+  if(bhb){ if((b.hp<b.maxHp-1||selBuilding===b.id)&&b.mesh.visible){ bhb.visible=true; const hr=Math.max(0,b.hp/b.maxHp);
       bhb.userData.fg.scale.x=Math.max(0.01,hr); bhb.userData.fg.position.x=-(1-hr)*0.85;
       bhb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
       bhb.quaternion.copy(camera.quaternion); } else bhb.visible=false; }
@@ -1694,7 +1694,7 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
 let camYaw=0,camPitch=0.92,camDist=80,camTarget=new THREE.Vector3(0,0,0),camShake=0;
 const keys={};let hoverTile={tx:0,ty:0},hoverWorld=new THREE.Vector3();const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2();
 let mouseSX=0,mouseSY=0,dragStartSX=0,dragStartSY=0,dragging=false,vw=1280,vh=640;
-let rDrag=null;   // right-button drag = aim the army's facing
+let rDrag=null,panDrag=null;   // right-drag aims; middle-drag pans
 const aimArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),8,0x8fe6a8,3.2,2.0);
 aimArrow.visible=false; aimArrow.line.material.depthTest=false; aimArrow.cone.material.depthTest=false; scene.add(aimArrow);
 // one little arrow per soldier, showing his exact spot and facing in the chosen formation
@@ -1777,7 +1777,11 @@ function raycastGround(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.set
 function pickUnit(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);const meshes=ents.filter(e=>e.owner==='player').map(e=>e.mesh);const h=raycaster.intersectObjects(meshes,true);if(h.length){let o=h[0].object;while(o.parent&&!ents.some(e=>e.mesh===o))o=o.parent;return ents.find(e=>e.mesh===o)||null;}return null;}
 function pickBuilding(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);const meshes=blds.filter(b=>b.owner==='player').map(b=>b.mesh);const h=raycaster.intersectObjects(meshes,true);if(h.length){let o=h[0].object;while(o.parent&&!blds.some(b=>b.mesh===o))o=o.parent;return blds.find(b=>b.mesh===o)||null;}return null;}
 function localXY(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(vw/r.width),y:(ev.clientY-r.top)*(vh/r.height)};}
-canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY=p.y;const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
+canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY=p.y;
+  if(panDrag){ const f=camDist/620, dxp=p.x-panDrag.sx, dyp=p.y-panDrag.sy;
+    const fwd=[-Math.sin(camYaw),-Math.cos(camYaw)], rgt=[Math.cos(camYaw),-Math.sin(camYaw)];
+    camTarget.x=clamp(panDrag.cx-(dxp*rgt[0]+dyp*fwd[0])*f,-HALF_W,HALF_W);
+    camTarget.z=clamp(panDrag.cz-(dxp*rgt[1]+dyp*fwd[1])*f,-HALF_H,HALF_H); }const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
   { const tip=document.getElementById('nodeTip'); const nd=(running&&!placing&&!dragging&&!rDrag)?nodeAt(g.x,g.z):null;
     if(nd){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
       tip.textContent=(nd.type==='wood'?'🌲 Timber: ':nd.type==='gold'?'🪙 Gold left: ':nd.type==='food'?'🐑 Meat left: ':'⛏️ Iron left: ')+Math.max(0,Math.round(nd.amount)); }
@@ -1790,9 +1794,10 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
       aimArrow.setDirection(new THREE.Vector3(dx/d,0,dz/d));
       aimArrow.setLength(Math.max(5,d),3.2,2.0);
       updateSlotMarks(Math.atan2(dz,dx)); } }});
-canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===0){if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
+canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===1){ev.preventDefault();panDrag={sx:p.x,sy:p.y,cx:camTarget.x,cz:camTarget.z};canvas.style.cursor='grabbing';return;}if(ev.button===0){if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
   else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length){rDrag={gx:g.x,gz:g.z,moved:false};return;}else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('🚩 Rally flag planted — new recruits will march there');SFX.cmd();refreshUI();}}}});
 window.addEventListener('mouseup',ev=>{
+  if(ev.button===1&&panDrag){panDrag=null;canvas.style.cursor='default';return;}
   if(ev.button===2&&rDrag){ const rd=rDrag; rDrag=null; aimArrow.visible=false; hideSlotMarks();
     const s=selUnits();
     if(s.length){ if(rd.moved){ const g2=hoverWorld, ang=Math.atan2(g2.z-rd.gz,g2.x-rd.gx);
@@ -1808,6 +1813,7 @@ window.addEventListener('mouseup',ev=>{
 canvas.addEventListener('dblclick',ev=>{const p=localXY(ev);const u=pickUnit(p.x,p.y);if(u){selected=[];const v=new THREE.Vector3();for(const e of ents)if(e.owner==='player'&&e.type===u.type){v.set(e.x,e.mesh.position.y,e.z).project(camera);if(v.z<1&&Math.abs(v.x)<1&&Math.abs(v.y)<1)selected.push(e.id);}if(!selected.length)selected=[u.id];SFX.select();refreshUI();}});
 canvas.addEventListener('wheel',ev=>{ev.preventDefault();camDist=clamp(camDist+Math.sign(ev.deltaY)*7,13,150);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
 window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
   if(k==='escape'){const busy=placing||attackMove||dragging||wallDrag;placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();
     if(!busy){const pans=['forces','diplo','slots'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
