@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b75</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b76</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1224,7 +1224,7 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
   while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
     if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k!==undefined){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=came[k];}return p.reverse();}
     if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
-function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom,e.owner);if(p){e.path=p;e.pi=0;return true;}e.path=null;return false;}
+function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom,e.owner);if(p){e.path=p;e.pi=0;const n0=p[Math.min(1,p.length-1)];e.dir=Math.atan2(wz(n0[1])-e.z,wx(n0[0])-e.x);return true;}e.path=null;return false;}
 
 // ==================================================== COMMANDS
 let formation='ranks';
@@ -1358,7 +1358,9 @@ function separateUnits(){ const cell=3, grid=new Map();
           e.x-=nx*push;e.z-=nz*push;o.x+=nx*push;o.z+=nz*push; }
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
-  if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;}}
+  if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
+    let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
+    if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;}}}
   const arrived=!e.path||e.pi>=e.path.length;
   switch(e.cmd){
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
@@ -1401,7 +1403,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
   }
   // mesh transforms
   placeMesh(e);
-  let dd=e.dir-e.disp;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;e.disp+=dd*Math.min(1,dt*10);
+  let dd=e.dir-e.disp;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;e.disp+=dd*Math.min(1,dt*(UNIT[e.type].siege?6:14));
   e.mesh.rotation.y=-e.disp+Math.PI/2;
   const anim=e.mesh.userData.anim;if(anim&&!e.mesh.userData.noBob){const bob=moving?Math.abs(Math.sin(e.walk*10))*0.28:0;anim.position.y=bob;anim.rotation.x=(e.atk>0?-0.5:moving?Math.sin(e.walk*10)*0.08:0);}
   const ud=e.mesh.userData;
