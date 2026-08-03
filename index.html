@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b71</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b72</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -458,7 +458,7 @@ const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacks
   await Promise.all(['rock_single_A','rock_single_B','rock_single_C','cloud_big','cloud_small'].map(async r=>{ const s=await load1('assets/med/nature/'+r+'.gltf'); if(s)nat[r]=s; }));
   if(Object.keys(nat).length)NATURE_LIB=nat;
   const neu={};
-  await Promise.all(['building_grain','building_dirt','fence_wood_straight','fence_stone_straight'].map(async r=>{ const s=await load1('assets/med/neutral/'+r+'.gltf'); if(s)neu[r.replace('building_','')]=s; }));
+  await Promise.all(['building_grain','building_dirt','fence_wood_straight','fence_stone_straight','wall_straight','wall_straight_gate'].map(async r=>{ const s=await load1('assets/med/neutral/'+r+'.gltf'); if(s)neu[r.replace('building_','')]=s; }));
   if(Object.keys(neu).length)NEUTRAL_LIB=neu;
   if(BLD_LIB&&typeof refreshBuildingMeshes==='function')refreshBuildingMeshes();
   if(NATURE_LIB&&typeof spawnClouds==='function')spawnClouds();
@@ -1059,6 +1059,16 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
     const hbm=makeHealthBar();hbm.scale.setScalar(1.8);hbm.position.y=(box.max.y-box.min.y)*s+2;g.add(hbm);g.userData.hb=hbm;
     return g; }
   const OM=ownerMats(owner),A=OM.A,roof=OM.roof;
+  if(type==='wall'&&NEUTRAL_LIB&&NEUTRAL_LIB.wall_straight){ const m=NEUTRAL_LIB.wall_straight.clone(true);
+    const box=new THREE.Box3().setFromObject(m); const len=Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);
+    const s=(wpx*1.06)/len; m.scale.setScalar(s); m.position.y=-box.min.y*s;
+    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}}); g.add(m); g.userData.orient=true;
+    const hbw2=makeHealthBar();hbw2.scale.setScalar(1.2);hbw2.position.y=5.0;g.add(hbw2);g.userData.hb=hbw2;return g; }
+  if(type==='gate'&&NEUTRAL_LIB&&NEUTRAL_LIB.wall_straight_gate){ const m=NEUTRAL_LIB.wall_straight_gate.clone(true);
+    const box=new THREE.Box3().setFromObject(m); const len=Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);
+    const s=(wpx*1.06)/len; m.scale.setScalar(s); m.position.y=-box.min.y*s;
+    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}}); g.add(m); g.userData.orient=true;
+    const hbg3=makeHealthBar();hbg3.scale.setScalar(1.2);hbg3.position.y=5.6;g.add(hbg3);g.userData.hb=hbg3;return g; }
   if(type==='wall'){const seg=new THREE.Mesh(new THREE.BoxGeometry(wpx*.98,3.2,hpx*.98),M.stone);seg.position.y=1.8;seg.castShadow=true;seg.receiveShadow=true;g.add(seg);
     for(let i=-1;i<=1;i++){const cr=new THREE.Mesh(new THREE.BoxGeometry(wpx*.26,.7,hpx*.98),M.stone);cr.position.set(i*wpx*.34,3.6,0);cr.castShadow=true;g.add(cr);}
     const hbw=makeHealthBar();hbw.scale.setScalar(1.2);hbw.position.y=4.8;g.add(hbw);g.userData.hb=hbw;return g;}
@@ -1129,7 +1139,17 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(!done)bl.mesh.scale.y=0.05;scene.add(bl.mesh);blds.push(bl);
   // dirt yards stamp lazily in updateBuilding, once the ground is explored (no fog leaks)
   if(!done){attachBuildUI(bl);if(type!=='wall')attachScaffold(bl);}
-  for(let y=ty;y<ty+b.h;y++)for(let x=tx;x<tx+b.w;x++)if(inB(x,y))buildGrid[ti(x,y)]=bl.id;if(type==='gate')gateOwner.set(bl.id,owner);return bl;}
+  for(let y=ty;y<ty+b.h;y++)for(let x=tx;x<tx+b.w;x++)if(inB(x,y))buildGrid[ti(x,y)]=bl.id;if(type==='gate')gateOwner.set(bl.id,owner);
+  orientWallAround(tx,ty);return bl;}
+function isWallish(x,y){ if(!inB(x,y))return false; const id=buildGrid[ti(x,y)]; if(!id)return false;
+  const b=blds.find(q=>q.id===id); return !!b&&(b.type==='wall'||b.type==='gate'||b.type==='tower'); }
+function orientWall(b){ if(!b||!b.mesh||!b.mesh.userData.orient)return;
+  const vert=(isWallish(b.tx,b.ty-1)?1:0)+(isWallish(b.tx,b.ty+1)?1:0);
+  const horz=(isWallish(b.tx-1,b.ty)?1:0)+(isWallish(b.tx+1,b.ty)?1:0);
+  b.mesh.rotation.y=vert>horz?Math.PI/2:0; }
+function orientWallAround(tx,ty){ for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]]){ const x=tx+dx,y=ty+dy;
+    if(!inB(x,y))continue; const id=buildGrid[ti(x,y)]; if(!id)continue;
+    const b=blds.find(q=>q.id===id); if(b&&(b.type==='wall'||b.type==='gate'))orientWall(b); } }
 // ---- construction progress UI: bar + countdown floating over the site ----
 function attachBuildUI(bl){ const grp=new THREE.Group();
   const bg=new THREE.Mesh(new THREE.PlaneGeometry(4.2,.5),new THREE.MeshBasicMaterial({color:0x14202c,depthTest:false}));
@@ -1171,7 +1191,7 @@ function updateBuildUI(bl,dt){ const ui=bl.buildUI; if(!ui)return;
 function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; removeBuildUI(bl); const nm=makeBldMesh(bl.type,bl.owner);
     nm.position.copy(old.position); nm.scale.y=bl.done?1:(0.05+0.95*bl.progress);
     scene.remove(old); bl.mesh=nm; scene.add(nm); if(!bl.done)attachBuildUI(bl); } visT=0; }
-function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;}for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;}
+function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;}for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);}
 
 // ==================================================== POP / TECH
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=(b.up?12:8);else if(b.type==='castle')c+=12;}
