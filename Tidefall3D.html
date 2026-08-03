@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b78</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b79</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1144,6 +1144,7 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
 function isWallish(x,y){ if(!inB(x,y))return false; const id=buildGrid[ti(x,y)]; if(!id)return false;
   const b=blds.find(q=>q.id===id); return !!b&&(b.type==='wall'||b.type==='gate'||b.type==='tower'); }
 function orientWall(b){ if(!b||!b.mesh||!b.mesh.userData.orient)return;
+  if(b.la!==undefined){ b.mesh.rotation.y=-b.la; b.mesh.scale.x=1.5; return; }
   let pick=null;
   for(const[dx,dy]of[[1,0],[0,1],[-1,0],[0,-1]])if(isWallish(b.tx+dx,b.ty+dy)){pick=[dx,dy];break;}
   if(!pick)for(const[dx,dy]of[[1,1],[1,-1],[-1,1],[-1,-1]])if(isWallish(b.tx+dx,b.ty+dy)){pick=[dx,dy];break;}
@@ -1339,7 +1340,7 @@ function updateBuilding(b,dt){if(!b.done){b.mesh.scale.y=0.05+0.95*b.progress;up
   if(bhb){ if((b.hp<b.maxHp-1||selBuilding===b.id)&&b.mesh.visible){ bhb.visible=true; const hr=Math.max(0,b.hp/b.maxHp);
       bhb.userData.fg.scale.x=Math.max(0.01,hr); bhb.userData.fg.position.x=-(1-hr)*0.85;
       bhb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
-      bhb.quaternion.copy(camera.quaternion); } else bhb.visible=false; }
+      bhb.quaternion.copy(b.mesh.quaternion).invert().multiply(camera.quaternion); } else bhb.visible=false; }
   if(!b._stamped&&b.type!=='wall'){ const ex=explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))];
     if(b.owner==='player'||ex){ stampDirt(b.cx,b.cz,Math.max(b.w,b.h)+0.6); b._stamped=true; } }
   if(b.mesh.userData.flag)b.mesh.userData.flag.rotation.y=Math.sin(elapsed*3+b.id)*0.3;
@@ -1658,8 +1659,13 @@ let ghost=null,ghostLine=null,wallDrag=null;
 function wallLineTiles(a,b){const t=[];let x0=a.tx,y0=a.ty;const x1=b.tx,y1=b.ty,dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let err=dx-dy;
   while(t.length<90){t.push([x0,y0]);if(x0===x1&&y0===y1)break;const e2=2*err;if(e2>-dy){err-=dy;x0+=sx;}if(e2<dx){err+=dx;y0+=sy;}}return t;}
 function placeWallLine(a,b){const c=COST.wall;let placed=0,firstW=null;
+  const ax=wx(a.tx),az=wz(a.ty),bx2=wx(b.tx),bz2=wz(b.ty);
+  const llen=Math.hypot(bx2-ax,bz2-az)||1, ux=(bx2-ax)/llen, uz=(bz2-az)/llen, lang=Math.atan2(uz,ux);
   for(const[tx,ty]of wallLineTiles(a,b)){ if(!canPlace(tx,ty,1,1))continue; if(res.player.w<(c.w||0)){flashMsg('Out of wood!');break;}
-    res.player.w-=(c.w||0); const nb=addBuilding('wall',tx,ty,'player',false); if(!firstW)firstW=nb; placed++; }
+    res.player.w-=(c.w||0); const nb=addBuilding('wall',tx,ty,'player',false); if(!firstW)firstW=nb; placed++;
+    const t=Math.max(0,Math.min(llen,(nb.cx-ax)*ux+(nb.cz-az)*uz));
+    nb.la=lang; nb.lx=ax+ux*t; nb.lz=az+uz*t;
+    nb.mesh.position.set(nb.lx,heightAtWorld(nb.lx,nb.lz),nb.lz); orientWall(nb); }
   if(firstW){ let crew=selUnits().filter(e=>e.type==='worker');
     if(!crew.length)crew=ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd!=='build')
       .sort((q,r)=>Math.hypot(q.x-firstW.cx,q.z-firstW.cz)-Math.hypot(r.x-firstW.cx,r.z-firstW.cz)).slice(0,4);
@@ -2067,7 +2073,7 @@ function saveGame(quiet,key){ if(!running||gameOver||paradeMode)return; key=key|
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
-    blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
+    blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
     ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
     cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
@@ -2085,7 +2091,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);
   (s.vil||[]).forEach((c,i)=>{if(c&&villages[i])claimVillageSilent(villages[i],c);});
   if(s.explored&&s.explored.length===explored.length)explored=Uint8Array.from(s.explored,ch=>+ch);
-  for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);b.hp=sb.hp;b.progress=sb.p;if(sb.up){b.up=true;if(sb.t==='wall'||sb.t==='gate')b.maxHp*=1.5;}
+  for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);b.hp=sb.hp;b.progress=sb.p;if(sb.up){b.up=true;if(sb.t==='wall'||sb.t==='gate')b.maxHp*=1.5;}if(sb.la!==undefined&&sb.la!==null){b.la=sb.la;b.lx=sb.lx;b.lz=sb.lz;b.mesh.position.set(b.lx,heightAtWorld(b.lx,b.lz),b.lz);orientWall(b);}
     if(!sb.d)b.mesh.scale.y=0.05+0.95*sb.p; b.queue=(sb.q||[]).map(q=>({type:q.type,t:q.t})); b.rally=sb.r||null;
     if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }
   for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;e.xp=se.xp||0;e.rank=se.rk||0;if(e.rank)addRankPips(e);placeMesh(e);
