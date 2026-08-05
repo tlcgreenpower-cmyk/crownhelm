@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b82</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b83</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -129,6 +129,7 @@
         <button class="fac big" data-fac="irish" style="background:#1f7a38;border-color:#e8c25a;">☘️ Irish Green Coats</button>
         <button class="fac big" data-fac="french" style="background:#2a51a0;border-color:#e8c25a;">⚜️ French Blue Coats</button>
         <button class="fac big" data-fac="chinese" style="background:#1d9e63;border-color:#f2c14e;">🐉 Chinese Imperial Army</button>
+        <button class="fac big" data-fac="sacred" style="background:#e86ab8;border-image:linear-gradient(90deg,#e40303,#ff8c00,#ffed00,#008026,#24408e,#732982) 1;">🏳️‍🌈 Sacred Band of Thebes</button>
       </div>
     </div>
   </div>
@@ -185,7 +186,7 @@ const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:2,time:8,age:1}, archer:{f:35,w:45,pop:2,time:9,age:1},
   infantry:{f:45,m:35,pop:2,time:9,age:1}, grenadier:{f:50,m:45,pop:2,time:11,age:1}, dragoon:{f:60,m:55,pop:3,time:13,age:2},
   highlander:{f:120,m:90,g:80,pop:4,time:17,age:3}, grenguard:{f:100,m:100,g:80,pop:3,time:16,age:3}, wolfrider:{f:110,m:100,g:90,pop:4,time:16,age:3}, cuirassier:{f:140,m:110,g:100,pop:4,time:18,age:3},
-  knight:{f:70,m:60,pop:3,time:14,age:2}, catapult:{w:120,m:100,pop:4,time:20,age:2}, ram:{w:110,m:40,pop:3,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:2,time:11,age:2},
+  knight:{f:70,m:60,pop:3,time:14,age:2}, catapult:{w:120,m:100,pop:4,time:20,age:2}, ram:{w:110,m:40,pop:3,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:2,time:11,age:2}, hoplite:{f:80,m:60,g:30,pop:3,time:14,age:2},
   cannon:{w:100,m:120,pop:4,time:20,age:2}, howitzer:{w:130,m:140,pop:4,time:22,age:2},
   hero:{f:150,w:80,m:150,pop:5,time:24,age:1},
   monk:{f:60,pop:2,time:10,age:1}, priest:{f:90,pop:2,time:12,age:1}, doctor:{f:70,w:20,pop:2,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:4,time:20,age:2},
@@ -201,6 +202,7 @@ const FACTIONS={
   irish:{name:'Irish Green Coats',coat:0x1f7a38,trim:0xe8c25a,accent:0xf0f0f0,emo:'☘️',bonus:'Devout healers (+30% healing)'},
   french:{name:'French Blue Coats',coat:0x2a51a0,trim:0xe8c25a,accent:0xf0f0f0,emo:'⚜️',bonus:'Elite cavalry (+20% HP)'},
   chinese:{name:'Chinese Imperial Army',coat:0x1d9e63,trim:0xf2c14e,accent:0xf7e7c4,emo:'🐉',bonus:'Silk wealth (+25% gold income)'},
+  sacred:{name:'Sacred Band of Thebes',coat:0xe86ab8,trim:0xf2c14e,accent:0xfff0f8,emo:'🏳️‍🌈',bonus:'Undefeated devotion (veterancy 50% faster)'},
 };
 const AI_REALMS=['r1','r2','r3'];
 const REALMS=['player',...AI_REALMS];
@@ -235,6 +237,7 @@ const UNIT={
   catapult:{hp:130,speed:7.5,range:26,dmg:14,cd:3,r:1.5,vis:9,dom:'land',color:0x9a8a72,name:'Catapult',siege:true,ranged:true,arc:true},
   ram:{hp:340,speed:6.5,range:2.8,dmg:30,cd:2,r:1.6,vis:6,dom:'land',color:0x7a5c38,name:'Battering Ram',siege:true,ramOnly:true},
   chukonu:{hp:120,speed:13.5,range:14,dmg:7,cd:.45,r:1.0,vis:10,dom:'land',color:0x1d9e63,name:'Chu-ko-nu',ranged:true,uniq:true},
+  hoplite:{hp:250,speed:13,range:2.6,dmg:25,cd:.85,r:1.15,vis:9,dom:'land',color:0xe86ab8,name:'Sacred Band Hoplite',uniq:true},
   warboat:{hp:250,speed:16,range:18,dmg:16,cd:1.3,r:1.7,vis:11,dom:'water',color:0x6fb0c8,name:'Warboat',ranged:true},
   privateer:{hp:135,speed:13,range:13,dmg:15,cd:1.3,r:1.05,vis:11,dom:'land',color:0x3a3f4a,name:'Privateer',ranged:true},
   viking:{hp:130,speed:14,range:2.4,dmg:14,cd:.8,r:1.05,vis:8,dom:'land',color:0x8a6b4a,name:'Viking Raider'},
@@ -251,7 +254,7 @@ const BLD={
   dock:{w:3,h:2,hp:640,name:'Dock',vis:8}, tower:{w:1,h:1,hp:560,name:'Tower',vis:11},
 };
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=2.6,MILL_FOOD=2.0,CARRY=12,MINE=6.5,AGE2={f:300,w:250,time:70},AGE3={f:600,w:400,m:200,time:100};
-const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu'};
+const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu',sacred:'hoplite'};
 
 // ==================================================== STATE
 let elev,hc,buildGrid,explored,visNow;
@@ -444,7 +447,7 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
 
 // ---- professional medieval building models (KayKit Medieval Hexagon, CC0) ----
 let BLD_LIB=null,NATURE_LIB=null,NEUTRAL_LIB=null;
-const FACTION_TEAMCOL={english:'red',french:'blue',irish:'green',scottish:'yellow',chinese:'green'};
+const FACTION_TEAMCOL={english:'red',french:'blue',irish:'green',scottish:'yellow',chinese:'green',sacred:'blue'};
 const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacksmith',church:'church',market:'market',mill:'windmill',storehouse:'lumbermill',tower:'tower_A',watch:'tower_B',siege:'tower_catapult',dock:'watermill',castle:'castle'};
 (async()=>{ try{
   const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
@@ -890,7 +893,7 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'GoldKnight',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
+const UNIT_CHAR={hero:'GoldKnight',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // mounted cavalry: real animated horse with a rider seated on top
   const HORSE_OF={knight:'HorseW',dragoon:'HorseA',wolfrider:'HorseA',cuirassier:'HorseW'};
@@ -1242,7 +1245,7 @@ function hasBld(o,t){return blds.some(b=>b.owner===o&&b.type===t&&b.done);}
 function effDmg(e){let d=UNIT[e.type].dmg*(1+tech[e.owner].weapon*0.2);if(UNIT[e.type].coat&&UNIT[e.type].ranged&&faction[e.owner]==='english')d*=1.15;return d*(1+0.1*(e.rank||0));}
 // ---- veterancy: soldiers earn stripes in battle — harder-hitting, tougher, gold pips overhead ----
 const RANK_XP=[60,180,400];
-function gainXp(e,amt){ if(e.type==='worker'||UNIT[e.type].noAtk)return; e.xp=(e.xp||0)+amt;
+function gainXp(e,amt){ if(e.type==='worker'||UNIT[e.type].noAtk)return; e.xp=(e.xp||0)+amt*(faction[e.owner]==='sacred'?1.5:1);
   const r=e.xp>=RANK_XP[2]?3:e.xp>=RANK_XP[1]?2:e.xp>=RANK_XP[0]?1:0;
   if(r>(e.rank||0)){ e.rank=r; const grow=e.maxHp*0.15; e.maxHp+=grow; e.hp=Math.min(e.maxHp,e.hp+grow); addRankPips(e); if(e.mesh.userData.cheerA)playOnce(e,'cheerA');
     if(e.owner==='player'){flashMsg('🎖 Your '+UNIT[e.type].name+' earns a battle stripe! (rank '+r+')');} } }
@@ -1287,7 +1290,10 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,5.0,5),M.wood);pole.position.y=2.5;grp.add(pole);
   const tip=new THREE.Mesh(new THREE.SphereGeometry(.12,6,5),M.gold);tip.position.y=5.05;grp.add(tip);
   const fl=new THREE.Group();fl.position.y=4.35;
-  const cloth=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.05,.06),new THREE.MeshStandardMaterial({color:f.coat,roughness:.75}));cloth.geometry.translate(.85,0,0);cloth.castShadow=true;fl.add(cloth);
+  if(faction[e.owner]==='sacred'){ const RB=[0xe40303,0xff8c00,0xffed00,0x008026,0x24408e,0x732982];
+    RB.forEach((cc,i)=>{ const st=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.05/6,.06),new THREE.MeshStandardMaterial({color:cc,roughness:.75}));
+      st.geometry.translate(.85,0,0); st.position.y=(1.05/2)-(i+0.5)*(1.05/6); st.castShadow=i===0; fl.add(st); }); }
+  else { const cloth=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.05,.06),new THREE.MeshStandardMaterial({color:f.coat,roughness:.75}));cloth.geometry.translate(.85,0,0);cloth.castShadow=true;fl.add(cloth); }
   const trim=new THREE.Mesh(new THREE.BoxGeometry(1.7,.2,.07),new THREE.MeshStandardMaterial({color:f.trim,roughness:.6}));trim.geometry.translate(.85,0,0);trim.position.y=-.42;fl.add(trim);
   grp.add(fl);grp.position.set(-.35,0,-.35);
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
@@ -1892,7 +1898,7 @@ mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();cons
 // ==================================================== UI
 const $=id=>document.getElementById(id);
 for(const k in COST){if(COST[k].time)COST[k].time=Math.round(COST[k].time*1.4);}
-const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',ram:'🐑',chukonu:'🐉',cannon:'💣',howitzer:'🎆',warboat:'⛵',privateer:'🏴‍☠️',viking:'🪓',samurai:'🗡️',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
+const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',ram:'🐑',chukonu:'🐉',hoplite:'🏳️‍🌈',cannon:'💣',howitzer:'🎆',warboat:'⛵',privateer:'🏴‍☠️',viking:'🪓',samurai:'🗡️',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
 const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock']);
 function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Idle — click a unit button to train</span>';
   const q0=b.queue[0]; let s='⚒ <b>Training '+(UNIT_IC[q0.type]||'')+' '+UNIT[q0.type].name+'</b> — '+Math.max(1,Math.ceil(q0.t))+'s';
@@ -2245,7 +2251,7 @@ document.querySelectorAll('#overlay .fac').forEach(b=>b.onclick=()=>{
   start(b.dataset.fac); });
 // ---- save slots panel ----
 const SLOT_KEYS=[['tidefall_save','⏱ Autosave'],['tidefall_slot1','🏰 Slot 1'],['tidefall_slot2','🏰 Slot 2'],['tidefall_slot3','🏰 Slot 3']];
-const FAC_NAME={scottish:'Black Watch',english:'Red Coats',irish:'Green Coats',french:'Blue Coats',chinese:'Imperial Army'};
+const FAC_NAME={scottish:'Black Watch',english:'Red Coats',irish:'Green Coats',french:'Blue Coats',chinese:'Imperial Army',sacred:'Sacred Band'};
 function slotDesc(s){ const m=s&&s.meta; if(!m)return 'older save';
   const mins=Math.floor((m.t||0)/60), d=new Date(m.when||0);
   return (m.name?m.name+' — ':'')+(FAC_NAME[m.fac]||m.fac)+' · Age '+(m.age||1)+' · 👥'+(m.pop||0)+' · '+mins+' min played · '+d.toLocaleDateString()+' '+d.toLocaleTimeString().slice(0,5); }
