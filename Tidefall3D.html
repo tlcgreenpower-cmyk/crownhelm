@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b81</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b82</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1858,7 +1858,7 @@ canvas.addEventListener('dblclick',ev=>{const p=localXY(ev);const u=pickUnit(p.x
 canvas.addEventListener('wheel',ev=>{ev.preventDefault();camDist=clamp(camDist+Math.sign(ev.deltaY)*7,13,150);},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
-window.addEventListener('keydown',ev=>{const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
+window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT'||ev.target.tagName==='TEXTAREA'))return;const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
   if(k==='escape'){const busy=placing||attackMove||dragging||wallDrag;placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();
     if(!busy){const pans=['forces','diplo','slots'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
       if(pans.length)pans.forEach(el=>el.classList.add('hidden'));
@@ -2103,8 +2103,8 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
-function saveGame(quiet,key){ if(!running||gameOver||paradeMode)return; key=key||'tidefall_save';
-  const s={v:1,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
+function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key=key||'tidefall_save';
+  const s={v:1,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),name:name||undefined,fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
@@ -2245,22 +2245,32 @@ document.querySelectorAll('#overlay .fac').forEach(b=>b.onclick=()=>{
   start(b.dataset.fac); });
 // ---- save slots panel ----
 const SLOT_KEYS=[['tidefall_save','⏱ Autosave'],['tidefall_slot1','🏰 Slot 1'],['tidefall_slot2','🏰 Slot 2'],['tidefall_slot3','🏰 Slot 3']];
-const FAC_NAME={scottish:'Black Watch',english:'Red Coats',irish:'Green Coats',french:'Blue Coats'};
+const FAC_NAME={scottish:'Black Watch',english:'Red Coats',irish:'Green Coats',french:'Blue Coats',chinese:'Imperial Army'};
 function slotDesc(s){ const m=s&&s.meta; if(!m)return 'older save';
   const mins=Math.floor((m.t||0)/60), d=new Date(m.when||0);
-  return (FAC_NAME[m.fac]||m.fac)+' · Age '+(m.age||1)+' · 👥'+(m.pop||0)+' · '+mins+' min played · '+d.toLocaleDateString()+' '+d.toLocaleTimeString().slice(0,5); }
+  return (m.name?m.name+' — ':'')+(FAC_NAME[m.fac]||m.fac)+' · Age '+(m.age||1)+' · 👥'+(m.pop||0)+' · '+mins+' min played · '+d.toLocaleDateString()+' '+d.toLocaleTimeString().slice(0,5); }
 function renderSlots(){ const rows=document.getElementById('slotRows'); rows.innerHTML='';
   for(const[key,label]of SLOT_KEYS){ let s=null; try{s=JSON.parse(localStorage.getItem(key));}catch(e){}
     const row=document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #1c3646';
     const txt=document.createElement('div'); txt.style.flex='1';
     txt.innerHTML='<b style="color:#dff0f9">'+label+'</b><br><span style="color:'+(s?'#9fc0d2':'#546b7a')+';font-size:11.5px">'+(s?slotDesc(s):'— empty —')+'</span>';
     row.appendChild(txt);
-    if(key!=='tidefall_save'){ const sv=document.createElement('button'); sv.textContent='Save'; sv.style.cssText='cursor:pointer;background:#1c4d6d;border:1px solid #3a86b0;color:#fff;border-radius:6px;padding:3px 12px';
+    if(key!=='tidefall_save'){
+      const nameIn=document.createElement('input'); nameIn.type='text'; nameIn.maxLength=24;
+      nameIn.placeholder='name this kingdom…'; nameIn.value=(s&&s.meta&&s.meta.name)||'';
+      nameIn.style.cssText='width:120px;background:#0d2230;border:1px solid #2c5164;color:#f3e4be;border-radius:6px;padding:3px 8px;font-size:12px';
+      row.appendChild(nameIn);
+      const sv=document.createElement('button'); sv.textContent='Save'; sv.style.cssText='cursor:pointer;background:#1c4d6d;border:1px solid #3a86b0;color:#fff;border-radius:6px;padding:3px 12px';
       if(!running||gameOver){sv.disabled=true;sv.style.opacity=.4;sv.style.cursor='default';}
-      sv.onclick=()=>{ if(s&&!window.confirm('Overwrite '+label.replace(/^[^ ]+ /,'')+'?\n('+slotDesc(s)+')'))return; saveGame(false,key); renderSlots(); }; row.appendChild(sv); }
+      sv.onclick=()=>{ if(s&&sv.dataset.arm!=='1'){ sv.dataset.arm='1'; sv.textContent='Overwrite?'; sv.style.background='#7a2a20';
+          setTimeout(()=>{sv.dataset.arm='';sv.textContent='Save';sv.style.background='#1c4d6d';},2600); return; }
+        saveGame(false,key,nameIn.value.trim()||undefined); renderSlots(); flashMsg('💾 Saved to '+label.replace(/^[^ ]+ /,'')+(nameIn.value.trim()?' as “'+nameIn.value.trim()+'”':'')); };
+      row.appendChild(sv); }
     const ld=document.createElement('button'); ld.textContent='Load'; ld.style.cssText='cursor:pointer;background:#173a2a;border:1px solid #2f7a52;color:#fff;border-radius:6px;padding:3px 12px';
     if(!s){ld.disabled=true;ld.style.opacity=.4;ld.style.cursor='default';}
-    ld.onclick=()=>{ if(running&&!gameOver&&!window.confirm('Load '+label.replace(/^[^ ]+ /,'')+'? Your current battle continues from the Autosave only.'))return; loadGame(key); };
+    ld.onclick=()=>{ if(running&&!gameOver&&ld.dataset.arm!=='1'){ ld.dataset.arm='1'; ld.textContent='Load?'; ld.style.background='#7a5a20';
+        setTimeout(()=>{ld.dataset.arm='';ld.textContent='Load';ld.style.background='#173a2a';},2600); return; }
+      loadGame(key); };
     row.appendChild(ld); rows.appendChild(row); } }
 function openSlots(){ renderSlots(); document.getElementById('slots').classList.remove('hidden'); }
 document.getElementById('slotsClose').onclick=()=>document.getElementById('slots').classList.add('hidden');
