@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b83</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b84</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -89,47 +89,83 @@
     <div id="loading">Loading 3D engine… (needs internet the first time)</div>
     <div id="err"></div>
     <div id="overlay" class="hidden">
-      <h1>TIDE<span>FALL</span></h1>
-      <div id="wrongDoor" style="display:none;background:#5a1f14;border:2px solid #ff8a6a;border-radius:10px;padding:12px 16px;margin:0 auto 14px;max-width:640px;font-size:15px;">
-        ⚠️ <b>Wrong door!</b> You opened the game file directly, so your saved kingdom and the best graphics can't load here.<br>
-        <a href="http://localhost:8137/Tidefall3D.html" style="color:#ffd27a;font-weight:700;">➜ Click here to open the REAL game with your kingdom</a><br>
-        <span style="color:#e8b0a0;font-size:12px;">(If that link fails, double-click “Play Tidefall” on your Desktop first, then try again.)</span>
+      <div id="aorGrid">
+      <div style="position:relative;padding:44px 40px 36px 52px;display:flex;flex-direction:column;gap:22px;border-right:1px solid #33291a;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.35) 100%);">
+        <div id="wrongDoor" style="display:none;background:#3a140c;border:1px solid #7c2b23;padding:12px 16px;font-size:15px;">
+          <b>Wrong door!</b> You opened the game file directly, so your saved kingdom and the best graphics can't load here.<br>
+          <a href="http://localhost:8137/Tidefall3D.html" style="color:#e6c780;font-weight:700;">Click here to open the REAL game with your kingdom</a><br>
+          <span style="color:#9d8a67;font-size:12px;">(If that link fails, double-click "Play Tidefall" on your Desktop first, then try again.)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;">
+          <div style="width:46px;height:56px;background:#7c2b23;border:2px solid #c9a24a;clip-path:polygon(0 0,100% 0,100% 68%,50% 100%,0 68%);display:flex;align-items:flex-start;justify-content:center;padding-top:8px;box-shadow:0 6px 18px rgba(0,0,0,.5);flex:none;">
+            <div style="width:14px;height:14px;background:#e6c780;transform:rotate(45deg);"></div>
+          </div>
+          <div>
+            <div style="font-family:'Cinzel',serif;font-weight:800;font-size:13px;letter-spacing:.42em;color:#a68b52;text-transform:uppercase;">Anno Domini MCCCXX</div>
+            <div id="menuBuild" style="font-family:monospace;font-size:11px;letter-spacing:.18em;color:#6b5c3e;margin-top:4px;"></div>
+          </div>
+        </div>
+        <div>
+          <h1 style="font-family:'Cinzel',serif;font-weight:800;font-size:clamp(48px,5.5vw,86px);line-height:.92;margin:0;letter-spacing:.03em;color:#f1e4c4;text-shadow:0 2px 0 #4a3722,0 18px 40px rgba(0,0,0,.65);background:none;">Age of<br>Refuge</h1>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:16px;">
+            <div style="height:1px;width:88px;background:linear-gradient(90deg,#c9a24a,rgba(201,162,74,0));"></div>
+            <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:.34em;text-transform:uppercase;color:#c9a24a;">A whole land to rule</div>
+          </div>
+        </div>
+        <div style="position:relative;flex:0 0 auto;height:200px;border:1px solid #3b2f1d;box-shadow:inset 0 0 60px rgba(0,0,0,.6);overflow:hidden;">
+          <img src="assets/council.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+          <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(12,9,6,.05) 0%,rgba(12,9,6,.55) 100%);"></div>
+        </div>
+        <p style="font-size:17px;line-height:1.55;color:#d9cba9;max-width:66ch;margin:0;">Roam a wide open country of hills, rivers, forests and coasts. Build your realm into a beautiful city — then deal with your three neighbouring kingdoms however you choose: trade gifts and keep the peace, or march your regiments to war and take their lands. Befriend them, or conquer every keep and rule the realm.</p>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <button id="contBtn" style="display:none;text-align:left;cursor:pointer;font-family:'Cinzel',serif;font-weight:800;font-size:24px;letter-spacing:.06em;color:#1a1208;background:linear-gradient(180deg,#e6c780 0%,#c9a24a 60%,#a8813a 100%);border:1px solid #f0dca8;padding:18px 24px;box-shadow:0 10px 26px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45);transition:transform .12s,filter .12s;">Continue Your Kingdom</button>
+          <button id="loadMenuBtn" class="aorSec" style="display:none;font-size:18px;letter-spacing:.05em;padding:14px 20px;"><span style="color:#c9a24a;">❖</span> Load a Saved Kingdom</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <button id="paradeBtn" class="aorSec" style="font-size:15px;letter-spacing:.04em;padding:13px 16px;line-height:1.3;">Unit Parade<br><span style="font-family:'EB Garamond',serif;font-weight:400;font-size:14px;letter-spacing:0;color:#9d8a67;">see every soldier up close</span></button>
+            <button id="builderBtn" class="aorSec" style="font-size:15px;letter-spacing:.04em;padding:13px 16px;line-height:1.3;">Map Builder<br><span style="font-family:'EB Garamond',serif;font-weight:400;font-size:14px;letter-spacing:0;color:#9d8a67;">design your own battleground</span></button>
+          </div>
+        </div>
       </div>
-      <p><b>A whole land to rule.</b> Roam a wide open country of hills, rivers, forests and coasts. Build your realm into a beautiful city — then deal with your three neighbouring kingdoms however you choose: trade gifts and keep the peace, or march your regiments to war and take their lands. Befriend them, or conquer every keep and rule the realm.</p>
-      <div class="cols">
-        <div><h3>Controls</h3><ul>
-          <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
-          <li><b>WASD / arrows / edges</b> pan · <b>Q / E</b> rotate · <b>wheel</b> zoom</li>
-          <li><b>F</b> attack-move · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
-          <li>Double-click a unit = select all of its kind on screen</li>
-        </ul></div>
-        <div><h3>How to play</h3><ul>
-          <li>Keep → train Workers → gather <b>Wood</b>, <b>Metal</b> &amp; <b>Gold</b></li>
-          <li>Build your city: Houses, Farms, Mills, Markets, Churches, Castles</li>
-          <li><b>🕊 Realms</b> (top bar) — gift gold to make friends, or declare war</li>
-          <li><b>Advance the Age</b> to unlock Knights, Cannon &amp; your champion</li>
-        </ul></div>
+      <div style="max-height:100vh;overflow-y:auto;padding:44px 48px 52px;background:linear-gradient(180deg,#1b1610 0%,#15110c 100%);">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;padding-bottom:26px;border-bottom:1px solid #33291a;">
+          <div><div class="aorKick">Controls</div><ul class="aorList">
+            <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
+            <li><b>WASD / arrows / edges</b> pan · <b>Q / E</b> rotate · <b>wheel</b> zoom</li>
+            <li><b>F</b> attack-move · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
+            <li>Double-click a unit = select all of its kind on screen</li>
+          </ul></div>
+          <div><div class="aorKick">How to play</div><ul class="aorList">
+            <li>Keep → train Workers → gather <b>Wood</b>, <b>Metal</b> &amp; <b>Gold</b></li>
+            <li>Build your city: Houses, Farms, Mills, Markets, Churches, Castles</li>
+            <li><b>Realms</b> (top bar) — gift gold to make friends, or declare war</li>
+            <li><b>Advance the Age</b> to unlock Knights, Cannon &amp; your champion</li>
+          </ul></div>
+        </div>
+        <div style="padding-top:26px;"><div class="aorKick">Battleground</div>
+          <div id="mappick" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
+        </div>
+        <div style="padding-top:26px;"><div class="aorKick">Difficulty</div>
+          <div id="diffpick" style="display:flex;gap:10px;">
+            <button class="dif" data-dif="easy" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Easy</button>
+            <button class="dif" data-dif="normal" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Normal</button>
+            <button class="dif" data-dif="hard" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Hard</button>
+          </div>
+        </div>
+        <div style="padding-top:26px;"><div class="aorKick">Choose your regiment</div>
+          <div id="facpick" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <button class="fac" data-fac="scottish" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#2a2f3a;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Scottish Black Watch</button>
+            <button class="fac" data-fac="english" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#8e2b22;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>English Red Coats</button>
+            <button class="fac" data-fac="irish" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#3d6b3a;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Irish Green Coats</button>
+            <button class="fac" data-fac="french" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#2f4a8c;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>French Blue Coats</button>
+            <button class="fac" data-fac="chinese" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#1d9e63;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Chinese Imperial Army</button>
+            <button class="fac" data-fac="sacred" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#e86ab8;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Sacred Band of Thebes</button>
+          </div>
+        </div>
+        <div style="margin-top:30px;padding-top:20px;border-top:1px solid #33291a;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+          <div id="startSummary" style="font-size:16px;color:#9d8a67;font-style:italic;"></div>
+          <button id="marchBtn" style="cursor:pointer;font-family:'Cinzel',serif;font-weight:800;font-size:18px;letter-spacing:.1em;text-transform:uppercase;color:#f3e7cc;background:#7c2b23;border:1px solid #c9a24a;padding:14px 26px;box-shadow:0 8px 22px rgba(0,0,0,.5);flex:none;">March</button>
+        </div>
       </div>
-      <button class="big" id="contBtn" style="display:none;background:#1c4d6d;border-color:#3a86b0;">▶ Continue Your Kingdom</button>
-      <button class="big" id="loadMenuBtn" style="display:none;background:#173a2a;border-color:#2f7a52;">📂 Load a Saved Kingdom</button>
-      <button class="big" id="paradeBtn" style="background:#4a3a14;border-color:#c9a44a;">🎖 Unit Parade — see every soldier up close</button>
-      <button class="big" id="builderBtn" style="background:#14384a;border-color:#3a86b0;">🛠 Map Builder — design your own battleground</button>
-      <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Battleground:</div>
-      <div id="mappick" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:900px;"></div>
-      <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Difficulty:</div>
-      <div id="diffpick" style="display:flex;gap:10px;justify-content:center;">
-        <button class="dif big" data-dif="easy" style="background:#1f5a33;border-color:#3f9a5f;padding:8px 18px;font-size:15px;">🟢 Easy</button>
-        <button class="dif big" data-dif="normal" style="background:#7a6420;border-color:#c0a53f;padding:8px 18px;font-size:15px;">🟡 Normal</button>
-        <button class="dif big" data-dif="hard" style="background:#7a2a20;border-color:#c05a3f;padding:8px 18px;font-size:15px;">🔴 Hard</button>
-      </div>
-      <div style="font-size:14px;color:#9fc0d2;margin-top:4px;">Choose your regiment:</div>
-      <div id="facpick" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:820px;">
-        <button class="fac big" data-fac="scottish" style="background:#2b303a;border-color:#5a6578;">🏴 Scottish Black Watch</button>
-        <button class="fac big" data-fac="english" style="background:#be2e24;border-color:#e8c25a;">🎖️ English Red Coats</button>
-        <button class="fac big" data-fac="irish" style="background:#1f7a38;border-color:#e8c25a;">☘️ Irish Green Coats</button>
-        <button class="fac big" data-fac="french" style="background:#2a51a0;border-color:#e8c25a;">⚜️ French Blue Coats</button>
-        <button class="fac big" data-fac="chinese" style="background:#1d9e63;border-color:#f2c14e;">🐉 Chinese Imperial Army</button>
-        <button class="fac big" data-fac="sacred" style="background:#e86ab8;border-image:linear-gradient(90deg,#e40303,#ff8c00,#ffed00,#008026,#24408e,#732982) 1;">🏳️‍🌈 Sacred Band of Thebes</button>
       </div>
     </div>
   </div>
@@ -138,6 +174,23 @@
     <div id="hint">Tip: keep workers on wood &amp; metal, farms feeding your pop, and don't get caught on low ground at high tide.</div></div>
 </div>
 
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+#overlay{position:absolute;inset:0;z-index:20;overflow-y:auto;padding:0!important;margin:0;background:radial-gradient(120% 90% at 20% 0%, #241c12 0%, #14100b 55%, #0c0906 100%)!important;color:#e8dcc0;font-family:'EB Garamond',Georgia,serif;text-align:left!important;}
+#overlay.hidden{display:none;}
+#aorGrid{min-height:100%;display:grid;grid-template-columns:1fr 1fr;align-items:stretch;}
+@media(max-width:1100px){#aorGrid{grid-template-columns:1fr;}}
+.aorKick{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:#c9a24a;margin-bottom:14px;}
+.aorList{margin:0;padding-left:18px;font-size:16px;line-height:1.7;color:#cbbc9b;}
+.aorList b{color:#f1e4c4;}
+#overlay ::-webkit-scrollbar{width:10px;}#overlay ::-webkit-scrollbar-track{background:#17130e;}#overlay ::-webkit-scrollbar-thumb{background:#4a3c25;border-radius:0;}
+.aorSec{cursor:pointer;text-align:left;font-family:'Cinzel',serif;font-weight:600;color:#e8dcc0;background:rgba(31,25,16,.9);border:1px solid #4a3c25;transition:border-color .12s,background .12s;}
+.aorSec:hover{border-color:#c9a24a;background:rgba(48,38,23,.95);}
+#marchBtn:hover{filter:brightness(1.15);}
+#contBtn:hover{filter:brightness(1.08);transform:translateY(-2px);}
+.mapbtn,.dif,.fac{border-radius:0!important;}
+</style>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -2213,9 +2266,9 @@ function addCustomMapBtn(){ const mp=document.getElementById('mappick');
   if(document.querySelector('#mappick [data-map=custom]'))return;
   if(!localStorage.getItem('tidefall_custom_map'))return;
   const m=MAPS.custom; const b=document.createElement('button');
-  b.className='big mapbtn'; b.dataset.map='custom';
-  b.style.cssText='background:#14304a;border-color:#3a86b0;padding:7px 14px;font-size:14px;display:flex;flex-direction:column;gap:2px;align-items:center;';
-  b.innerHTML='<span>🛠 '+m.name+'</span><small style="color:#9fc0d2;font-weight:normal">'+m.desc+'</small>';
+  b.className='mapbtn'; b.dataset.map='custom';
+  b.style.cssText='text-align:left;cursor:pointer;padding:13px 15px;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);color:#e8dcc0;transition:border-color .12s;';
+  b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+'</div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>';
   b.onclick=()=>{setMap('custom');localStorage.setItem('tidefall_map','custom');paintMaps();};
   mp.appendChild(b); }
 addCustomMapBtn();
@@ -2232,23 +2285,35 @@ function start(fac){faction.player=fac||'english';
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
   faction.r1=others[0];faction.r2=others[1];faction.r3=others[2];
   $('overlay').classList.add('hidden');initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
-function paintMaps(){document.querySelectorAll('#mappick .mapbtn').forEach(b=>{b.style.outline=b.dataset.map===curMapId?'3px solid #f3e4be':'none';b.style.opacity=b.dataset.map===curMapId?'1':'.62';});}
+var selFac='english';
+function paintMaps(){document.querySelectorAll('#mappick .mapbtn').forEach(b=>{const on=b.dataset.map===curMapId;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';b.style.opacity='1';});if(typeof updateStartSummary==='function')updateStartSummary();}
 { const mp=document.getElementById('mappick');
   for(const id in MAPS){ if(MAPS[id].custom)continue; const m=MAPS[id]; const b=document.createElement('button');
-    b.className='big mapbtn'; b.dataset.map=id;
-    b.style.cssText='background:#14303c;border-color:#2c6157;padding:7px 14px;font-size:14px;display:flex;flex-direction:column;gap:2px;align-items:center;';
-    b.innerHTML='<span>'+m.name+(id==='heartlands'?'':' <small style="color:#8fd0a8">3× land</small>')+'</span><small style="color:#9fc0d2;font-weight:normal">'+m.desc+'</small>';
+    b.className='mapbtn'; b.dataset.map=id;
+    b.style.cssText='text-align:left;cursor:pointer;padding:13px 15px;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);color:#e8dcc0;transition:border-color .12s;';
+    b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+(id==='heartlands'?'':' <span style="color:#a68b52;font-size:12px;">3× land</span>')+'</div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>';
     b.onclick=()=>{setMap(id);localStorage.setItem('tidefall_map',id);paintMaps();};
     mp.appendChild(b); }
   paintMaps(); }
-function paintDiff(){document.querySelectorAll('#diffpick .dif').forEach(b=>{b.style.outline=b.dataset.dif===difficulty?'3px solid #f3e4be':'none';b.style.opacity=b.dataset.dif===difficulty?'1':'.62';});}
+function paintDiff(){const tints={easy:'rgba(93,122,62,0.35)',normal:'rgba(201,162,74,0.18)',hard:'rgba(124,43,35,0.45)'};
+  document.querySelectorAll('#diffpick .dif').forEach(b=>{const on=b.dataset.dif===difficulty;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?tints[b.dataset.dif]:'rgba(28,23,15,0.85)';b.style.opacity='1';});if(typeof updateStartSummary==='function')updateStartSummary();}
 document.querySelectorAll('#diffpick .dif').forEach(b=>b.onclick=()=>{difficulty=b.dataset.dif;localStorage.setItem('tidefall_diff',difficulty);paintDiff();});
 paintDiff();
 // starting fresh with a real kingdom in the autosave? make sure it's wanted
-document.querySelectorAll('#overlay .fac').forEach(b=>b.onclick=()=>{
+selFac=localStorage.getItem('tidefall_fac')||'english';
+function paintFacs(){document.querySelectorAll('#overlay .fac').forEach(b=>{const on=b.dataset.fac===selFac;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';});if(typeof updateStartSummary==='function')updateStartSummary();}
+function updateStartSummary(){const el=document.getElementById('startSummary');if(!el)return;
+  const mn=(MAPS[curMapId]&&MAPS[curMapId].name)||'Heartlands';
+  const dn=difficulty.charAt(0).toUpperCase()+difficulty.slice(1);
+  const fn=(FACTIONS[selFac]&&FACTIONS[selFac].name)||'English Red Coats';
+  el.textContent=mn+' · '+dn+' · '+fn;}
+document.querySelectorAll('#overlay .fac').forEach(b=>b.onclick=()=>{selFac=b.dataset.fac;localStorage.setItem('tidefall_fac',selFac);paintFacs();});
+document.getElementById('marchBtn').onclick=()=>{
   try{ const raw=localStorage.getItem('tidefall_save'); if(raw){ const m=(JSON.parse(raw).meta)||{};
     if((m.t||0)>180&&!window.confirm('You already have a kingdom in progress ('+slotDesc(JSON.parse(raw))+').\nStarting a new campaign overwrites the Autosave.\nKingdoms in Slots 1-3 are safe. Start anyway?'))return; } }catch(e){}
-  start(b.dataset.fac); });
+  start(selFac); };
+paintFacs();
+{const mb=document.getElementById('menuBuild');if(mb)mb.textContent='BUILD '+document.getElementById('ver').textContent;}
 // ---- save slots panel ----
 const SLOT_KEYS=[['tidefall_save','⏱ Autosave'],['tidefall_slot1','🏰 Slot 1'],['tidefall_slot2','🏰 Slot 2'],['tidefall_slot3','🏰 Slot 3']];
 const FAC_NAME={scottish:'Black Watch',english:'Red Coats',irish:'Green Coats',french:'Blue Coats',chinese:'Imperial Army',sacred:'Sacred Band'};
