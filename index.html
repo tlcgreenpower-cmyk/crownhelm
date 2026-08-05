@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b88</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b89</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1315,11 +1315,14 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
   if(own&&own!=='player'){if(astarBudgetAI<=0)return null;astarBudgetAI--;}
   else{if(astarBudget<=0)return null;astarBudget--;}
   if(!passable(gx,gy,goalId,dom,own)){let best=null,bd=1e9;for(let r=1;r<=5&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=gx+dx,y=gy+dy;if(passable(x,y,goalId,dom,own)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(!best)return null;gx=best[0];gy=best[1];}
-  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?7000:4500;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?3200:2400;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
   while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
     if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k!==undefined){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=came[k];}return p.reverse();}
     if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
-function orderPath(e,gx,gy,goalId){const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom,e.owner);if(p){e.path=p;e.pi=0;const n0=p[Math.min(1,p.length-1)];e.dir=Math.atan2(wz(n0[1])-e.z,wx(n0[0])-e.x);return true;}e.path=null;return false;}
+function orderPath(e,gx,gy,goalId){if(e.pfCool&&elapsed<e.pfCool)return false;
+  const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom,e.owner);
+  if(p){e.path=p;e.pi=0;e.pfCool=0;const n0=p[Math.min(1,p.length-1)];e.dir=Math.atan2(wz(n0[1])-e.z,wx(n0[0])-e.x);return true;}
+  e.path=null;e.pfCool=elapsed+1.0+Math.random()*0.9;return false;}
 
 // ==================================================== COMMANDS
 let formation='ranks';
@@ -1351,7 +1354,7 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   grp.add(fl);grp.position.set(-.35,0,-.35);
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
-function commandMove(list,x,z,amove,fdir){const gx=txFromW(x),gy=tzFromW(z);
+function commandMove(list,x,z,amove,fdir){for(const u of list)u.pfCool=0;const gx=txFromW(x),gy=tzFromW(z);
   // regiments sort into station: melee & cavalry front, muskets/archers centre, guns & healers rear
   const rank=t=>{const U=UNIT[t];return U.siege?3:(U.heal||U.noAtk)?2:U.ranged?1:0;};
   astarBudget+=ml0Count(list);
@@ -1360,7 +1363,7 @@ function commandMove(list,x,z,amove,fdir){const gx=txFromW(x),gy=tzFromW(z);
   const tiles=formTiles(ml.length,gx,gy,fdir);
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
     if(!orderPath(e,tiles[i][0],tiles[i][1],0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
-function commandTarget(list,x,z){astarBudget+=list.length+6;const workers0=list.filter(e=>e.type==='worker');
+function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=list.length+6;const workers0=list.filter(e=>e.type==='worker');
   if(workers0.length){ let bs=null,bd0=3.5;
     for(const s of sheep){const d=Math.hypot(x-s.x,z-s.z);if(d<bd0){bd0=d;bs=s;}}
     if(bs){ workers0.forEach(w=>{w.cmd='hunt';w.hunt=bs;w.gather=null;w.build=null;w.target=null;w.tendB=null;orderPath(w,txFromW(bs.x),tzFromW(bs.z),0);});
