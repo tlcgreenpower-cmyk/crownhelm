@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b85</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b86</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2067,7 +2067,7 @@ function renderForces(){const p=$('forces');if(p.classList.contains('hidden'))re
     row.onclick=()=>{ selected=ents.filter(e=>e.owner==='player'&&e.type===t).map(e=>e.id); selBuilding=null;
       const e0=ents.find(e=>e.id===selected[0]); if(e0)camTarget.set(e0.x,0,e0.z); SFX.select(); refreshUI(); };
     p.appendChild(row); } }
-document.getElementById('qualBtn').onclick=()=>{QUAL=QUAL==='med'?'low':QUAL==='low'?'high':'med';localStorage.setItem('tidefall_quality',QUAL);applyQuality();
+document.getElementById('qualBtn').onclick=()=>{QUAL=QUAL==='med'?'low':QUAL==='low'?'high':'med';localStorage.setItem('tidefall_quality',QUAL);localStorage.setItem('tidefall_quality_user','1');applyQuality();
   flashMsg('⚙ Graphics: '+(QUAL==='high'?'High — full shadows':QUAL==='med'?'Medium — balanced':'Fast — smoothest, no shadows'));};
 applyQuality();
 if(location.protocol==='file:')document.getElementById('wrongDoor').style.display='block';
@@ -2224,9 +2224,14 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
         aa.style.opacity=(atkPing.t%0.6<0.3)?1:0.35; } }
     else aa.style.display='none'; }
   drawMini();if(composer&&QUAL!=='low')composer.render();else renderer.render(scene,camera);
-  _fc++;const _nw=performance.now();if(_nw-_ft>1000){lastFps=_fc;_fc=0;_ft=_nw;}
+  _fc++;const _nw=performance.now();if(_nw-_ft>1000){lastFps=_fc;_fc=0;_ft=_nw;
+    if(running&&!gameOver&&!document.hidden&&QUAL!=='low'&&!localStorage.getItem('tidefall_quality_user')){
+      if(lastFps>0&&lastFps<26)_qBad++;else _qBad=0;
+      if(_qBad>=6&&_nw-_qCool>15000){ _qCool=_nw;_qBad=0;
+        QUAL=QUAL==='high'?'med':'low'; localStorage.setItem('tidefall_quality',QUAL); applyQuality();
+        flashMsg('⚙ Graphics eased to '+(QUAL==='med'?'Medium':'Fast')+' for smooth play — use the ⚙ button to change'); } } }
   requestAnimationFrame(loop);}
-let _ft=performance.now(),_fc=0,lastFps=0;const _aaV=new THREE.Vector3();
+let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.Vector3();
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};}};
