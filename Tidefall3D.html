@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b89</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b90</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1533,10 +1533,10 @@ function nextBuildSite(e){ let best=null,bd=200;
     if(d<bd&&ents.filter(o=>o.owner===e.owner&&o.cmd==='build'&&o.build===b).length<3){bd=d;best=b;} }
   return best; }
 function acquireNext(e){ if(UNIT[e.type].noAtk)return false;
-  if(!UNIT[e.type].ramOnly){ let tgt=null,bd=38;
+  if(!UNIT[e.type].ramOnly){ let tgt=null,bd=20;
     for(const o of ents)if(isHostile(e.owner,o.owner)){const d=Math.hypot(e.x-o.x,e.z-o.z);if(d<bd){bd=d;tgt=o;}}
     if(tgt){e.cmd='attack';e.target=tgt;return true;} }
-  let tb=null,bbd=55;
+  let tb=null,bbd=26;
   for(const b of blds)if(isHostile(e.owner,b.owner)&&b.hp>0){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bbd){bbd=d;tb=b;}}
   if(tb){e.cmd='attackb';e.target=tb;return true;}
   return false;}
