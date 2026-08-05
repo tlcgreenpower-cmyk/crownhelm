@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b91</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b92</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -215,6 +215,76 @@ try{ THREE=await import('three'); }
 catch(e){ document.getElementById('loading').textContent='Could not load the 3D engine — check your internet, then reopen.'; showErr('Three.js load: '+e.message); throw e; }
 document.getElementById('loading').classList.add('hidden');
 document.getElementById('overlay').classList.remove('hidden');
+let BGU=null; try{ BGU=await import('three/addons/utils/BufferGeometryUtils.js'); }catch(e){}
+
+// ---- b92 MESH-MERGE SURGERY: collapse multi-part models into as few draw units as possible.
+// Done once per template at load time — every later clone() inherits the merged shape.
+function _mergePrepGeos(meshes,skinned,keepColor){
+  const KEEP=['position','normal','uv','color','skinIndex','skinWeight'];
+  const names=KEEP.filter(n=>(n==='color'&&keepColor)||meshes.every(m=>m.geometry.attributes[n]));
+  let geos=meshes.map(m=>{ const g=m.geometry.clone();
+    for(const n of Object.keys(g.attributes)) if(!names.includes(n)) g.deleteAttribute(n);
+    g.morphAttributes={};
+    if(!skinned) g.applyMatrix4(m.matrixWorld);
+    return g; });
+  if(!geos.every(g=>g.index)) geos=geos.map(g=>g.index?g.toNonIndexed():g);
+  return geos;
+}
+// material "family" — everything that must match for two parts to share one draw call,
+// EXCEPT color: differing flat colors get baked into vertex colors below
+function _matFamSig(m){ return [m.type,m.map?m.map.uuid:'',m.normalMap?m.normalMap.uuid:'',m.emissiveMap?m.emissiveMap.uuid:'',
+  m.emissive?m.emissive.getHexString():'',m.transparent?1:0,m.opacity,m.side,
+  m.metalness!==undefined?m.metalness:'',m.roughness!==undefined?m.roughness:'',m.flatShading?1:0].join('|'); }
+function _bakeVertexColor(g,c){ const n=g.attributes.position.count, old=g.attributes.color, arr=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ let r=c.r,gr=c.g,b=c.b; if(old){ r*=old.getX(i); gr*=old.getY(i); b*=old.getZ(i); }
+    arr[i*3]=r; arr[i*3+1]=gr; arr[i*3+2]=b; }
+  g.setAttribute('color',new THREE.BufferAttribute(arr,3)); }
+function _mergeGroup(ms,skinned){ // -> {geo, mat} or null; bakes colors when parts differ
+  const cols=new Set(ms.map(m=>(m.material.color?m.material.color.getHexString():'-')+(m.geometry.attributes.color?'+vc':'')));
+  const bake=cols.size>1;
+  const geos=_mergePrepGeos(ms,skinned,bake);
+  if(bake) for(let i=0;i<geos.length;i++) _bakeVertexColor(geos[i],ms[i].material.color||new THREE.Color(1,1,1));
+  const geo=BGU.mergeGeometries(geos,false); if(!geo)return null;
+  let mat=ms[0].material;
+  if(bake){ mat=mat.clone(); mat.color&&mat.color.set(0xffffff); mat.vertexColors=true; }
+  return {geo,mat}; }
+function mergeStaticModel(root){ if(!BGU||!root)return root;
+  root.updateMatrixWorld(true);
+  const by={},extras=[];
+  root.traverse(o=>{ if(!o.isMesh||o.isSkinnedMesh)return;
+    if(Array.isArray(o.material)){extras.push(o);return;}
+    const sig=_matFamSig(o.material);
+    (by[sig]=by[sig]||[]).push(o); });
+  const keys=Object.keys(by);
+  if(!keys.length&&!extras.length)return root;
+  const out=new THREE.Group();
+  for(const k of keys){ const ms=by[k];
+    const r=ms.length>1?_mergeGroup(ms,false):null;
+    if(r){ out.add(new THREE.Mesh(r.geo,r.mat)); }
+    else for(const m of ms){ const g=m.geometry.clone(); g.applyMatrix4(m.matrixWorld); out.add(new THREE.Mesh(g,m.material)); } }
+  for(const e of extras){ const g=e.geometry.clone(); g.applyMatrix4(e.matrixWorld); out.add(new THREE.Mesh(g,e.material)); }
+  return out;
+}
+function mergeSkinnedModel(root){ if(!BGU||!root)return root;
+  root.updateMatrixWorld(true);
+  const by={};
+  root.traverse(o=>{ if(!o.isSkinnedMesh||Array.isArray(o.material))return;
+    const key=o.skeleton.uuid+'|'+_matFamSig(o.material)+'|'
+      +o.bindMatrix.elements.map(v=>v.toFixed(4)).join(',')+'|'+o.matrixWorld.elements.map(v=>v.toFixed(4)).join(',');
+    (by[key]=by[key]||[]).push(o); });
+  for(const key in by){ const ms=by[key]; if(ms.length<2)continue;
+    const r=_mergeGroup(ms,true); if(!r)continue;
+    const first=ms[0];
+    const nm=new THREE.SkinnedMesh(r.geo,r.mat);
+    nm.name=first.name;
+    nm.position.copy(first.position); nm.quaternion.copy(first.quaternion); nm.scale.copy(first.scale);
+    first.parent.add(nm);
+    nm.bind(first.skeleton,first.bindMatrix.clone());
+    for(const m of ms) m.parent.remove(m); }
+  return root;
+}
+let _mergeTally={charBefore:0,charAfter:0,bldBefore:0,bldAfter:0};
+const _countParts=(root,skinned)=>{let n=0;root.traverse(o=>{if(skinned?o.isSkinnedMesh:(o.isMesh&&!o.isSkinnedMesh))n++;});return n;};
 
 // ==================================================== CONFIG
 const TILE=4,HSCALE=3.4;
@@ -489,13 +559,19 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
     loader.load('assets/pirate/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
-  loader.load('assets/animals/Sheep.glb',g=>{lib['SheepA']={scene:g.scene,clips:g.animations};},undefined,()=>{});
-  loader.load('assets/animals/Horse.glb',g=>{lib['HorseA']={scene:g.scene,clips:g.animations};},undefined,()=>{});
-  loader.load('assets/animals/White Horse.glb',g=>{lib['HorseW']={scene:g.scene,clips:g.animations};},undefined,()=>{});
-  loader.load('assets/pirate/glTF/Prop_Cannon.gltf',g=>{PIRATE_CANNON=g.scene;},undefined,()=>{});
-  loader.load('assets/pirate/glTF/Ship_Small.gltf',g=>{PIRATE_SHIP=g.scene;},undefined,()=>{});
-  loader.load('assets/pirate/glTF/Ship_Large.gltf',g=>{PIRATE_SHIP_L=g.scene;},undefined,()=>{});
+  loader.load('assets/animals/Sheep.glb',g=>{lib['SheepA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
+  loader.load('assets/animals/Horse.glb',g=>{lib['HorseA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
+  loader.load('assets/animals/White Horse.glb',g=>{lib['HorseW']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
+  loader.load('assets/pirate/glTF/Prop_Cannon.gltf',g=>{PIRATE_CANNON=mergeStaticModel(g.scene);},undefined,()=>{});
+  loader.load('assets/pirate/glTF/Ship_Small.gltf',g=>{PIRATE_SHIP=mergeStaticModel(g.scene);},undefined,()=>{});
+  loader.load('assets/pirate/glTF/Ship_Large.gltf',g=>{PIRATE_SHIP_L=mergeStaticModel(g.scene);},undefined,()=>{});
+  // b92: one-time surgery on every character template — clones from here on carry far fewer skinned parts
+  for(const k in lib){ _mergeTally.charBefore+=_countParts(lib[k].scene,true);
+    mergeSkinnedModel(lib[k].scene);
+    _mergeTally.charAfter+=_countParts(lib[k].scene,true); }
+  console.log('b92 mesh-merge (characters): '+_mergeTally.charBefore+' skinned parts -> '+_mergeTally.charAfter);
   if(Object.keys(lib).length) CHAR_LIB={lib,clone:SK.clone};
+  window._CHARLIB=CHAR_LIB;   // debug handle for the TF perf gate
 }catch(e){/* stay on procedural villagers */} })();
 
 // ---- professional medieval building models (KayKit Medieval Hexagon, CC0) ----
@@ -509,17 +585,19 @@ const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacks
   const models=[...new Set(Object.values(BLD_CHAR))];
   const lib={};
   await Promise.all(['red','blue','green','yellow'].map(async c=>{ lib[c]={};
-    await Promise.all(models.map(async m=>{ const s=await load1('assets/med/'+c+'/building_'+m+'_'+c+'.gltf'); if(s)lib[c][m]=s; })); }));
+    await Promise.all(models.map(async m=>{ const s=await load1('assets/med/'+c+'/building_'+m+'_'+c+'.gltf');
+      if(s){ _mergeTally.bldBefore+=_countParts(s,false); const ms=mergeStaticModel(s); _mergeTally.bldAfter+=_countParts(ms,false); lib[c][m]=ms; } })); }));
+  console.log('b92 mesh-merge (buildings): '+_mergeTally.bldBefore+' parts -> '+_mergeTally.bldAfter);
   if(Object.keys(lib.red||{}).length){BLD_LIB=lib;
     // upgrade any buildings that went up before the pro models finished loading
     for(const b of (typeof blds!=='undefined'?blds:[])){ if(!b.done||!BLD_CHAR[b.type])continue;
       const nm=makeBldMesh(b.type,b.owner); nm.position.copy(b.mesh.position);
       scene.remove(b.mesh); b.mesh=nm; scene.add(nm); } }
   const nat={};
-  await Promise.all(['rock_single_A','rock_single_B','rock_single_C','cloud_big','cloud_small'].map(async r=>{ const s=await load1('assets/med/nature/'+r+'.gltf'); if(s)nat[r]=s; }));
+  await Promise.all(['rock_single_A','rock_single_B','rock_single_C','cloud_big','cloud_small'].map(async r=>{ const s=await load1('assets/med/nature/'+r+'.gltf'); if(s)nat[r]=mergeStaticModel(s); }));
   if(Object.keys(nat).length)NATURE_LIB=nat;
   const neu={};
-  await Promise.all(['building_grain','building_dirt','fence_wood_straight','fence_stone_straight','wall_straight','wall_straight_gate'].map(async r=>{ const s=await load1('assets/med/neutral/'+r+'.gltf'); if(s)neu[r.replace('building_','')]=s; }));
+  await Promise.all(['building_grain','building_dirt','fence_wood_straight','fence_stone_straight','wall_straight','wall_straight_gate'].map(async r=>{ const s=await load1('assets/med/neutral/'+r+'.gltf'); if(s)neu[r.replace('building_','')]=mergeStaticModel(s); }));
   if(Object.keys(neu).length)NEUTRAL_LIB=neu;
   if(BLD_LIB&&typeof refreshBuildingMeshes==='function')refreshBuildingMeshes();
   if(NATURE_LIB&&typeof spawnClouds==='function')spawnClouds();
