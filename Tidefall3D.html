@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b90</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b91</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1726,17 +1726,19 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(barr.length===1&&countType(o,'worker')>=6&&r.w>=160){if(placeAI(o,'barracks'))return;}
   if(!hasBld(o,'gunshop')&&r.w>=120&&r.m>=40){if(placeAI(o,'gunshop'))return;}
   if(!hasBld(o,'church')&&r.w>=100&&Math.random()<.5){if(placeAI(o,'church'))return;}
-  if(countBld(o,'farm')<3&&r.w>=55){if(placeAI(o,'farm'))return;}
-  if(countBld(o,'mill')<1&&r.w>=60){if(placeAI(o,'mill'))return;}
+  if(countBld(o,'farm')<5&&r.w>=55){if(placeAI(o,'farm'))return;}
+  if(countBld(o,'mill')<2&&r.w>=60){if(placeAI(o,'mill'))return;}
   if(countBld(o,'watch')<1&&r.w>=50&&r.m>=20&&barr.length){if(placeAI(o,'watch'))return;}
   if(T.age===1&&T.ageTimer<=0&&barr.length&&r.f>=AGE2.f&&r.w>=AGE2.w){r.f-=AGE2.f;r.w-=AGE2.w;T.ageTimer=AGE2.time;T.ageTo=2;return;}
   if(T.age===2&&T.ageTimer<=0&&hasBld(o,'castle')&&r.f>=AGE3.f&&r.w>=AGE3.w&&r.m>=AGE3.m){r.f-=AGE3.f;r.w-=AGE3.w;r.m-=AGE3.m;T.ageTimer=AGE3.time;T.ageTo=3;return;}
   if(T.age===2){if(countBld(o,'castle')<1&&r.w>=220&&r.m>=150){if(placeAI(o,'castle'))return;}if(countBld(o,'siege')<1&&r.w>=130&&r.m>=60){if(placeAI(o,'siege'))return;}if(barr.length<2&&r.w>=110){if(placeAI(o,'barracks'))return;}}
-  if(countBld(o,'tower')<2&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
+  if(countBld(o,'tower')<(T.age>=2?3:2)&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
+  if(T.age>=2)for(const tb of blds)if(tb.owner===o&&tb.type==='tower'&&tb.done&&!tb.up&&r.w>=80&&r.m>=60&&Math.random()<.25){r.w-=80;r.m-=60;tb.up=true;break;}
   if(barr.length&&T.weapon<2&&r.m>=80&&r.f>=80&&Math.random()<.3){r.m-=80;r.f-=80;T.weapon++;return;}
   if(barr.length&&T.armor<2&&r.w>=80&&r.f>=80&&Math.random()<.3){r.w-=80;r.f-=80;T.armor++;return;}
   if(barr.length&&used+2<=cap)for(const b0 of barr){if(b0.queue.length===0){const c=COST;
     if(T.age===2&&r.f>=c.knight.f&&r.m>=c.knight.m&&Math.random()<.4){r.f-=c.knight.f;r.m-=c.knight.m;b0.queue.push({type:'knight',t:c.knight.time});}
+    else if(T.age>=2&&r.f>=c.samurai.f&&r.m>=c.samurai.m&&r.g>=(c.samurai.g||0)&&Math.random()<.25){r.f-=c.samurai.f;r.m-=c.samurai.m;r.g-=(c.samurai.g||0);b0.queue.push({type:'samurai',t:c.samurai.time});}
     else if(r.f>=c.viking.f&&r.w>=c.viking.w&&Math.random()<.3){r.f-=c.viking.f;r.w-=c.viking.w;b0.queue.push({type:'viking',t:c.viking.time});}else if(r.f>=c.spear.f&&r.w>=c.spear.w&&Math.random()<.6){r.f-=c.spear.f;r.w-=c.spear.w;b0.queue.push({type:'spear',t:c.spear.time});}
     else if(r.f>=c.archer.f&&r.w>=c.archer.w){r.f-=c.archer.f;r.w-=c.archer.w;b0.queue.push({type:'archer',t:c.archer.time});}
     if(ai.wave>=1&&countType(o,'hero')===0&&r.f>=c.hero.f&&r.w>=c.hero.w&&r.m>=c.hero.m){r.f-=c.hero.f;r.w-=c.hero.w;r.m-=c.hero.m;b0.queue.push({type:'hero',t:c.hero.time});}}}
@@ -1756,7 +1758,16 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
       if(foe==='player'){SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}}
     else ai.attackTimer=12;}}
 function pickTargetFor(victim){const pb=blds.filter(b=>b.owner===victim),front=pb.filter(b=>b.type!=='hall');return front.length?front[Math.floor(Math.random()*front.length)]:pb.find(b=>b.type==='hall');}
-function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b=BLD[type];for(let r=2;r<13;r++)for(let a=0;a<16;a++){const ang=a/16*Math.PI*2,tx=Math.round(hall.tx+Math.cos(ang)*r),ty=Math.round(hall.ty+Math.sin(ang)*r);if(canPlace(tx,ty,b.w,b.h)&&minFootElev(tx,ty,b.w,b.h)>=2.1){res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true;}}return false;}
+function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b=BLD[type];
+  const BAND={market:[4,8],church:[4,8],storehouse:[4,9],house:[5,10],mill:[6,11],barracks:[6,11],gunshop:[6,11],siege:[7,12],farm:[8,15],castle:[8,13],watch:[11,16],tower:[11,16]};
+  const band=BAND[type]||[5,12], margin=(type==='tower'||type==='watch')?0:1;
+  for(let att=0;att<90;att++){ const rr=band[0]+Math.random()*(band[1]-band[0]), ang=Math.random()*Math.PI*2;
+    const tx=Math.round(hall.tx+Math.cos(ang)*rr), ty=Math.round(hall.ty+Math.sin(ang)*rr);
+    if(!canPlace(tx-margin,ty-margin,b.w+2*margin,b.h+2*margin))continue;
+    if(minFootElev(tx,ty,b.w,b.h)<2.1)continue;
+    res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true; }
+  for(let r=2;r<15;r++)for(let a=0;a<16;a++){const ang=a/16*Math.PI*2,tx=Math.round(hall.tx+Math.cos(ang)*r),ty=Math.round(hall.ty+Math.sin(ang)*r);if(canPlace(tx,ty,b.w,b.h)&&minFootElev(tx,ty,b.w,b.h)>=2.1){res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true;}}
+  return false;}
 
 // ==================================================== PLACEMENT
 function canPlace(tx,ty,w,h){for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++){if(!inB(x,y))return false;if(buildGrid[ti(x,y)]!==0)return false;if(isFlooded(x,y))return false;}return true;}
