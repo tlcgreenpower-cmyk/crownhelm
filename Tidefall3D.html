@@ -58,7 +58,7 @@
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b79</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b80</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -431,6 +431,8 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   loader.load('assets/animals/Sheep.glb',g=>{lib['SheepA']={scene:g.scene,clips:g.animations};},undefined,()=>{});
+  loader.load('assets/animals/Horse.glb',g=>{lib['HorseA']={scene:g.scene,clips:g.animations};},undefined,()=>{});
+  loader.load('assets/animals/White Horse.glb',g=>{lib['HorseW']={scene:g.scene,clips:g.animations};},undefined,()=>{});
   loader.load('assets/pirate/glTF/Prop_Cannon.gltf',g=>{PIRATE_CANNON=g.scene;},undefined,()=>{});
   loader.load('assets/pirate/glTF/Ship_Small.gltf',g=>{PIRATE_SHIP=g.scene;},undefined,()=>{});
   loader.load('assets/pirate/glTF/Ship_Large.gltf',g=>{PIRATE_SHIP_L=g.scene;},undefined,()=>{});
@@ -887,6 +889,36 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
 // ==================================================== UNIT / BUILDING MESHES
 const UNIT_CHAR={hero:'GoldKnight',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
+  // mounted cavalry: real animated horse with a rider seated on top
+  const HORSE_OF={knight:'HorseW',dragoon:'HorseA',wolfrider:'HorseA',cuirassier:'HorseW'};
+  const RIDER_OF={knight:'KnightM',dragoon:'Soldier',wolfrider:'Viking',cuirassier:'GoldKnight'};
+  if(HORSE_OF[type]&&CHAR_LIB&&CHAR_LIB.lib[HORSE_OF[type]]&&CHAR_LIB.lib[RIDER_OF[type]]){
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.88,u.r*.98,.08,14),tm);ring.position.y=.04;ring.castShadow=true;g.add(ring);
+    const hsrc=CHAR_LIB.lib[HORSE_OF[type]];
+    const horse=CHAR_LIB.clone(hsrc.scene);
+    const hbox=new THREE.Box3().setFromObject(horse), hlen=Math.max(hbox.max.z-hbox.min.z,hbox.max.x-hbox.min.x)||1;
+    const hs=3.4/hlen; horse.scale.setScalar(hs); horse.position.y=-hbox.min.y*hs;
+    horse.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';}); g.add(horse);
+    const mixer=new THREE.AnimationMixer(horse);
+    const hf=re=>hsrc.clips.find(c=>re.test(c.name)&&!/\|/.test(c.name));
+    const wc=hf(/^Gallop$/)||hf(/Walk/), ic=hf(/^Idle$/)||hf(/Idle/);
+    const ac=hf(/Attack_Kick/)||hf(/Attack/), dc=hf(/^Death$/);
+    g.userData.mixer=mixer; g.userData.walkA=wc?mixer.clipAction(wc):null; g.userData.idleA=ic?mixer.clipAction(ic):null;
+    g.userData.attackA=ac?mixer.clipAction(ac):null; g.userData.deathA=dc?mixer.clipAction(dc):null; g.userData.animMode='idle';
+    if(g.userData.idleA)g.userData.idleA.play();
+    const rsrc=CHAR_LIB.lib[RIDER_OF[type]];
+    const rider=CHAR_LIB.clone(rsrc.scene);
+    const rbox=new THREE.Box3().setFromObject(rider), rh=rbox.max.y-rbox.min.y||1;
+    rider.scale.setScalar(1.9/rh);
+    rider.position.set(0,(hbox.max.y*hs)*0.72,-0.1);
+    rider.traverse(o=>{if(o.isMesh)o.castShadow=false;});
+    const rmix=new THREE.AnimationMixer(rider);
+    const sit=rsrc.clips.find(c=>/sit/i.test(c.name))||rsrc.clips.find(c=>/idle/i.test(c.name));
+    if(sit){rmix.clipAction(sit).play();rmix.update(0.85);}   // frozen mid-sit — a posed rider, no per-frame cost
+    g.add(rider);
+    g.userData.noBob=true;
+    const hbc2=makeHealthBar();hbc2.position.y=3.4;g.add(hbc2);g.userData.hb=hbc2;
+    return g; }
   // professional animated model where one fits this unit type
   let ckey=UNIT_CHAR[type]; if(type==='worker'&&CHAR_LIB&&CHAR_LIB.lib.WorkerM)ckey=Math.random()<0.5?'WorkerM':'WorkerF';
   if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
