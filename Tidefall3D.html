@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b155</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b156</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2994,7 +2994,11 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(ai.warCheck<=0){ ai.warCheck=90+Math.random()*90;
     if(diplo[o].stance==='neutral'){ diplo[o].score-=Math.random()*ai.aggro*0.3*dif().aggro;
       if(diplo[o].score<-30)declareWar(o,'ai'); }
-    else if(diplo[o].stance==='war'&&diplo[o].score>20){diplo[o].stance='neutral';flashMsg(realmName(o)+' agrees to peace.');} }
+    else if(diplo[o].stance==='war'&&diplo[o].score>20){diplo[o].stance='neutral';flashMsg(realmName(o)+' agrees to peace.');}
+    // b156: THE REALMS HAVE THEIR OWN QUARRELS. Rivals only ever went to war when they joined one
+    // of YOURS, so a player who kept the peace watched seven kingdoms build side by side forever.
+    // Neighbours now fall out on their own — and make it up again — whether you are involved or not.
+    aiDiplomacy(o,ai); }
   for(const e of ents)if(e.owner===o&&e.type==='worker'&&e.cmd==='idle'){
     if(e.noWork&&elapsed<e.noWork)continue;
     const uf=blds.find(q=>q.owner===o&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q));
@@ -3053,6 +3057,29 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
       army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;
       if(foe==='player'){SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}}
     else ai.attackTimer=12;}}
+// b156: a realm's quarrels with its neighbours, entirely its own business
+function realmKnown(o){ const h=blds.find(b=>b.owner===o&&b.type==='hall');
+  return !!h&&explored[ti(clamp(h.tx,0,MAP_W-1),clamp(h.ty,0,MAP_H-1))]===1; }
+function aiDiplomacy(o,ai){
+  const mine=blds.find(b=>b.owner===o&&b.type==='hall'); if(!mine)return;
+  const atWar=AI_REALMS.filter(t=>t!==o&&aiWars[warKey(o,t)]);
+  // an old war runs its course
+  if(atWar.length&&Math.random()<0.3){ const t=atWar[(Math.random()*atWar.length)|0];
+    delete aiWars[warKey(o,t)];
+    if(realmKnown(o)&&realmKnown(t))flashMsg('\u{1F54A} '+realmName(o)+' and '+realmName(t)+' have made peace');
+    return; }
+  if(atWar.length)return;                                  // one war at a time is quite enough
+  // otherwise a realm may turn on its nearest neighbour — the closer they are, the likelier
+  let near=null,nd=1e9;
+  for(const t of AI_REALMS){ if(t===o||aiWars[warKey(o,t)])continue;
+    const h=blds.find(b=>b.owner===t&&b.type==='hall'); if(!h)continue;
+    const d=Math.hypot(h.cx-mine.cx,h.cz-mine.cz); if(d<nd){nd=d;near=t;} }
+  if(!near)return;
+  const closeness=clamp(1-(nd-60)/260,0.25,1);             // neighbours quarrel; distant realms rarely bother
+  if(Math.random()<0.16*closeness*(ai.aggro/55)*dif().aggro){
+    aiWars[warKey(o,near)]=true; realmAI[o].attackTimer=Math.min(realmAI[o].attackTimer,10);
+    if(realmAI[near])realmAI[near].attackTimer=Math.min(realmAI[near].attackTimer,25);
+    if(realmKnown(o)||realmKnown(near))flashMsg('⚔ '+realmName(o)+' declare war on '+realmName(near)+'!'); } }
 function pickTargetFor(victim){const pb=blds.filter(b=>b.owner===victim),front=pb.filter(b=>b.type!=='hall');return front.length?front[Math.floor(Math.random()*front.length)]:pb.find(b=>b.type==='hall');}
 function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b=BLD[type];
   const BAND={market:[4,8],church:[4,8],storehouse:[4,9],house:[5,10],mill:[6,11],bakery:[5,10],armourer:[6,11],barracks:[6,11],gunshop:[6,11],siege:[7,12],farm:[8,15],castle:[8,13],watch:[11,16],tower:[11,16]};
@@ -3874,7 +3901,8 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
+      get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
