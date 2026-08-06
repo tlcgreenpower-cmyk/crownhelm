@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b147</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b148</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1539,6 +1539,73 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
 
 // ==================================================== UNIT / BUILDING MESHES
 const UNIT_CHAR={hero:'GoldKnight',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
+// b148: weapons. Shaft materials are shared, so a whole army of pikes costs a handful of draws
+// once the merge/instancing has done its work. Every piece is built around the grip at the origin.
+// one material family for all of it — same roughness, same metalness — so the merge can fold a
+// whole weapon into ONE mesh and bake the colours into its vertices
+const _wMat=c=>new THREE.MeshStandardMaterial({color:c,roughness:.62,metalness:.25,flatShading:true});
+const W_WOOD=_wMat(0x5b3f24), W_STEEL=_wMat(0xc2c8d0), W_DARK=_wMat(0x2f3339), W_CLOTH=_wMat(0xc9a44a);
+const WEAPONS={
+  pike(){ const g=new THREE.Group();
+    const s=new THREE.Mesh(new THREE.CylinderGeometry(.055,.06,4.4,5),W_WOOD);s.position.y=1.6;s.castShadow=true;g.add(s);
+    const h=new THREE.Mesh(new THREE.ConeGeometry(.11,.62,4),W_STEEL);h.position.y=4.05;h.castShadow=true;g.add(h);
+    const c=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.16,5),W_STEEL);c.position.y=3.68;g.add(c); return g; },
+  musket(){ const g=new THREE.Group();
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(.045,.05,1.85,5),W_DARK);b.position.y=.75;b.castShadow=true;g.add(b);
+    const st=new THREE.Mesh(new THREE.BoxGeometry(.13,.62,.16),W_WOOD);st.position.y=-.28;st.rotation.x=.12;g.add(st);
+    const lk=new THREE.Mesh(new THREE.BoxGeometry(.11,.18,.1),W_STEEL);lk.position.y=.16;g.add(lk); return g; },
+  bow(){ const g=new THREE.Group();
+    const a=new THREE.Mesh(new THREE.TorusGeometry(.62,.045,4,10,Math.PI*1.15),W_WOOD);a.rotation.z=Math.PI*0.42;a.castShadow=true;g.add(a);
+    const str=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,1.16,3),W_CLOTH);str.position.x=.12;g.add(str); return g; },
+  sword(){ const g=new THREE.Group();
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(.11,1.45,.035),W_STEEL);bl.position.y=.85;bl.castShadow=true;g.add(bl);
+    const gd=new THREE.Mesh(new THREE.BoxGeometry(.46,.09,.09),W_CLOTH);gd.position.y=.12;g.add(gd);
+    const hl=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.3,5),W_WOOD);hl.position.y=-.09;g.add(hl); return g; },
+  claymore(){ const g=WEAPONS.sword(); g.scale.set(1.25,1.5,1.25); return g; },
+  katana(){ const g=new THREE.Group();
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(.075,1.6,.03),W_STEEL);bl.position.y=.92;bl.rotation.z=.09;bl.castShadow=true;g.add(bl);
+    const gd=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.045,6),W_DARK);gd.position.y=.1;g.add(gd);
+    const hl=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.34,5),W_DARK);hl.position.y=-.1;g.add(hl); return g; },
+  axe(){ const g=new THREE.Group();
+    const s=new THREE.Mesh(new THREE.CylinderGeometry(.05,.055,1.7,5),W_WOOD);s.position.y=.55;s.castShadow=true;g.add(s);
+    const hd=new THREE.Mesh(new THREE.BoxGeometry(.5,.44,.08),W_STEEL);hd.position.set(.22,1.28,0);hd.rotation.z=-.12;hd.castShadow=true;g.add(hd);
+    const bd=new THREE.Mesh(new THREE.ConeGeometry(.24,.34,3),W_STEEL);bd.rotation.z=-Math.PI/2;bd.position.set(.5,1.28,0);g.add(bd); return g; },
+  staff(){ const g=new THREE.Group();
+    const s=new THREE.Mesh(new THREE.CylinderGeometry(.05,.055,2.5,5),W_WOOD);s.position.y=.95;s.castShadow=true;g.add(s);
+    const k=new THREE.Mesh(new THREE.SphereGeometry(.13,6,5),W_WOOD);k.position.y=2.22;g.add(k); return g; },
+  cross(){ const g=WEAPONS.staff();
+    const bar=new THREE.Mesh(new THREE.BoxGeometry(.62,.1,.1),W_CLOTH);bar.position.y=1.94;g.add(bar);
+    const up=new THREE.Mesh(new THREE.BoxGeometry(.1,.62,.1),W_CLOTH);up.position.y=2.12;g.add(up); return g; },
+  crozier(){ const g=WEAPONS.staff();
+    const cu=new THREE.Mesh(new THREE.TorusGeometry(.24,.055,4,9,Math.PI*1.5),W_CLOTH);cu.position.y=2.28;cu.rotation.y=Math.PI/2;g.add(cu); return g; },
+  halberd(){ const g=WEAPONS.pike();
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(.42,.5,.05),W_STEEL);bl.position.set(.24,3.55,0);bl.castShadow=true;g.add(bl); return g; }
+};
+// which weapon, and how it is carried: [kind, x, y, z, tiltX, tiltZ]
+const ARMS={
+  spear:['pike',.34,.05,-.05,-0.16,0.10], hoplite:['pike',.34,.05,-.05,-0.16,0.10],
+  infantry:['musket',.30,.55,-.02,-0.55,0.22], grenadier:['musket',.30,.55,-.02,-0.55,0.22],
+  chukonu:['bow',-.34,1.0,.05,0,0], archer:['bow',-.34,1.0,.05,0,0],
+  hero:['sword',.36,.5,.02,-0.30,0.18], cuirassier:['sword',.36,.6,.02,-0.30,0.18],
+  knight:['sword',.36,.6,.02,-0.30,0.18], dragoon:['musket',.30,.7,-.02,-0.55,0.22],
+  wolfrider:['axe',.34,.5,0,-0.22,0.14], viking:['axe',.34,.25,0,-0.18,0.12],
+  samurai:['katana',.34,.4,0,-0.26,0.16], highlander:['claymore',.36,.35,0,-0.24,0.16],
+  privateer:['sabre',.34,.45,0,-0.26,0.16], monk:['staff',.34,.1,0,0,0.05],
+  priest:['cross',.34,.1,0,0,0.05], cardinal:['crozier',.34,.1,0,0,0.05],
+  doctor:['staff',.34,.1,0,0,0.05]
+};
+WEAPONS.sabre=()=>{ const g=WEAPONS.sword(); g.children[0].rotation.z=.14; return g; };
+// each kind is built once, merged to a single mesh (colours baked to vertices) and cloned from
+// then on — an armed army costs one extra draw per visible man, not four
+const _wCache={};
+function weaponMesh(kind){ if(_wCache[kind]!==undefined)return _wCache[kind];
+  const mk=WEAPONS[kind]; if(!mk)return _wCache[kind]=null;
+  let w=mk(); w.updateMatrixWorld(true);
+  const m=mergeStaticModel(w); m.traverse(o=>{if(o.isMesh)o.castShadow=true;});
+  return _wCache[kind]=m; }
+function armUnit(g,type){ const a=ARMS[type]; if(!a)return; const src=weaponMesh(a[0]); if(!src)return;
+  const w=src.clone(true); w.position.set(a[1],a[2],a[3]); w.rotation.x=a[4]; w.rotation.z=a[5];
+  g.add(w); g.userData.weapon=w; }
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // mounted cavalry: real animated horse with a rider seated on top
   const HORSE_OF={knight:'HorseW',dragoon:'HorseA',wolfrider:'HorseA',cuirassier:'HorseW'};
@@ -1570,10 +1637,15 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const sit=rsrc.clips.find(c=>/sit/i.test(c.name))||rsrc.clips.find(c=>/idle/i.test(c.name));
     if(sit){rmix.clipAction(sit).play();rmix.update(0.85);}   // frozen mid-sit — a posed rider, no per-frame cost
     g.add(rider);
+    armUnit(g,type); if(g.userData.weapon)g.userData.weapon.position.y+=saddleY+0.35;   // b148: a horseman carries his too
     g.userData.noBob=true;
     const hbc2=makeHealthBar();hbc2.position.y=3.4;g.add(hbc2);g.userData.hb=hbc2;
     return g; }
-  // professional animated model where one fits this unit type
+  // b148 MILITARY SILHOUETTES: the character packs ship their people UNARMED — a pikeman, a
+  // musketeer and a monk were the same shape from above, which is why an army read as a crowd.
+  // Every fighting type now carries its weapon, shouldered at a fixed angle in the unit's own
+  // space (not pinned to the hand bone) so it costs nothing per frame and always sits right.
+  if(type==='worker'){} // workers keep their bone-mounted tools, below
   let ckey=UNIT_CHAR[type]; if(type==='worker'&&CHAR_LIB&&CHAR_LIB.lib.WorkerM)ckey=Math.random()<0.5?'WorkerM':'WorkerF';
   if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
     const src=CHAR_LIB.lib[ckey];
@@ -1584,6 +1656,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const box=modelBox(ch),hgt=box.max.y-box.min.y||2;
     ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
+    armUnit(g,type);   // b148: and give the man something to fight with
     if(type==='worker'){ let hand=null; ch.traverse(o=>{if(o.isBone&&o.name==='FistR')hand=o;}); g.userData.hand=hand;   // tools ride the real hand bone
       const gun=new THREE.Group();   // hunting musket — shown only while on the hunt
       const stock=new THREE.Mesh(new THREE.BoxGeometry(.09,.11,.7),M.wood);stock.position.z=-.25;gun.add(stock);
