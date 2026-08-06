@@ -23,13 +23,15 @@
   #view{display:block;width:100%;height:100%;}
   #dragbox{position:absolute;border:1.5px solid #8fe6a8;background:rgba(120,220,150,.12);display:none;pointer-events:none;z-index:3;}
   #mini{position:absolute;right:10px;bottom:10px;border:1px solid #2c5164;background:#04101a;z-index:4;cursor:pointer;}
-  #botbar{display:flex;gap:12px;padding:8px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;min-height:104px;}
-  #selInfo{width:250px;font-size:13px;line-height:1.5;color:#9fc0d2;max-height:132px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
+  #demoBtn{position:absolute;right:10px;bottom:158px;z-index:5;width:64px;height:64px;font-size:34px;line-height:1;cursor:pointer;background:#17303f;border:2px solid #2c5164;color:#dff0f9;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.5);transition:transform .1s,border-color .12s;}
+  #demoBtn:hover{transform:scale(1.08);border-color:#7fc4e8;}
+  #botbar{display:flex;gap:12px;padding:6px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;min-height:72px;max-height:110px;align-items:flex-start;}
+  #selInfo{width:250px;font-size:12.5px;line-height:1.45;color:#9fc0d2;max-height:98px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
   #cmds{flex:1;display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;}
   .btn{min-width:94px;padding:7px 9px;background:#17303f;border:1px solid #2c5164;border-radius:8px;color:#dff0f9;font-size:12px;cursor:pointer;line-height:1.25;}
   .btn:hover{background:#1e435a;border-color:#4d86a3;} .btn small{display:block;color:#84acc0;font-size:10.5px;margin-top:2px;} .btn.disabled{opacity:.36;cursor:not-allowed;}
   .btn .ic{font-size:14px;margin-right:3px;}
-  #hint{width:210px;font-size:11.5px;color:#6f93a6;line-height:1.5;}
+  #hint{width:170px;font-size:10.5px;color:#54748a;line-height:1.4;max-height:96px;overflow:hidden;}
   #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,10,16,.9);text-align:center;z-index:10;padding:20px;}
   #overlay h1{font-size:48px;margin:0;color:#6fd0f0;letter-spacing:3px;text-shadow:0 3px 26px #061a26;}
   #overlay h1 span{color:#9fe6b0;} #overlay p{max-width:640px;font-size:15px;line-height:1.6;color:#b6d4e4;margin:0;}
@@ -55,13 +57,12 @@
     <button id="gmenuBtn" title="Game menu — sound, graphics, saves & more (pauses the game)" style="cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:4px 16px;font-size:13px;font-weight:600;">☰ Menu</button>
     <div class="spacer"></div>
     <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤⚒️ <span id="idleN">0</span> <span style="font-size:10px;color:#8fa7bc">workers</span></button>
-    <button id="demoBtn" title="Demolish tool — pick up the hammer, then click your buildings to tear them down (half the materials back). Right-click or Esc puts it away." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔨</button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
     <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b109</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b110</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -80,6 +81,7 @@
     <canvas id="view"></canvas>
     <script>document.getElementById('stage').appendChild(document.getElementById('atkArrow'));</script>
     <canvas id="mini" width="200" height="134"></canvas>
+    <button id="demoBtn" title="Demolish tool — pick up the hammer, then click your buildings to tear them down (half the materials back). Right-click or Esc puts it away.">🔨</button>
     <div id="forces" class="hidden" style="position:absolute;top:14px;right:14px;width:290px;max-height:70%;overflow:auto;background:rgba(8,20,30,.96);border:1px solid #2c5164;border-radius:10px;padding:12px 14px;z-index:9;font-size:13px;"></div>
     <div id="diplo" class="hidden" style="position:absolute;top:14px;right:14px;width:330px;background:rgba(8,20,30,.96);border:1px solid #2c5164;border-radius:10px;padding:12px 14px;z-index:9;font-size:13px;"></div>
     <div id="dragbox"></div>
@@ -353,7 +355,7 @@ const COST={
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},gate:{w:30,m:20},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},
-  statue:{m:30,g:20},garden:{w:25},
+  statue:{m:30,g:20},garden:{w:25},bridge:{w:35},
 };
 const FACTIONS={
   scottish:{name:'Scottish Black Watch',coat:0x2b303a,trim:0x5a6578,accent:0x8a95a5,emo:'🏴',bonus:'Tough infantry (+15% HP)'},
@@ -418,10 +420,11 @@ const BLD={
   castle:{w:4,h:4,hp:4800,name:'Castle',vis:14,fort:true}, wall:{w:1,h:1,hp:1800,name:'Wall',vis:4}, gate:{w:1,h:1,hp:2000,name:'Gate',vis:4},
   mill:{w:2,h:2,hp:1000,name:'Mill',vis:6}, watch:{w:2,h:2,hp:850,name:'Watch House',vis:10}, market:{w:2,h:2,hp:1500,name:'Market',vis:6},
   statue:{w:1,h:1,hp:400,name:'Statue',vis:3}, garden:{w:2,h:2,hp:300,name:'Garden',vis:3},
+  bridge:{w:1,h:1,hp:800,name:'Bridge',vis:3},
   dock:{w:3,h:2,hp:1500,name:'Dock',vis:8}, tower:{w:1,h:1,hp:1000,name:'Tower',vis:11},
 };
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
-const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80};
+const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14};
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
@@ -637,7 +640,14 @@ const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacks
   const lib={};
   await Promise.all(['red','blue','green','yellow'].map(async c=>{ lib[c]={};
     await Promise.all(models.map(async m=>{ const s=await load1('assets/med/'+c+'/building_'+m+'_'+c+'.gltf');
-      if(s){ _mergeTally.bldBefore+=_countParts(s,false); const ms=mergeStaticModel(s); _mergeTally.bldAfter+=_countParts(ms,false); lib[c][m]=ms; } })); }));
+      if(s){ let fan=null;
+        if(m==='windmill'){ s.updateMatrixWorld(true);
+          s.traverse(o=>{if(!fan&&/fan/i.test(o.name||''))fan=o;});
+          if(fan){ const wm=fan.matrixWorld.clone(); fan.parent.remove(fan);
+            fan.matrix.copy(wm); fan.matrix.decompose(fan.position,fan.quaternion,fan.scale); } }
+        _mergeTally.bldBefore+=_countParts(s,false); const ms=mergeStaticModel(s); _mergeTally.bldAfter+=_countParts(ms,false);
+        if(fan){ fan.name='millFan'; ms.add(fan); }   // the sails stay a separate node so they can turn
+        lib[c][m]=ms; } })); }));
   console.log('b92 mesh-merge (buildings): '+_mergeTally.bldBefore+' parts -> '+_mergeTally.bldAfter);
   if(Object.keys(lib.red||{}).length){BLD_LIB=lib;
     // upgrade any buildings that went up before the pro models finished loading
@@ -720,7 +730,7 @@ function genMap(){
   woodNodes=[];metalNodes=[];goldNodes=[];
   const CUSTOM=CUST;
   if(CUSTOM){
-    for(const i of CUSTOM.f||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}
+    for(const i of CUSTOM.f||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)woodNodes.push({tx:x,ty:y,amount:220,type:'wood'});}
     for(const i of CUSTOM.m||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)metalNodes.push({tx:x,ty:y,amount:1200,type:'metal'});}
     for(const i of CUSTOM.g||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)goldNodes.push({tx:x,ty:y,amount:800,type:'gold'});}
   } else
@@ -751,7 +761,7 @@ const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','
 function depositCluster(arr,cx,cy,type,amt,n){ arr.push({tx:cx,ty:cy,amount:amt,type});
   for(let i=1;i<n;i++){ const x=cx+Math.round((hashN(cx+i*3,cy*2+i)-.5)*3.4),y=cy+Math.round((hashN(cx*2+i,cy+i*5)-.5)*3.4);
     if(inB(x,y)&&elev[ti(x,y)]>=1.7&&!arr.some(q=>q.tx===x&&q.ty===y))arr.push({tx:x,ty:y,amount:amt,type}); } }
-function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=6+CL*3;for(let i=0;i<Math.round((11+Math.floor(hashN(cx,cy)*7))*CL);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}}
+function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=6+CL*3;for(let i=0;i<Math.round((11+Math.floor(hashN(cx,cy)*7))*CL);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:220,type:'wood'});}}
 function plateau(cx,cy,val,rad){for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(!inB(x,y))continue;const d=Math.hypot(dx,dy);if(d>rad+.5)continue;elev[ti(x,y)]=Math.max(elev[ti(x,y)],val-(d/(rad+1))*0.5);}}
 function minFootElev(tx,ty,w,h){let m=9;for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++)if(inB(x,y))m=Math.min(m,elev[ti(x,y)]);return m;}
 function heightAtWorld(x,z){ if(!hc)return 0; const gx=(x+HALF_W)/TILE,gz=(z+HALF_H)/TILE;
@@ -965,6 +975,20 @@ const _tm4a=new THREE.Matrix4(),_tm4b=new THREE.Matrix4(),_tvA=new THREE.Vector3
 function setTreeK(n,k){ if(!n.tim)return; _tq2.setFromEuler(_te.set(0,n.ry,n.rz));
   _tm4a.compose(_tvA.set(n.px,n.py,n.pz),_tq2,_tvB.setScalar(n.ts*Math.max(k,0.0001)));
   for(const pt of n.tim){_tm4b.multiplyMatrices(_tm4a,pt.l);pt.im.setMatrixAt(pt.i,_tm4b);pt.im.instanceMatrix.needsUpdate=true;} }
+// b110: TIMBER! — felled trees topple about their base, crash, then fade into the ground
+let fallingTrees=[];
+function fellTree(n){ if(!n.tim||n._falling)return; n._falling=true;
+  fallingTrees.push({n,t:0,ry:Math.random()*Math.PI*2,boom:false}); }
+function updateFallingTrees(dt){ if(!fallingTrees.length)return;
+  for(const f of fallingTrees){ f.t+=dt; const n=f.n;
+    const tilt=Math.min(1.5,2.4*f.t*f.t);   // accelerating topple
+    if(!f.boom&&tilt>=1.5){ f.boom=true; SFX.hit();
+      for(let i=0;i<5;i++)spawnPart(n.px+Math.sin(f.ry)*3,n.py+0.5,n.pz+Math.cos(f.ry)*3,'chip'); }
+    const k=f.t>1.6?Math.max(0.0001,1-(f.t-1.6)*1.2):1;   // then the fallen trunk melts away
+    _tq2.setFromEuler(_te.set(tilt,f.ry,n.rz,'YXZ'));
+    _tm4a.compose(_tvA.set(n.px,n.py,n.pz),_tq2,_tvB.setScalar(n.ts*k));
+    for(const pt of n.tim){_tm4b.multiplyMatrices(_tm4a,pt.l);pt.im.setMatrixAt(pt.i,_tm4b);pt.im.instanceMatrix.needsUpdate=true;} }
+  fallingTrees=fallingTrees.filter(f=>{ if(f.t>=2.5){setTreeK(f.n,0);return false;} return true; }); }
 function buildTreesInstanced(){
   const L=LEAF_MATS.length,P=PINE_MATS.length,plans=[],counts={};
   const lm=(x,y,z,ex,ey,ez,sx,sy,sz)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(ex,ey,ez)),new THREE.Vector3(sx,sy,sz));
@@ -1394,6 +1418,7 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
     const s=(Math.min(wpx,hpx)*1.3)/Math.max(fw,fd,0.001);
     m.scale.setScalar(s);m.position.y=-box.min.y*s;
     m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+    if(type==='mill')m.traverse(o=>{if(o.name==='millFan')g.userData.blades=o;});
     g.add(m);
     const lan=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),LANTERN_MAT);lan.position.set(wpx*.34,2.1,hpx*.40);g.add(lan);
     const hbm=makeHealthBar();hbm.scale.setScalar(2.6);hbm.position.y=(box.max.y-box.min.y)*s+2;g.add(hbm);g.userData.hb=hbm;
@@ -1422,6 +1447,10 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
     const bandB=bandT.clone();bandB.position.y=.8;
     g.add(postL,postR,arch,crL,crR,door,bandT,bandB);
     const hbgt=makeHealthBar();hbgt.scale.setScalar(1.2);hbgt.position.y=5.6;g.add(hbgt);g.userData.hb=hbgt;return g;}
+  if(type==='bridge'){ const deck=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.04,.32,hpx*1.04),M.wood);deck.position.y=.16;deck.castShadow=true;deck.receiveShadow=true;g.add(deck);
+    for(const sx of[-1,1]){const rail=new THREE.Mesh(new THREE.BoxGeometry(.13,.42,hpx*1.02),M.trunk);rail.position.set(sx*wpx*.46,.5,0);rail.castShadow=true;g.add(rail);}
+    for(const sz of[-1,1])for(const sx of[-1,1]){const post=new THREE.Mesh(new THREE.CylinderGeometry(.11,.14,1.6,6),M.trunk);post.position.set(sx*wpx*.44,-.55,sz*hpx*.42);g.add(post);}
+    return g;}
   if(type==='statue'){const ped=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.1,2.2),M.stone);ped.position.y=.55;ped.castShadow=true;g.add(ped);
     const ped2=new THREE.Mesh(new THREE.BoxGeometry(1.5,.7,1.5),M.stoneD);ped2.position.y=1.45;g.add(ped2);
     const body=new THREE.Mesh(new THREE.CapsuleGeometry(.5,1.1,3,8),M.gold);body.position.y=2.9;body.castShadow=true;g.add(body);
@@ -1472,15 +1501,17 @@ function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owne
   if(u.coat&&fac==='scottish')hp*=1.15;if(type==='knight'&&fac==='french')hp*=1.2;hp=Math.round(hp);
   const e={id:idc++,type,owner,x:wx(tx),z:wz(ty),hp,maxHp:hp,cmd:'idle',path:null,pi:0,target:null,gather:null,carry:0,carryType:null,build:null,cd:0,dir:owner==='player'?0:Math.PI,disp:owner==='player'?0:Math.PI,atk:0,walk:0,stance:'aggr'};
   e.mesh=makeUnitMesh(type,owner);scene.add(e.mesh);placeMesh(e);ents.push(e);return e;}
-function placeMesh(e){e.mesh.position.set(e.x,heightAtWorld(e.x,e.z),e.z);}
+function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
+  if(bridgeTiles.size&&y<waterY){const bi=ti(txFromW(e.x),tzFromW(e.z));if(bridgeTiles.has(bi))y=waterY+0.42;}   // march the planks, not the seabed
+  e.mesh.position.set(e.x,y,e.z);}
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   bl.mesh=makeBldMesh(type,owner);const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
-  bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(!done)bl.mesh.scale.y=0.05;scene.add(bl.mesh);blds.push(bl);
+  bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(type==='bridge')bl.mesh.position.y=waterY+0.1;if(!done)bl.mesh.scale.y=0.05;scene.add(bl.mesh);blds.push(bl);
   // dirt yards stamp lazily in updateBuilding, once the ground is explored (no fog leaks)
   if(!done){attachBuildUI(bl);if(type!=='wall')attachScaffold(bl);}
   for(let y=ty;y<ty+b.h;y++)for(let x=tx;x<tx+b.w;x++)if(inB(x,y))buildGrid[ti(x,y)]=bl.id;if(type==='gate')gateOwner.set(bl.id,owner);
-  orientWallAround(tx,ty);return bl;}
+  orientWallAround(tx,ty);if(type==='bridge'&&done)rebuildBridges();return bl;}
 function isWallish(x,y){ if(!inB(x,y))return false; const id=buildGrid[ti(x,y)]; if(!id)return false;
   const b=blds.find(q=>q.id===id); return !!b&&(b.type==='wall'||b.type==='gate'||b.type==='tower'); }
 function orientWall(b){ if(!b||!b.mesh||!b.mesh.userData.orient)return;
@@ -1535,7 +1566,7 @@ function updateBuildUI(bl,dt){ const ui=bl.buildUI; if(!ui)return;
 function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; removeBuildUI(bl); const nm=makeBldMesh(bl.type,bl.owner);
     nm.position.copy(old.position); nm.scale.y=bl.done?1:(0.05+0.95*bl.progress);
     scene.remove(old); bl.mesh=nm; scene.add(nm); if(!bl.done)attachBuildUI(bl); } visT=0; }
-function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;}for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);}
+function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;}for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
 
 // ==================================================== POP / TECH
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=(b.up?12:8);else if(b.type==='castle')c+=12;}
@@ -1558,9 +1589,13 @@ function addRankPips(e){ const old=e.mesh.userData.pips; if(old)e.mesh.remove(ol
 
 // ==================================================== PATHFINDING
 const gateOwner=new Map();
-function passable(tx,ty,goalId,dom,own){if(!inB(tx,ty))return false;const fl=isFlooded(tx,ty);if(dom==='water'){if(!fl)return false;}else if(fl)return false;
-  if(dom!=='water'&&treeGrid&&treeGrid[ti(tx,ty)]===1)return false;   // standing forest blocks the way — chop a gap through
-  const b=buildGrid[ti(tx,ty)];return b===0||b===goalId||(own!==undefined&&gateOwner.get(b)===own);}
+let bridgeIds=new Set(),bridgeTiles=new Set();
+function rebuildBridges(){ bridgeIds=new Set(); bridgeTiles=new Set();
+  for(const b of blds)if(b.type==='bridge'&&b.done){bridgeIds.add(b.id);bridgeTiles.add(ti(b.tx,b.ty));} }
+function passable(tx,ty,goalId,dom,own){if(!inB(tx,ty))return false;const i=ti(tx,ty);const fl=isFlooded(tx,ty);const br=bridgeTiles.has(i);
+  if(dom==='water'){if(!fl||br)return false;}else if(fl&&!br)return false;   // bridges carry land troops over the water
+  if(dom!=='water'&&treeGrid&&treeGrid[i]===1)return false;   // standing forest blocks the way — chop a gap through
+  const b=buildGrid[i];return b===0||b===goalId||bridgeIds.has(b)||(own!==undefined&&gateOwner.get(b)===own);}
 let treeGrid=null;
 function rebuildTreeGrid(){ treeGrid=new Uint8Array(MAP_W*MAP_H); for(const n of woodNodes)if(n.amount>0&&inB(n.tx,n.ty))treeGrid[ti(n.tx,n.ty)]=1; }
 let astarBudget=24,astarBudgetAI=24;
@@ -1836,10 +1871,10 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(e.carry>=CARRY-0.01){e.cmd='return';e.path=null;break;}   // arms full — walk it home (AoE2 economy)
       if(!n||n.amount<=0){if(e.carry>0.5){e.cmd='return';e.path=null;break;}const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<5.8){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);e.carryType=n.type;   // 5.8 = works from the forest-edge tile now trees block entry
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.4+(e.id%5)*0.12;playOnce(e,'attackA');}   // b93: visible chopping/mining swings
-      const rate=(n.type==='wood'?2.0:n.type==='metal'?1.7:n.type==='gold'?1.4*(faction[e.owner]==='chinese'?1.25:1):2.6);
+      const rate=(n.type==='wood'?2.6:n.type==='metal'?1.7:n.type==='gold'?1.4*(faction[e.owner]==='chinese'?1.25:1):2.6);
       const take=Math.min(rate*(e.gBoost||1)*dt,n.amount,CARRY-e.carry);n.amount-=take;e.carry+=take;
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.15+0.85*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
-      else if(n.tim){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)setTreeK(n,0);if(n.type==='wood'&&treeGrid)treeGrid[ti(n.tx,n.ty)]=0;}if(n.amount<=0){const n2=nearestNode(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived){
+      else if(n.tim){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)fellTree(n);if(n.type==='wood'&&treeGrid)treeGrid[ti(n.tx,n.ty)]=0;}if(n.amount<=0){const n2=nearestNode(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived){
       const attempted=!e.pfCool||elapsed>=e.pfCool;   // only count REAL pathfind attempts, not cooldown skips
       if(!orderPath(e,n.tx,n.ty,0)&&attempted){ e.pfFail=(e.pfFail||0)+1;
         if(e.pfFail>=3){ e.pfFail=0; e.gather=null; e.cmd='idle'; e.noWork=elapsed+9;   // can't get there — stand down so the 💤 button finds him
@@ -1848,7 +1883,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
     case 'gar':{const b=e.garB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.garB=null;break;}
       const dg=Math.hypot(e.x-b.cx,e.z-b.cz);
       if(dg<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){ b.gar=b.gar||[];
@@ -2141,6 +2176,7 @@ function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b
 // ==================================================== PLACEMENT
 function canPlace(tx,ty,w,h){for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++){if(!inB(x,y))return false;if(buildGrid[ti(x,y)]!==0)return false;if(isFlooded(x,y))return false;}return true;}
 function canPlaceDock(tx,ty,w,h){if(!canPlace(tx,ty,w,h))return false;for(let y=ty-1;y<=ty+h;y++)for(let x=tx-1;x<=tx+w;x++)if(inB(x,y)&&isFlooded(x,y))return true;return false;}
+function canPlaceBridge(tx,ty,w,h){for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++){if(!inB(x,y))return false;if(buildGrid[ti(x,y)]!==0)return false;if(!isFlooded(x,y))return false;}return true;}
 let ghost=null,ghostLine=null,wallDrag=null;
 function wallLineTiles(a,b){const t=[];let x0=a.tx,y0=a.ty;const x1=b.tx,y1=b.ty,dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let err=dx-dy;
   while(t.length<90){t.push([x0,y0]);if(x0===x1&&y0===y1)break;const e2=2*err;if(e2>-dy){err-=dy;x0+=sx;}if(e2<dx){err+=dx;y0+=sy;}}return t;}
@@ -2177,7 +2213,7 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
   if((type==='gate'||type==='tower')&&inB(tx,ty)){ const wid=buildGrid[ti(tx,ty)];
     const wb=blds.find(x=>x.id===wid&&x.type==='wall'&&x.owner==='player'&&x.done);
     if(wb){removeBuilding(wb);} }
-  const ok=type==='dock'?canPlaceDock(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h);if(!ok){flashMsg(type==='dock'?'Docks must touch water':'Can\'t build there');return;}
+  const ok=type==='dock'?canPlaceDock(tx,ty,b.w,b.h):type==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h);if(!ok){flashMsg(type==='dock'?'Docks must touch water':type==='bridge'?'Bridges must stand ON water — lay them tile by tile across':'Can\'t build there');return;}
   res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.f-=(c.f||0);res.player.g-=(c.g||0);const nb=addBuilding(type,tx,ty,'player',false);let crew=selUnits().filter(e=>e.type==='worker');
   if(!crew.length){ crew=ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd!=='build')
       .sort((a,b2)=>Math.hypot(a.x-nb.cx,a.z-nb.cz)-Math.hypot(b2.x-nb.cx,b2.z-nb.cz)).slice(0,2);
@@ -2337,7 +2373,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
       else{const pans=['forces','diplo','slots'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
       if(pans.length)pans.forEach(el=>el.classList.add('hidden'));
       else if(selected.length||selBuilding){selected=[];selBuilding=null;refreshUI();}
-      else if(running&&!gameOver)togglePause();}}}
+      else if(running&&!gameOver)openGameMenu();}}}   // Esc with nothing to cancel = pause + game menu, like any standard game
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
   if(k==='p')togglePause();
@@ -2375,9 +2411,11 @@ document.getElementById('idleBtn').onclick=()=>{if(running)selectIdle();};
 let _gmPaused=false;
 function closeGameMenu(){ const gm=document.getElementById('gameMenu'); if(!gm||gm.classList.contains('hidden'))return;
   gm.classList.add('hidden'); if(_gmPaused){_gmPaused=false; if(paused)togglePause();} }
-document.getElementById('gmenuBtn').onclick=()=>{ if(!running||gameOver)return; const gm=document.getElementById('gameMenu');
-  if(!gm.classList.contains('hidden')){closeGameMenu();return;}
-  if(!paused){togglePause();_gmPaused=true;} gm.classList.remove('hidden'); };
+function openGameMenu(){ if(!running||gameOver)return; const gm=document.getElementById('gameMenu');
+  if(!gm.classList.contains('hidden'))return;
+  if(!paused){togglePause();_gmPaused=true;} gm.classList.remove('hidden'); }
+document.getElementById('gmenuBtn').onclick=()=>{ const gm=document.getElementById('gameMenu');
+  if(gm&&!gm.classList.contains('hidden'))closeGameMenu(); else openGameMenu(); };
 document.getElementById('gmResume').onclick=closeGameMenu;
 // ---- demolish hammer: a roaming tool instead of a per-building button ----
 const hammerCur=(()=>{try{const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d');x.font='26px serif';x.textBaseline='top';x.fillText('🔨',2,2);return 'url('+c.toDataURL()+') 5 24, crosshair';}catch(e){return 'crosshair';}})();
@@ -2398,7 +2436,8 @@ const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier
 const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock']);
 function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Idle — click a unit button to train</span>';
   const q0=b.queue[0]; let s='⚒ <b>Training '+(UNIT_IC[q0.type]||'')+' '+UNIT[q0.type].name+'</b> — '+Math.max(1,Math.ceil(q0.t))+'s';
-  if(b.queue.length>1)s+=' <span style="color:#9fc0d2">· then '+b.queue.slice(1).map(q=>UNIT_IC[q.type]||UNIT[q.type].name).join(' ')+'</span>';
+  if(b.queue.length>1){const rest=b.queue.slice(1,7).map(q=>UNIT_IC[q.type]||UNIT[q.type].name).join(' ');
+    s+=' <span style="color:#9fc0d2">· then '+rest+(b.queue.length>7?' <b>+'+(b.queue.length-7)+' more</b>':'')+'</span>';}
   return s; }
 function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';const can=c=>res.player.w>=(c.w||0)&&res.player.m>=(c.m||0)&&res.player.f>=(c.f||0)&&res.player.g>=(c.g||0);
   if(placing){info.innerHTML=`<b>Placing ${BLD[placing].name}</b><br>Left-click to build. Hold Shift or Ctrl = place several. Esc cancels.`;return;}
@@ -2463,7 +2502,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       const CATS={
         town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['storehouse','📦','Storehouse'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
         mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
-        def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House']]}};
+        def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House'],['bridge','🌉','Bridge']]}};
       const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
       if(buildCat&&CATS[buildCat]){
         catBtn('◀','Back',()=>{buildCat=null;refreshUI();},true);
@@ -2638,7 +2677,7 @@ function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HA
 function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   for(const n of meatNodes)if(n.mesh)scene.remove(n.mesh); meatNodes=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};if(demoMode)setDemo(false);updateGhost();
-  for(const r of rubblePiles)scene.remove(r.g); rubblePiles=[];
+  for(const r of rubblePiles)scene.remove(r.g); rubblePiles=[]; fallingTrees=[];
   initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
@@ -2700,7 +2739,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6*gameSpeed){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
-  updateGhost();updateRings();updateUnitLOD();updateMoveMarks(frame);updateRubble(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateUnitLOD();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   { const aa=document.getElementById('atkArrow');
     if(running&&!gameOver&&atkPing.t<6){ _aaV.set(atkPing.x,heightAtWorld(atkPing.x,atkPing.z),atkPing.z).project(camera);
       const sx=(_aaV.x+1)/2*vw, sy=(-_aaV.y+1)/2*vh;
