@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b130</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b131</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1136,6 +1136,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     v3.set(x+.35,y+1.9,z); q0.setFromEuler(eul.set(0,hashN(i,281)*3,1.05)); m4.compose(v3,q0,s3);
     deadBr.setMatrixAt(di2,m4); di2++; }
   dead.count=di2; deadBr.count=di2; ambientGroup.add(dead); ambientGroup.add(deadBr);
+  buildLeaves();
   if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
   const bm=new THREE.MeshBasicMaterial({color:0x2a2f36,side:THREE.DoubleSide});
   for(let f=0;f<Math.min(8,Math.round(3*areaScale()));f++){ const cx=(hashN(f,31)-0.5)*WORLD_W*.6, cz=(hashN(37,f)-0.5)*WORLD_H*.6;
@@ -1230,7 +1231,29 @@ function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGr
 function tickClutter(dt){ _clutT-=dt; if(_clutT>0)return; _clutT=2;
   const sig=blds.reduce((s,b)=>b.done?s+b.id:s,0)+':'+blds.length;
   if(sig!==_clutSig){ _clutSig=sig; refreshClutter(); } }
-function updateAmbient(dt,now){ tickClutter(dt);
+// b131: leaves ride the wind out of the treetops, tumble, and settle
+let leafMesh=null,leaves=[];
+const _lm4=new THREE.Matrix4(),_lq=new THREE.Quaternion(),_le=new THREE.Euler(),_lv=new THREE.Vector3(),_ls=new THREE.Vector3(1,1,1);
+function newLeaf(i){ const n=woodNodes.length?woodNodes[(i*37+((Math.random()*woodNodes.length)|0))%woodNodes.length]:null;
+  const x=n?wx(n.tx)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_W, z=n?wz(n.ty)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_H;
+  return {x,y:heightAtWorld(x,z)+3+Math.random()*3.5,z,t:0,life:5+Math.random()*6,ph:Math.random()*6,sp:1.4+Math.random()*1.4}; }
+function buildLeaves(){ if(leafMesh){scene.remove(leafMesh);leafMesh=null;} leaves=[];
+  const N=Math.min(120,Math.round(60*areaScale()));
+  if(!N)return;
+  leafMesh=new THREE.InstancedMesh(new THREE.PlaneGeometry(.24,.17),new THREE.MeshBasicMaterial({side:THREE.DoubleSide,transparent:true,opacity:.85}),N);
+  const lc=new THREE.Color();
+  for(let i=0;i<N;i++){ leaves.push(newLeaf(i)); lc.setHSL(0.19+hashN(i,301)*0.13,0.6,0.34+hashN(303,i)*0.16); leafMesh.setColorAt(i,lc); }
+  leafMesh.count=N; leafMesh.frustumCulled=false; scene.add(leafMesh); }
+function updateLeaves(dt,now){ if(!leafMesh)return;
+  for(let i=0;i<leaves.length;i++){ const L=leaves[i]; L.t+=dt;
+    if(L.t>=L.life){ leaves[i]=newLeaf(i); continue; }
+    L.x+=L.sp*dt; L.z+=L.sp*0.4*dt; L.y-=0.35*dt; L.y+=Math.sin(now*3+L.ph)*0.012;
+    const gy=heightAtWorld(L.x,L.z); if(L.y<gy+0.1)L.y=gy+0.1;
+    _lq.setFromEuler(_le.set(Math.sin(now*4+L.ph)*0.9,now*1.3+L.ph,Math.cos(now*3.4+L.ph)*0.7));
+    _lm4.compose(_lv.set(L.x,L.y,L.z),_lq,_ls);
+    leafMesh.setMatrixAt(i,_lm4); }
+  leafMesh.instanceMatrix.needsUpdate=true; }
+function updateAmbient(dt,now){ tickClutter(dt); updateLeaves(dt,now);
   for(const b of bflies){ b.a+=dt*b.sp;
     const px=b.cx+Math.cos(b.a)*b.r, pz=b.cz+Math.sin(b.a)*b.r;
     b.g.position.set(px,heightAtWorld(px,pz)+b.h+Math.sin(b.a*2.7)*.5,pz);
