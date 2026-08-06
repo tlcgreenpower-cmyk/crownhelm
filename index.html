@@ -61,7 +61,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b105</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b106</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -133,7 +133,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;padding-bottom:26px;border-bottom:1px solid #33291a;">
           <div><div class="aorKick">Controls</div><ul class="aorList">
             <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
-            <li><b>WASD / arrows / edges</b> pan · <b>Q / E</b> rotate · <b>wheel</b> zoom · <b>Alt+drag</b> free look</li>
+            <li><b>WASD / arrows / edges</b> pan · <b>wheel</b> zoom · <b>hold wheel &amp; drag</b> look around · <b>Shift+wheel-drag</b> pan · <b>Q / E</b> rotate</li>
             <li><b>F</b> attack-move · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
             <li>Double-click a unit = select all of its kind on screen</li>
           </ul></div>
@@ -1216,7 +1216,8 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
     ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
-    if(type==='worker'){ const gun=new THREE.Group();   // hunting musket — shown only while on the hunt
+    if(type==='worker'){ let hand=null; ch.traverse(o=>{if(o.isBone&&o.name==='FistR')hand=o;}); g.userData.hand=hand;   // tools ride the real hand bone
+      const gun=new THREE.Group();   // hunting musket — shown only while on the hunt
       const stock=new THREE.Mesh(new THREE.BoxGeometry(.09,.11,.7),M.wood);stock.position.z=-.25;gun.add(stock);
       const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.95,6),ironGrey);barrel.rotation.x=Math.PI/2;barrel.position.z=.3;gun.add(barrel);
       gun.position.set(.34,1.28,.18);gun.rotation.y=-.15;gun.visible=false;g.add(gun);g.userData.gun=gun;
@@ -1733,6 +1734,7 @@ function separateUnits(){ const cell=3, grid=new Map();
         if(d>1e-4&&d<rr){ const push=(rr-d)*0.4, nx=ddx/d, nz=ddz/d;
           e.x-=nx*push;e.z-=nz*push;o.x+=nx*push;o.z+=nz*push; }
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
+const _toolV=new THREE.Vector3();
 function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
   { const ud=e.mesh.userData;
     if(ud.gun){ const gt=(e.cmd==='gather'&&e.gather)?e.gather.type:null;
@@ -1747,7 +1749,9 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
         if(mvg||e.workT===undefined)tl.rotation.x=0;
         else{ const ph=1-Math.max(0,Math.min(1,(e.workT||0)/1.4));
           tl.rotation.x=ph<0.6?-1.15*(ph/0.6):-1.15+2.1*((ph-0.6)/0.4); } }   // wind up slow, strike fast
-      if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2; } }   // musket recoil kick on each shot
+      if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2;
+      const held=tl||(wantG?ud.gun:null);
+      if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } }   // pin the tool to the swinging fist
   if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;}}}
@@ -2245,7 +2249,10 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
       aimArrow.setDirection(new THREE.Vector3(dx/d,0,dz/d));
       aimArrow.setLength(Math.max(5,d),3.2,2.0);
       updateSlotMarks(Math.atan2(dz,dx)); } }});
-canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.altKey&&(ev.button===0||ev.button===1)){ev.preventDefault();orbitDrag={sx:p.x,sy:p.y,yaw:camYaw,pitch:camPitch};canvas.style.cursor='move';return;}if(ev.button===1){ev.preventDefault();panDrag={sx:p.x,sy:p.y,cx:camTarget.x,cz:camTarget.z};canvas.style.cursor='grabbing';return;}if(ev.button===0){if(demoMode){const b=pickBuilding(p.x,p.y);
+canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.altKey&&(ev.button===0||ev.button===1)){ev.preventDefault();orbitDrag={sx:p.x,sy:p.y,yaw:camYaw,pitch:camPitch};canvas.style.cursor='move';return;}if(ev.button===1){ev.preventDefault();
+    if(ev.shiftKey){panDrag={sx:p.x,sy:p.y,cx:camTarget.x,cz:camTarget.z};canvas.style.cursor='grabbing';}
+    else{orbitDrag={sx:p.x,sy:p.y,yaw:camYaw,pitch:camPitch};canvas.style.cursor='move';}   // hold the wheel & drag = look around
+    return;}if(ev.button===0){if(demoMode){const b=pickBuilding(p.x,p.y);
     if(b){const cc=COST[b.type]||{};res.player.w+=Math.floor((cc.w||0)*0.5);res.player.m+=Math.floor((cc.m||0)*0.5);
       if(selBuilding===b.id)selBuilding=null;destroyBuilding(b);flashMsg('🔨 '+BLD[b.type].name+' torn down — half the materials recovered');refreshUI();}
     return;}if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
