@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b154</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b155</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2126,6 +2126,10 @@ function popFree(o){return popCap(o)-popUsed(o)-popQueued(o);}
 function countType(o,t){return ents.filter(e=>e.owner===o&&e.type===t).length;}
 function countBld(o,t){return blds.filter(b=>b.owner===o&&b.type===t).length;}
 function hasBld(o,t){return blds.some(b=>b.owner===o&&b.type===t&&b.done);}
+// b155: how many of a kind a realm has ORDERED but not yet finished. The AI judged itself on
+// what was FINISHED, so a foundation it had already laid was invisible to the next decision and
+// it kept laying more — hundreds of them, once a realm was rich.
+function pendingBld(o,t){let n=0;for(const b of blds)if(b.owner===o&&b.type===t&&!b.done)n++;return n;}
 function effDmg(e){let d=UNIT[e.type].dmg*(1+tech[e.owner].weapon*0.15);if(UNIT[e.type].coat&&UNIT[e.type].ranged&&faction[e.owner]==='english')d*=1.15;return d*(1+0.1*(e.rank||0));}
 // ---- veterancy: soldiers earn stripes in battle — harder-hitting, tougher, gold pips overhead ----
 const RANK_XP=[60,180,400];
@@ -3000,21 +3004,26 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
   const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o)+popQueued(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);   // b143: count the men already ordered
   if(workers<8&&used+1<=cap&&r.f>=50&&hall.queue.length===0){r.f-=50;hall.queue.push({type:'worker',t:6});return;}
-  if(used>=cap-3&&cap<dif().cap&&r.w>=40){if(placeAI(o,'house'))return;}
+  // b155: a realm no longer starts another of a kind while one of that kind is still a hole in
+  // the ground. Houses may have two on the go at once, being the engine of the town; everything
+  // else waits. Without this a rich realm laid foundations forever, because a decision that reads
+  // only FINISHED buildings can never see what it has already ordered.
+  const pend=t=>pendingBld(o,t), barrAll=countBld(o,'barracks');
+  if(used>=cap-3&&cap<dif().cap&&r.w>=40&&pend('house')<2){if(placeAI(o,'house'))return;}
   if(countBld(o,'farm')<1&&r.w>=55){if(placeAI(o,'farm'))return;}
   if(countBld(o,'storehouse')<1&&r.w>=45){if(placeAI(o,'storehouse'))return;}
-  if(barr.length<1&&r.w>=110){if(placeAI(o,'barracks'))return;}
-  if(barr.length===1&&countType(o,'worker')>=6&&r.w>=160){if(placeAI(o,'barracks'))return;}
-  if(!hasBld(o,'gunshop')&&r.w>=120&&r.m>=40){if(placeAI(o,'gunshop'))return;}
-  if(!hasBld(o,'church')&&r.w>=100&&Math.random()<.5){if(placeAI(o,'church'))return;}
+  if(barrAll<1&&r.w>=110){if(placeAI(o,'barracks'))return;}
+  if(barrAll===1&&!pend('barracks')&&countType(o,'worker')>=6&&r.w>=160){if(placeAI(o,'barracks'))return;}
+  if(!hasBld(o,'gunshop')&&!pend('gunshop')&&r.w>=120&&r.m>=40){if(placeAI(o,'gunshop'))return;}
+  if(!hasBld(o,'church')&&!pend('church')&&r.w>=100&&Math.random()<.5){if(placeAI(o,'church'))return;}
   if(countBld(o,'farm')<5&&r.w>=55){if(placeAI(o,'farm'))return;}
   if(countBld(o,'mill')<2&&r.w>=60){if(placeAI(o,'mill'))return;}
   if(T.age>=2&&countBld(o,'bakery')<1&&hasBld(o,'mill')&&r.w>=80&&r.m>=20){if(placeAI(o,'bakery'))return;}
-  if(!hasBld(o,'armourer')&&barr.length&&r.w>=120&&r.m>=60){if(placeAI(o,'armourer'))return;}
+  if(!hasBld(o,'armourer')&&!pend('armourer')&&barr.length&&r.w>=120&&r.m>=60){if(placeAI(o,'armourer'))return;}
   if(countBld(o,'watch')<1&&r.w>=50&&r.m>=20&&barr.length){if(placeAI(o,'watch'))return;}
   if(T.age===1&&T.ageTimer<=0&&barr.length&&r.f>=AGE2.f&&r.w>=AGE2.w){r.f-=AGE2.f;r.w-=AGE2.w;T.ageTimer=AGE2.time;T.ageTo=2;return;}
   if(T.age===2&&T.ageTimer<=0&&hasBld(o,'castle')&&r.f>=AGE3.f&&r.w>=AGE3.w&&r.m>=AGE3.m){r.f-=AGE3.f;r.w-=AGE3.w;r.m-=AGE3.m;T.ageTimer=AGE3.time;T.ageTo=3;return;}
-  if(T.age===2){if(countBld(o,'castle')<1&&r.w>=220&&r.m>=150){if(placeAI(o,'castle'))return;}if(countBld(o,'siege')<1&&r.w>=130&&r.m>=60){if(placeAI(o,'siege'))return;}if(barr.length<2&&r.w>=110){if(placeAI(o,'barracks'))return;}}
+  if(T.age===2){if(countBld(o,'castle')<1&&r.w>=220&&r.m>=150){if(placeAI(o,'castle'))return;}if(countBld(o,'siege')<1&&r.w>=130&&r.m>=60){if(placeAI(o,'siege'))return;}if(barrAll<2&&r.w>=110){if(placeAI(o,'barracks'))return;}}
   if(countBld(o,'tower')<(T.age>=2?3:2)&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
   if(T.age>=2)for(const tb of blds)if(tb.owner===o&&tb.type==='tower'&&tb.done&&!tb.up&&r.w>=80&&r.m>=60&&Math.random()<.25){r.w-=80;r.m-=60;tb.up=true;break;}
   if(barr.length&&!T.rsch)for(const rk of ['weapon','armor']){ const D=RSCH[rk],tier=T[rk]||0;
