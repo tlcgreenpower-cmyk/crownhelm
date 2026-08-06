@@ -12,7 +12,10 @@
   .res{display:flex;align-items:center;gap:6px;font-weight:600;min-width:100px;} .dot{width:12px;height:12px;border-radius:3px;}
   .res span{font-variant-numeric:tabular-nums;}
   .spacer{flex:1;} #age{color:#e0c878;font-weight:700;letter-spacing:.4px;}
-  #muteBtn{cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;}
+  #gameMenu{position:absolute;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;background:rgba(4,10,16,.55);}
+  #gameMenu.hidden{display:none;}
+  .gmb{cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:8px;padding:12px 14px;font-size:16px;text-align:left;transition:background .12s;}
+  .gmb:hover{background:#1c4d6d;}
   #tideWrap{display:flex;align-items:center;gap:8px;font-size:13px;}
   #tideBarOuter{width:150px;height:12px;background:#071620;border:1px solid #2b4a5c;border-radius:6px;overflow:hidden;}
   #tideBar{height:100%;width:0%;background:linear-gradient(90deg,#2f7fb0,#4fc8ea);}
@@ -49,18 +52,16 @@
     <div class="res" title="Population / cap — Houses +8, Halls +15, Castles +12">👥 <span id="pop">0/0</span></div>
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
+    <button id="gmenuBtn" title="Game menu — sound, graphics, saves & more (pauses the game)" style="cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:4px 16px;font-size:13px;font-weight:600;">☰ Menu</button>
+    <div class="spacer"></div>
     <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤⚒️ <span id="idleN">0</span> <span style="font-size:10px;color:#8fa7bc">workers</span></button>
     <button id="demoBtn" title="Demolish tool — pick up the hammer, then click your buildings to tear them down (half the materials back). Right-click or Esc puts it away." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔨</button>
-    <button id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚙ Medium</button>
-    <button id="muteBtn">🔊 Sound</button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
     <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
-    <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
-    <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b104</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b105</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -181,6 +182,17 @@
   </div>
   <div id="botbar"><div id="selInfo">Nothing selected.</div><div id="cmds"></div>
     <div id="pauseOv" style="display:none;position:absolute;inset:0;z-index:40;align-items:center;justify-content:center;pointer-events:none;background:rgba(4,10,16,.35)"><div style="font:700 54px Georgia,serif;color:#f3e4be;text-shadow:0 4px 18px #000;letter-spacing:6px">⏸ PAUSED</div></div>
+    <div id="gameMenu" class="hidden">
+      <div style="width:310px;background:#0e2230;border:1px solid #2c5164;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.65);">
+        <div style="font:700 21px Georgia,serif;color:#f3e4be;text-align:center;letter-spacing:3px;margin-bottom:6px;">☰ GAME MENU</div>
+        <button class="gmb" id="gmResume">▶ Resume</button>
+        <button class="gmb" id="muteBtn">🔊 Sound</button>
+        <button class="gmb" id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks">⚙ Medium</button>
+        <button class="gmb" id="saveBtn">💾 Save / Load</button>
+        <button class="gmb" id="menuBtn" title="Back to the main menu — your kingdom is autosaved first">🏰 Quit to Main Menu</button>
+        <div style="font-size:11px;color:#5f7f92;text-align:center;margin-top:4px;">the game stands paused while this menu is open</div>
+      </div>
+    </div>
     <div id="hint">Tip: keep workers on wood &amp; metal, farms feeding your pop, and don't get caught on low ground at high tide.</div></div>
 </div>
 
@@ -2267,10 +2279,12 @@ canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
 window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT'||ev.target.tagName==='TEXTAREA'))return;const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
   if(k==='escape'){const busy=placing||attackMove||dragging||wallDrag||demoMode;if(demoMode)setDemo(false);placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();
-    if(!busy){const pans=['forces','diplo','slots'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
+    if(!busy){const gmEl=$('gameMenu');
+      if(gmEl&&!gmEl.classList.contains('hidden'))closeGameMenu();
+      else{const pans=['forces','diplo','slots'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
       if(pans.length)pans.forEach(el=>el.classList.add('hidden'));
       else if(selected.length||selBuilding){selected=[];selBuilding=null;refreshUI();}
-      else if(running&&!gameOver)togglePause();}}
+      else if(running&&!gameOver)togglePause();}}}
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
   if(k==='p')togglePause();
@@ -2304,6 +2318,14 @@ function selectIdle(){const iw=idleWorkers();
   const e=iw[idleCycle%iw.length];idleCycle++;camTarget.set(e.x,0,e.z);
   SFX.select();refreshUI();flashMsg('💤 '+iw.length+' lazy worker'+(iw.length>1?'s':'')+' rounded up — right-click a resource to put them to work');}
 document.getElementById('idleBtn').onclick=()=>{if(running)selectIdle();};
+// ---- the ☰ game menu: sound / graphics / saves / quit, pausing the game while open ----
+let _gmPaused=false;
+function closeGameMenu(){ const gm=document.getElementById('gameMenu'); if(!gm||gm.classList.contains('hidden'))return;
+  gm.classList.add('hidden'); if(_gmPaused){_gmPaused=false; if(paused)togglePause();} }
+document.getElementById('gmenuBtn').onclick=()=>{ if(!running||gameOver)return; const gm=document.getElementById('gameMenu');
+  if(!gm.classList.contains('hidden')){closeGameMenu();return;}
+  if(!paused){togglePause();_gmPaused=true;} gm.classList.remove('hidden'); };
+document.getElementById('gmResume').onclick=closeGameMenu;
 // ---- demolish hammer: a roaming tool instead of a per-building button ----
 const hammerCur=(()=>{try{const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d');x.font='26px serif';x.textBaseline='top';x.fillText('🔨',2,2);return 'url('+c.toDataURL()+') 5 24, crosshair';}catch(e){return 'crosshair';}})();
 function setDemo(on){demoMode=on;const bt=document.getElementById('demoBtn');
@@ -2774,7 +2796,7 @@ function renderSlots(){ const rows=document.getElementById('slotRows'); rows.inn
 function openSlots(){ renderSlots(); document.getElementById('slots').classList.remove('hidden'); }
 document.getElementById('slotsClose').onclick=()=>document.getElementById('slots').classList.add('hidden');
 document.getElementById('loadMenuBtn').onclick=openSlots;
-document.getElementById('saveBtn').onclick=()=>{saveGame(true);openSlots();};
+document.getElementById('saveBtn').onclick=()=>{closeGameMenu();saveGame(true);openSlots();};
 document.getElementById('menuBtn').onclick=()=>{ if(running&&!gameOver&&!paradeMode){ if(!window.confirm('Return to the main menu?\nYour kingdom is saved to the Autosave slot first.'))return; saveGame(true); } location.reload(); };
 const _cont=document.getElementById('contBtn');
 if(localStorage.getItem('tidefall_save'))_cont.style.display='';
