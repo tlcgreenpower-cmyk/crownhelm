@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b139</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b140</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -367,7 +367,7 @@ const COST={
   warboat:{w:80,m:50,pop:3,time:13,age:2}, privateer:{f:80,m:60,g:40,pop:3,time:14,age:2}, viking:{f:60,w:30,pop:2,time:9,age:1}, samurai:{f:90,m:70,g:50,pop:3,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},gate:{w:30,m:20},
-  mill:{w:60},watch:{w:50,m:20},market:{w:100},
+  mill:{w:60},watch:{w:50,m:20},market:{w:100},bakery:{w:80,m:20,age:2},
   statue:{m:30,g:20},garden:{w:25},bridge:{w:35},range:{w:100},stable:{w:110,m:20,age:2},
 };
 const FACTIONS={
@@ -433,13 +433,14 @@ const BLD={
   gunshop:{w:3,h:2,hp:1500,name:'Gun Shop',vis:7}, church:{w:2,h:3,hp:1800,name:'Church',vis:7},
   castle:{w:4,h:4,hp:4800,name:'Castle',vis:14,fort:true}, wall:{w:1,h:1,hp:1800,name:'Wall',vis:4}, gate:{w:1,h:1,hp:2000,name:'Gate',vis:4},
   mill:{w:2,h:2,hp:1000,name:'Mill',vis:6}, watch:{w:2,h:2,hp:850,name:'Watch House',vis:10}, market:{w:2,h:2,hp:1500,name:'Market',vis:6},
+  bakery:{w:2,h:2,hp:1100,name:'Bakery',vis:6},
   statue:{w:1,h:1,hp:400,name:'Statue',vis:3}, garden:{w:2,h:2,hp:300,name:'Garden',vis:3},
   bridge:{w:1,h:1,hp:800,name:'Bridge',vis:3},
   range:{w:3,h:2,hp:1400,name:'Archery Range',vis:7}, stable:{w:3,h:2,hp:1400,name:'Stable',vis:7},
   dock:{w:3,h:2,hp:1500,name:'Dock',vis:8}, tower:{w:1,h:1,hp:1000,name:'Tower',vis:11},
 };
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
-const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50};
+const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45};
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
@@ -1191,7 +1192,7 @@ function spawnClouds(){ if(cloudGroup){scene.remove(cloudGroup);cloudGroup=null;
     m.userData.sp=1.2+hashN(i,59)*1.6; cloudGroup.add(m); } }
 // ---- b104 town life: barrels, crates & sacks gather round finished buildings; farms get scarecrows ----
 let clutterGroup=null,_clutSig='',_clutT=0;
-const CLUT_OK=new Set(['hall','house','barracks','gunshop','church','market','mill','storehouse','siege','dock','castle']);
+const CLUT_OK=new Set(['hall','house','barracks','gunshop','church','market','mill','storehouse','siege','dock','castle','bakery']);
 function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGroup=new THREE.Group(); scene.add(clutterGroup);
   const m4=new THREE.Matrix4(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3(),eul=new THREE.Euler();
   const CAP=900;
@@ -1611,6 +1612,9 @@ const FARM_CROPS=[
   {n:'Flax',a:0x8f8fd6,b:0x7a7ac4,k:'stalk'},
   {n:'Turnip',a:0x6ea84a,b:0x86bd5c,k:'leaf'}
 ];
+const CROP_KIND={Wheat:'grain',Barley:'grain',Cabbage:'veg',Pumpkin:'veg',Turnip:'veg',Flax:'flax'};
+function farmSeed(tx,ty){return tx*131+ty*17;}
+function farmCropIndex(seed){const S=(a,b)=>hashN(seed*7.3+a*1.7+3.1,seed*3.1+b*2.3+1.7);return Math.floor(S(1,1)*FARM_CROPS.length)%FARM_CROPS.length;}
 const _cropMats={};
 function cropMat(i,w){const k=i+w;return _cropMats[k]||(_cropMats[k]=new THREE.MeshStandardMaterial({color:FARM_CROPS[i][w],roughness:.9,flatShading:true}));}
 const FARM_SOIL=new THREE.MeshStandardMaterial({color:0x5b3d24,roughness:1,flatShading:true});
@@ -1618,7 +1622,7 @@ const FARM_RIDGE=new THREE.MeshStandardMaterial({color:0x77532f,roughness:1,flat
 function makeFarmField(seed){
   const g=new THREE.Group(),parts=new THREE.Group(),wpx=BLD.farm.w*TILE,hpx=BLD.farm.h*TILE;
   const S=(a,b)=>hashN(seed*7.3+a*1.7+3.1,seed*3.1+b*2.3+1.7);
-  const ci=Math.floor(S(1,1)*FARM_CROPS.length)%FARM_CROPS.length,C=FARM_CROPS[ci];
+  const ci=farmCropIndex(seed),C=FARM_CROPS[ci];
   g.userData.crop=C.n;
   const soil=new THREE.Mesh(new THREE.BoxGeometry(wpx*.94,.28,hpx*.94),FARM_SOIL);soil.position.y=.11;parts.add(soil);
   // ridge-and-furrow: long raised beds with the crop planted thick along each crown
@@ -1771,6 +1775,18 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     const blades=new THREE.Group();blades.position.set(0,wallH*.75,hpx*.44);for(let i=0;i<4;i++){const arm=new THREE.Mesh(new THREE.BoxGeometry(.26,3.2,.09),M.wood);arm.geometry.translate(0,1.6,0);arm.rotation.z=i*Math.PI/2;arm.castShadow=true;blades.add(arm);}g.add(blades);g.userData.blades=blades;}
   if(type==='watch'){const post=new THREE.Mesh(new THREE.BoxGeometry(wpx*.5,1.7,hpx*.5),A);post.position.y=wallH+1.25;post.castShadow=true;g.add(post);const rail=new THREE.Mesh(new THREE.BoxGeometry(wpx*.62,.22,hpx*.62),M.wood);rail.position.y=wallH+.45;g.add(rail);const bell=new THREE.Mesh(new THREE.ConeGeometry(.32,.55,8),M.gold);bell.position.y=wallH+2.35;g.add(bell);}
   if(type==='market'){for(const[dx,dz,col]of[[-wpx*.24,hpx*.28,0xc85142],[wpx*.24,hpx*.28,0x2a51a0],[0,-hpx*.3,0x1f7a38]]){const awn=new THREE.Mesh(new THREE.BoxGeometry(1.5,.22,1.5),new THREE.MeshStandardMaterial({color:col,roughness:.85}));awn.position.set(dx,2.2,dz);awn.castShadow=true;g.add(awn);const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2,5),M.wood);pole.position.set(dx,1.1,dz);g.add(pole);const crate=new THREE.Mesh(new THREE.BoxGeometry(.7,.6,.7),M.wood);crate.position.set(dx,.7,dz);g.add(crate);}const coin=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,.12,14),M.gold);coin.rotation.x=Math.PI/2;coin.position.y=wallH+1.7;g.add(coin);}
+  if(type==='bakery'){   // b140: stone oven, smoking chimney and a rack of new loaves by the door
+    const oven=new THREE.Mesh(new THREE.CylinderGeometry(wpx*.3,wpx*.34,1.4,10),M.stone);oven.position.set(wpx*.36,.7,-hpx*.18);oven.castShadow=true;g.add(oven);
+    const dome=new THREE.Mesh(new THREE.SphereGeometry(wpx*.3,10,6,0,Math.PI*2,0,Math.PI/2),M.stone);dome.position.set(wpx*.36,1.4,-hpx*.18);dome.castShadow=true;g.add(dome);
+    const mouth=new THREE.Mesh(new THREE.BoxGeometry(.52,.5,.3),new THREE.MeshStandardMaterial({color:0xff8a30,emissive:0xff6a10,emissiveIntensity:1.5,roughness:.6}));
+    mouth.position.set(wpx*.36,.8,-hpx*.18+wpx*.3);g.add(mouth);
+    const chim=new THREE.Mesh(new THREE.BoxGeometry(.52,3.6,.52),M.stoneD);chim.position.set(wpx*.36,3.1,-hpx*.18);chim.castShadow=true;g.add(chim);
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(.74,.18,.74),M.stone);cap.position.set(wpx*.36,4.98,-hpx*.18);g.add(cap);
+    const rack=new THREE.Mesh(new THREE.BoxGeometry(1.7,.12,.62),M.wood);rack.position.set(-wpx*.16,1.0,hpx*.44);g.add(rack);
+    for(const sx of[-.75,.75]){const lg=new THREE.Mesh(new THREE.BoxGeometry(.1,1.0,.1),M.trunk);lg.position.set(-wpx*.16+sx,.5,hpx*.44);g.add(lg);}
+    const loaf=new THREE.MeshStandardMaterial({color:0xc98f44,roughness:.9,flatShading:true});
+    for(let i=0;i<4;i++){const lf=new THREE.Mesh(new THREE.SphereGeometry(.2,6,5),loaf);lf.scale.set(1.5,.72,1);lf.position.set(-wpx*.16+(i-1.5)*.4,1.14,hpx*.44);lf.rotation.y=i*.4;g.add(lf);}
+    const sack=new THREE.Mesh(new THREE.BoxGeometry(.5,.6,.42),M.thatch);sack.position.set(-wpx*.42,.7,-hpx*.3);sack.rotation.y=.4;g.add(sack);}
   if(type==='dock'){const plank=new THREE.Mesh(new THREE.BoxGeometry(wpx*.3,.3,hpx*1.4),M.wood);plank.position.set(wpx*.3,.6,0);g.add(plank);}
   const lan2=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),LANTERN_MAT);lan2.position.set(-wpx*.34,2.0,hpx*.40);g.add(lan2);
   const bigF=type==='hall'||type==='castle';
@@ -1788,7 +1804,8 @@ function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
   e.mesh.position.set(e.x,y,e.z);}
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
-  bl.mesh=makeBldMesh(type,owner,tx*131+ty*17);const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
+  if(type==='farm')bl.crop=FARM_CROPS[farmCropIndex(farmSeed(tx,ty))].n;
+  bl.mesh=makeBldMesh(type,owner,farmSeed(tx,ty));const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
   bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(type==='bridge')bl.mesh.position.y=waterY+0.1;if(!done)bl.mesh.scale.y=0.05;scene.add(bl.mesh);blds.push(bl);
   // dirt yards stamp lazily in updateBuilding, once the ground is explored (no fog leaks)
   if(!done){attachBuildUI(bl);if(type!=='wall')attachScaffold(bl);}
@@ -2000,9 +2017,37 @@ function chopReachable(n){ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1
 function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
 
 // ==================================================== UPDATE
+// b140: THE HARVEST CHAIN. Grain is worth little until a Mill grinds it, flour is worth more
+// once a Bakery bakes it, and a town that eats only one crop eats badly. Surveyed once a second.
+let econT=0;
+function recalcHarvest(){
+  const near=(b,type,r)=>blds.some(q=>q.owner===b.owner&&q.done&&q.type===type&&Math.hypot(q.cx-b.cx,q.cz-b.cz)<r);
+  const diet={};   // distinct crops per realm — variety keeps the townsfolk fed and willing
+  for(const b of blds)if(b.type==='farm'&&b.done&&b.crop){(diet[b.owner]=diet[b.owner]||new Set()).add(CROP_KIND[b.crop]||'veg');}
+  for(const b of blds){
+    if(b.type==='farm'&&b.done){
+      const kind=CROP_KIND[b.crop]||'veg';
+      b._mill=kind==='grain'&&near(b,'mill',30); b._bake=near(b,'bakery',34); b._mkt=kind==='flax'&&near(b,'market',30);
+      let y=kind==='grain'?(b._mill?1.5:0.9):kind==='veg'?1.15:0.6;
+      if(b._bake)y*=1.15;                                        // bread on the table
+      if((diet[b.owner]||{size:0}).size>=3)y*=1.15;              // a broad table feeds a bigger town
+      b._yield=y; b._varied=(diet[b.owner]||{size:0}).size>=3;
+      b._gold=kind==='flax'?(b._mkt?0.55:0.3):0;                 // linen sells, and sells better by a market
+    }
+    else if(b.type==='bakery'&&b.done){
+      let grain=0; for(const q of blds)if(q.owner===b.owner&&q.done&&q.type==='farm'&&q._mill&&Math.hypot(q.cx-b.cx,q.cz-b.cz)<34)grain++;
+      b._grainFed=grain; b._bakeRate=grain?Math.min(3.2,0.7+grain*0.6):0;
+    } }
+}
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
-  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*tenders*dt;}}   // b99: one farmhand sows each farm — no farmhand, no harvest
+  econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
+  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
+    res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*(b._yield||1)*tenders*dt;
+    if(b._gold)res[b.owner].g+=b._gold*tenders*dt; }}   // b99: one farmhand sows each farm — no farmhand, no harvest
   for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*(b.up?1.5:1)*(b.up2?1.5:1)*dt;
+  for(const b of blds)if(b.type==='bakery'&&b.done){res[b.owner].f+=(b._bakeRate||0)*dt;   // bread, only where there is flour to bake
+    if(b._bakeRate>0&&Math.random()<dt*1.7&&Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<110){
+      const sx=b.cx+BLD.bakery.w*TILE*.36,sz=b.cz-BLD.bakery.h*TILE*.18;spawnPart(sx,heightAtWorld(sx,sz)+5.2,sz,'smoke');} }   // the oven is lit
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=0.8*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.5*dt;               // villages pay tribute
   for(const b of blds)updateBuilding(b,dt);
@@ -2466,6 +2511,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(!hasBld(o,'church')&&r.w>=100&&Math.random()<.5){if(placeAI(o,'church'))return;}
   if(countBld(o,'farm')<5&&r.w>=55){if(placeAI(o,'farm'))return;}
   if(countBld(o,'mill')<2&&r.w>=60){if(placeAI(o,'mill'))return;}
+  if(T.age>=2&&countBld(o,'bakery')<1&&hasBld(o,'mill')&&r.w>=80&&r.m>=20){if(placeAI(o,'bakery'))return;}
   if(countBld(o,'watch')<1&&r.w>=50&&r.m>=20&&barr.length){if(placeAI(o,'watch'))return;}
   if(T.age===1&&T.ageTimer<=0&&barr.length&&r.f>=AGE2.f&&r.w>=AGE2.w){r.f-=AGE2.f;r.w-=AGE2.w;T.ageTimer=AGE2.time;T.ageTo=2;return;}
   if(T.age===2&&T.ageTimer<=0&&hasBld(o,'castle')&&r.f>=AGE3.f&&r.w>=AGE3.w&&r.m>=AGE3.m){r.f-=AGE3.f;r.w-=AGE3.w;r.m-=AGE3.m;T.ageTimer=AGE3.time;T.ageTo=3;return;}
@@ -2499,7 +2545,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
     else ai.attackTimer=12;}}
 function pickTargetFor(victim){const pb=blds.filter(b=>b.owner===victim),front=pb.filter(b=>b.type!=='hall');return front.length?front[Math.floor(Math.random()*front.length)]:pb.find(b=>b.type==='hall');}
 function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b=BLD[type];
-  const BAND={market:[4,8],church:[4,8],storehouse:[4,9],house:[5,10],mill:[6,11],barracks:[6,11],gunshop:[6,11],siege:[7,12],farm:[8,15],castle:[8,13],watch:[11,16],tower:[11,16]};
+  const BAND={market:[4,8],church:[4,8],storehouse:[4,9],house:[5,10],mill:[6,11],bakery:[5,10],barracks:[6,11],gunshop:[6,11],siege:[7,12],farm:[8,15],castle:[8,13],watch:[11,16],tower:[11,16]};
   const band=BAND[type]||[5,12], margin=(type==='tower'||type==='watch')?0:1;
   for(let att=0;att<90;att++){ const rr=band[0]+Math.random()*(band[1]-band[0]), ang=Math.random()*Math.PI*2;
     const tx=Math.round(hall.tx+Math.cos(ang)*rr), ty=Math.round(hall.ty+Math.sin(ang)*rr);
@@ -2572,6 +2618,28 @@ let mouseSX=0,mouseSY=0,dragStartSX=0,dragStartSY=0,dragging=false,vw=1280,vh=64
 let rDrag=null,panDrag=null,orbitDrag=null;   // right-drag aims; middle-drag pans; alt-drag orbits (yaw+pitch)
 const aimArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),8,0x8fe6a8,3.2,2.0);
 aimArrow.visible=false; aimArrow.line.material.depthTest=false; aimArrow.cone.material.depthTest=false; scene.add(aimArrow);
+// b140: hover a building your selected soldiers could man, and it lights up with a pulsing ring
+const garHint=new THREE.Group(); garHint.visible=false; scene.add(garHint);
+{ const ring=new THREE.Mesh(new THREE.RingGeometry(2.6,3.3,28),new THREE.MeshBasicMaterial({color:0x9fd6ec,transparent:true,opacity:.85,depthTest:false,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; ring.renderOrder=900; garHint.add(ring); garHint.userData.ring=ring;
+  const glow=new THREE.Mesh(new THREE.RingGeometry(.2,2.6,24),new THREE.MeshBasicMaterial({color:0x9fd6ec,transparent:true,opacity:.16,depthTest:false,side:THREE.DoubleSide}));
+  glow.rotation.x=-Math.PI/2; glow.renderOrder=899; garHint.add(glow); garHint.userData.glow=glow; }
+let garHintB=null;
+function updateGarHint(){
+  let tgt=null;
+  if(running&&!placing&&!dragging&&!demoMode){
+    const sel=selUnits().filter(e=>e.type!=='worker'&&UNIT[e.type].dom==='land'&&!UNIT[e.type].siege);
+    if(sel.length){ const id=inB(hoverTile.tx,hoverTile.ty)?buildGrid[ti(hoverTile.tx,hoverTile.ty)]:0;
+      const b=id?blds.find(q=>q.id===id):null;
+      if(b&&b.owner==='player'&&b.done&&GAR_CAP[b.type]&&(b.gar||[]).length<GAR_CAP[b.type])tgt=b; } }
+  garHintB=tgt; garHint.visible=!!tgt;
+  if(tgt){ const s=Math.max(tgt.w,tgt.h)*0.55;
+    garHint.position.set(tgt.cx,heightAtWorld(tgt.cx,tgt.cz)+0.22,tgt.cz);
+    garHint.scale.setScalar(s);
+    const pulse=0.55+0.45*Math.sin(elapsed*6.5);
+    garHint.userData.ring.material.opacity=0.45+0.5*pulse;
+    garHint.userData.glow.material.opacity=0.10+0.14*pulse; }
+}
 // one little arrow per soldier, showing his exact spot and facing in the chosen formation
 const slotGeo=new THREE.ConeGeometry(0.5,1.5,4); slotGeo.rotateX(Math.PI/2);
 const slotMat=new THREE.MeshBasicMaterial({color:0x9fe8b0,transparent:true,opacity:0.85,depthTest:false});
@@ -2663,9 +2731,12 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
     const fwd=[-Math.sin(camYaw),-Math.cos(camYaw)], rgt=[Math.cos(camYaw),-Math.sin(camYaw)];
     camTarget.x=clamp(panDrag.cx-(dxp*rgt[0]+dyp*fwd[0])*f,-HALF_W,HALF_W);
     camTarget.z=clamp(panDrag.cz-(dxp*rgt[1]+dyp*fwd[1])*f,-HALF_H,HALF_H); }const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
+  updateGarHint();   // so the garrison ring and its tip answer the very first flick of the mouse
   { const tip=document.getElementById('nodeTip'); const nd=(running&&!placing&&!dragging&&!rDrag)?nodeAt(g.x,g.z):null;
     if(nd){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
       tip.textContent=(nd.type==='wood'?'🌲 Timber: ':nd.type==='gold'?'💰 Gold left: ':nd.type==='food'?'🐑 Meat left: ':'⛏️ Iron left: ')+Math.max(0,Math.round(nd.amount)); }
+    else if(garHintB){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
+      tip.textContent='⛨ Right-click to man the '+BLD[garHintB.type].name+' — '+(garHintB.gar||[]).length+'/'+GAR_CAP[garHintB.type]; }
     else tip.style.display='none'; }
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}
   if(rDrag){ const dx=g.x-rDrag.gx,dz=g.z-rDrag.gz,d=Math.hypot(dx,dz);
@@ -2764,8 +2835,9 @@ document.getElementById('gmResume').onclick=closeGameMenu;
 // ---- b125: the Kingdom Guide — every building & person, with pictures and plain words ----
 const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deliveries. Lose it and the realm falls.',
   house:'+8 population room (Attic upgrade +4). Lose houses and training stops until rebuilt.',
-  farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Every field sows its own crop: wheat, barley, cabbage, pumpkin, flax or turnip. Irrigation +50%.',
-  mill:'Automatic flour, +2 food/s, no labour. Great Millstones (Age II) and Windworks (Age III) double it.',
+  farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Every field sows its own crop and each behaves differently: Wheat and Barley are poor until a Mill grinds them; Cabbage, Pumpkin and Turnip feed the town straight from the field; Flax feeds little but sells as linen (more beside a Market). Farm three different kinds and the whole harvest rises 15%. Irrigation +50%.',
+  mill:'Automatic flour, +2 food/s, no labour. Also grinds the grain of every Wheat and Barley farm within 30 paces — those fields yield 50% more instead of 10% less. Great Millstones (Age II) and Windworks (Age III) double its own output.',
+  bakery:'Bakes the flour into bread (Age II). Needs ground grain nearby: it counts the milled grain farms within 34 paces and bakes up to +3.2 food/s. Every farm near a Bakery yields 15% more.',
   storehouse:'Drop-off point for goods — build near forests & mines; +15% gathering nearby. Keeps a woodpile.',
   market:'Trade wood, food and metal for gold — and back again.',
   church:'Trains Monks, Priests and Doctors; Cardinals at Age II.',
@@ -2797,7 +2869,7 @@ const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. 
 function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.built)return; g.dataset.built='1';
   const cost=c=>c?[c.f?c.f+'🍖':'',c.w?c.w+'🌲':'',c.m?c.m+'⛏️':'',c.g?c.g+'💰':''].filter(Boolean).join(' '):'';
   const card=(ic,name,c2,desc)=>'<div style="background:#122b3a;border:1px solid #2c5164;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start"><div style="font-size:30px;flex:none">'+ic+'</div><div><b style="color:#e8f4fb">'+name+'</b> <small style="color:#c9a44a">'+c2+'</small><div style="color:#9fc0d2;font-size:12.5px;line-height:1.45">'+desc+'</div></div></div>';
-  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',storehouse:'📦',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',range:'🏹',stable:'🐎',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
+  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',bakery:'🍞',storehouse:'📦',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',range:'🏹',stable:'🐎',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
   let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font:700 22px Georgia,serif;color:#f3e4be;letter-spacing:2px">📖 THE KINGDOM GUIDE</b><button class="big" id="guideClose" style="padding:6px 14px;cursor:pointer">✕ Close</button></div>';
   h+='<div style="font:600 15px Georgia,serif;color:#c9a44a;margin:8px 0">BUILDINGS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
   for(const k in BLD_DESC)h+=card(BICON[k]||'🏠',BLD[k].name,cost(COST[k]),BLD_DESC[k]);
@@ -2884,8 +2956,17 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=100;b.rschTot=100;flashMsg('💣 Hoisting the cannon — 100s');SFX.cmd();refreshUI();});
       else if(b.type==='tower'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">💣 Cannon Mount</span>';
       if(b.type==='farm'){const tn=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
-        const crp=b.mesh&&b.mesh.userData.crop;if(crp)info.innerHTML+='<br>🌱 Crop: <span style="color:#e8d08a">'+crp+'</span>';
+        const crp=b.crop||(b.mesh&&b.mesh.userData.crop);
+        if(crp){ const kind=CROP_KIND[crp]||'veg';
+          info.innerHTML+='<br>🌱 Crop: <span style="color:#e8d08a">'+crp+'</span> — <span style="color:#9fe8b0">'+Math.round((b._yield||1)*100)+'% yield</span>';
+          if(kind==='grain')info.innerHTML+=b._mill?'<br><span style="color:#9fe8b0">🌬️ A Mill grinds this grain (+50%)</span>':'<br><span style="color:#e0a878;font-size:11px">🌬️ No Mill within 30 paces — the grain goes unground (-10%)</span>';
+          if(kind==='flax')info.innerHTML+=b._mkt?'<br><span style="color:#9fe8b0">⚖️ Linen sells at the Market (+gold)</span>':'<br><span style="color:#e0a878;font-size:11px">⚖️ A Market would double the linen money</span>';
+          if(b._bake)info.innerHTML+='<br><span style="color:#9fe8b0">🍞 A Bakery takes this harvest (+15%)</span>';
+          if(b._varied)info.innerHTML+='<br><span style="color:#9fe8b0">🥘 Broad table — three kinds of crop (+15%)</span>'; }
         info.innerHTML+='<br>👨‍🌾 Farmhand: '+tn+'/1'+(tn?' — the field is sown':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with a worker</span>');}
+      if(b.type==='bakery'){ info.innerHTML+=b._grainFed
+          ?'<br>🍞 Baking from <span style="color:#e8d08a">'+b._grainFed+'</span> milled field'+(b._grainFed>1?'s':'')+' — <span style="color:#9fe8b0">+'+(b._bakeRate||0).toFixed(1)+' food/s</span>'
+          :'<br><span style="color:#e0a878;font-size:11px">🍞 No flour — needs a Wheat or Barley farm with a Mill within 34 paces</span>'; }
       if(b.rschK)info.innerHTML+='<br><span id="bRschLine" style="color:#9fe8b0">🔨 Upgrading — '+Math.ceil(b.rschT)+'s</span>'
         +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="bRschBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#2f8a3a,#9fe8b0);width:'+Math.round((1-b.rschT/(b.rschTot||35))*100)+'%"></div></div>';
       if(GAR_CAP[b.type]){const gn=(b.gar||[]).length;
@@ -2909,7 +2990,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       info.appendChild(fr); }
     if(sel.some(e=>e.type==='worker')){
       const CATS={
-        town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['storehouse','📦','Storehouse'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
+        town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
         mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
         def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House'],['bridge','🌉','Bridge']]}};
       const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
@@ -3162,7 +3243,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6*gameSpeed){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
-  updateGhost();updateRings();updateUnitLOD();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateGarHint();updateRings();updateUnitLOD();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   { const aa=document.getElementById('atkArrow');
     if(running&&!gameOver&&atkPing.t<6){ _aaV.set(atkPing.x,heightAtWorld(atkPing.x,atkPing.z),atkPing.z).project(camera);
       const sx=(_aaV.x+1)/2*vw, sy=(-_aaV.y+1)/2*vh;
