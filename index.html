@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b126</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b127</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -358,7 +358,7 @@ const COST={
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},gate:{w:30,m:20},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},
-  statue:{m:30,g:20},garden:{w:25},bridge:{w:35},
+  statue:{m:30,g:20},garden:{w:25},bridge:{w:35},range:{w:100},stable:{w:110,m:20,age:2},
 };
 const FACTIONS={
   scottish:{name:'Scottish Black Watch',coat:0x2b303a,trim:0x5a6578,accent:0x8a95a5,emo:'🏴',bonus:'Tough infantry (+15% HP)'},
@@ -425,10 +425,11 @@ const BLD={
   mill:{w:2,h:2,hp:1000,name:'Mill',vis:6}, watch:{w:2,h:2,hp:850,name:'Watch House',vis:10}, market:{w:2,h:2,hp:1500,name:'Market',vis:6},
   statue:{w:1,h:1,hp:400,name:'Statue',vis:3}, garden:{w:2,h:2,hp:300,name:'Garden',vis:3},
   bridge:{w:1,h:1,hp:800,name:'Bridge',vis:3},
+  range:{w:3,h:2,hp:1400,name:'Archery Range',vis:7}, stable:{w:3,h:2,hp:1400,name:'Stable',vis:7},
   dock:{w:3,h:2,hp:1500,name:'Dock',vis:8}, tower:{w:1,h:1,hp:1000,name:'Tower',vis:11},
 };
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
-const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14};
+const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50};
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
@@ -638,7 +639,7 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
 // ---- professional medieval building models (KayKit Medieval Hexagon, CC0) ----
 let BLD_LIB=null,NATURE_LIB=null,NEUTRAL_LIB=null;
 const FACTION_TEAMCOL={english:'red',french:'blue',irish:'green',scottish:'yellow',chinese:'green',sacred:'blue'};
-const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacksmith',church:'church',market:'market',mill:'windmill',storehouse:'lumbermill',tower:'tower_A',watch:'tower_B',siege:'tower_catapult',dock:'watermill',castle:'castle'};
+const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacksmith',church:'church',market:'market',mill:'windmill',storehouse:'lumbermill',tower:'tower_A',watch:'tower_B',siege:'tower_catapult',dock:'watermill',castle:'castle',range:'barracks'};
 (async()=>{ try{
   const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
   const loader=new GLTFLoader();
@@ -1513,6 +1514,17 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
   if(type==='bridge'){ const deck=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.04,.32,hpx*1.04),M.wood);deck.position.y=.16;deck.castShadow=true;deck.receiveShadow=true;g.add(deck);
     for(const sx of[-1,1]){const rail=new THREE.Mesh(new THREE.BoxGeometry(.13,.42,hpx*1.02),M.trunk);rail.position.set(sx*wpx*.46,.5,0);rail.castShadow=true;g.add(rail);}
     for(const sz of[-1,1])for(const sx of[-1,1]){const post=new THREE.Mesh(new THREE.CylinderGeometry(.11,.14,1.6,6),M.trunk);post.position.set(sx*wpx*.44,-.55,sz*hpx*.42);g.add(post);}
+    return g;}
+  if(type==='stable'){ const barn=new THREE.Mesh(new THREE.BoxGeometry(wpx*.55,2.6,hpx*.8),M.wood);barn.position.set(-wpx*.2,1.3,0);barn.castShadow=true;g.add(barn);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(wpx*.42,hpx*.5),1.6,4),M.thatch);roof.position.set(-wpx*.2,3.4,0);roof.rotation.y=Math.PI/4;roof.castShadow=true;g.add(roof);
+    for(const[px2,pz2]of[[wpx*.12,-hpx*.36],[wpx*.28,-hpx*.36],[wpx*.44,-hpx*.36],[wpx*.12,hpx*.36],[wpx*.28,hpx*.36],[wpx*.44,hpx*.36]]){
+      const post=new THREE.Mesh(new THREE.BoxGeometry(.14,1.1,.14),M.trunk);post.position.set(px2,.55,pz2);post.castShadow=true;g.add(post); }
+    const railA=new THREE.Mesh(new THREE.BoxGeometry(wpx*.36,.09,.09),M.trunk);railA.position.set(wpx*.28,.85,-hpx*.36);g.add(railA);
+    const railB=railA.clone();railB.position.z=hpx*.36;g.add(railB);
+    const railC=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,hpx*.72),M.trunk);railC.position.set(wpx*.46,.85,0);g.add(railC);
+    if(CHAR_LIB&&CHAR_LIB.lib.HorseA){ const h2=CHAR_LIB.clone(CHAR_LIB.lib.HorseA.scene);
+      const hb2=new THREE.Box3().setFromObject(h2),hl=Math.max(hb2.max.z-hb2.min.z,hb2.max.x-hb2.min.x)||1;
+      const hs2=3/hl; h2.scale.setScalar(hs2); h2.position.set(wpx*.26,-hb2.min.y*hs2,0); h2.rotation.y=1.2; g.add(h2); }
     return g;}
   if(type==='statue'){const ped=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.1,2.2),M.stone);ped.position.y=.55;ped.castShadow=true;g.add(ped);
     const ped2=new THREE.Mesh(new THREE.BoxGeometry(1.5,.7,1.5),M.stoneD);ped2.position.y=1.45;g.add(ped2);
@@ -2525,7 +2537,9 @@ const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deli
   wall:'Stone curtain. Fortify upgrade +50%.', gate:'A door in your wall — only YOUR troops pass.',
   tower:'Arrow tower; Boulder Thrower upgrade, then Cannon Mount at Age III. Garrisons 4.',
   watch:'Cheap eyes — long sight, light arrows. Garrisons 2.',
-  bridge:'Laid tile-by-tile ACROSS water — armies march over the planks.'};
+  bridge:'Laid tile-by-tile ACROSS water — armies march over the planks.',
+  range:'Archery Range — trains Skirmishers and Grenadiers.',
+  stable:'Stable — trains Knights and Dragoons (Age II). A horse waits in the paddock.'};
 const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. The kingdom rests on his shoulders.',
   spear:'Cheap line infantry; bonus vs cavalry.', archer:'Fast ranged harass.',
   viking:'Tough axe infantry; bonus vs siege engines.', samurai:'Duelist — bonus vs enemy champions (Age II).',
@@ -2542,7 +2556,7 @@ const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. 
 function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.built)return; g.dataset.built='1';
   const cost=c=>c?[c.f?c.f+'🍖':'',c.w?c.w+'🌲':'',c.m?c.m+'⛏️':'',c.g?c.g+'💰':''].filter(Boolean).join(' '):'';
   const card=(ic,name,c2,desc)=>'<div style="background:#122b3a;border:1px solid #2c5164;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start"><div style="font-size:30px;flex:none">'+ic+'</div><div><b style="color:#e8f4fb">'+name+'</b> <small style="color:#c9a44a">'+c2+'</small><div style="color:#9fc0d2;font-size:12.5px;line-height:1.45">'+desc+'</div></div></div>';
-  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',storehouse:'📦',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
+  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',storehouse:'📦',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',range:'🏹',stable:'🐎',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
   let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font:700 22px Georgia,serif;color:#f3e4be;letter-spacing:2px">📖 THE KINGDOM GUIDE</b><button class="big" id="guideClose" style="padding:6px 14px;cursor:pointer">✕ Close</button></div>';
   h+='<div style="font:600 15px Georgia,serif;color:#c9a44a;margin:8px 0">BUILDINGS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
   for(const k in BLD_DESC)h+=card(BICON[k]||'🏠',BLD[k].name,cost(COST[k]),BLD_DESC[k]);
@@ -2567,7 +2581,7 @@ mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();cons
 const $=id=>document.getElementById(id);
 for(const k in COST){if(COST[k].time)COST[k].time=Math.round(COST[k].time*1.4);}
 const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',ram:'🐑',chukonu:'🐉',hoplite:'🏳️‍🌈',cannon:'💣',howitzer:'🎆',warboat:'⛵',privateer:'🏴‍☠️',viking:'⚔️',samurai:'🗡️',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
-const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock']);
+const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock','range','stable']);
 function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Idle — click a unit button to train</span>';
   const q0=b.queue[0]; let s='⚒ <b>Training '+(UNIT_IC[q0.type]||'')+' '+UNIT[q0.type].name+'</b> — '+Math.max(1,Math.ceil(q0.t))+'s';
   if(b.queue.length>1){const rest=b.queue.slice(1,7).map(q=>UNIT_IC[q.type]||UNIT[q.type].name).join(' ');
@@ -2583,7 +2597,9 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         if(T.ageTimer>0){const tot=T.ageTo===3?AGE3.time:AGE2.time;
           info.innerHTML+='<br><span id="ageLine" style="color:#8fd4f0">⏫ Advancing to Age '+(T.ageTo||T.age+1)+' — '+Math.ceil(T.ageTimer)+'s</span>'
             +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="ageBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#1c4d6d,#7fc4e8);width:'+Math.round((1-T.ageTimer/tot)*100)+'%"></div></div>';}}
-      if(b.type==='barracks'){trainBtn(cmds,b,'spear','🛡','Pikeman',can);trainBtn(cmds,b,'archer','🏹','Skirmisher',can);trainBtn(cmds,b,'viking','⚔️','Viking Raider',can);if(tech.player.age>=2){trainBtn(cmds,b,'samurai','🗡️','Samurai',can);trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'dragoon','🐴','Dragoon',can);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const T=tech.player;
+      if(b.type==='range'){trainBtn(cmds,b,'archer','🏹','Skirmisher',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);}
+      if(b.type==='stable'){trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'dragoon','🐴','Dragoon',can);}
+      if(b.type==='barracks'){trainBtn(cmds,b,'spear','🛡','Pikeman',can);trainBtn(cmds,b,'viking','⚔️','Viking Raider',can);if(tech.player.age>=2)trainBtn(cmds,b,'samurai','🗡️','Samurai',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const T=tech.player;
         for(const rk of ['weapon','armor']){ const D=RSCH[rk],tier=T[rk]||0,R=T.rsch;
           if(tier>=3){techBtn(cmds,D.ic,D.name+' MAX','forged',false,()=>{},true);continue;}
           const c=D.costs[tier],needAge=D.age[tier];
@@ -2597,7 +2613,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
             flashMsg('🔬 '+D.name+' '+(tier+1)+' — the smiths set to work ('+D.times[tier]+'s)');SFX.cmd();refreshUI(); }); }
         if(T.rsch)info.innerHTML+='<br><span id="rschLine" style="color:#9fe8b0">🔬 '+RSCH[T.rsch.k].name+' '+((T[T.rsch.k]||0)+1)+' — '+Math.ceil(T.rsch.t)+'s</span>'
           +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="rschBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#2f8a3a,#9fe8b0);width:'+Math.round((1-T.rsch.t/T.rsch.total)*100)+'%"></div></div>';}
-      if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
+      if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2)trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);}
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2)trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
       if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);}
@@ -2652,7 +2668,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
     if(sel.some(e=>e.type==='worker')){
       const CATS={
         town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['storehouse','📦','Storehouse'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
-        mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
+        mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
         def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House'],['bridge','🌉','Bridge']]}};
       const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
       if(buildCat&&CATS[buildCat]){
