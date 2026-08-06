@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b111</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b112</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1806,8 +1806,10 @@ function separateUnits(){ const cell=3, grid=new Map();
       for(const o of arr){ if(o.id<=e.id)continue; if(UNIT[e.type].dom!==UNIT[o.type].dom)continue;
         const rr=(UNIT[e.type].r+UNIT[o.type].r)*0.95, ddx=o.x-e.x, ddz=o.z-e.z;
         if(Math.abs(ddx)>rr||Math.abs(ddz)>rr)continue; const d=Math.hypot(ddx,ddz);
-        if(d>1e-4&&d<rr){ const push=(rr-d)*0.4, nx=ddx/d, nz=ddz/d;
-          e.x-=nx*push;e.z-=nz*push;o.x+=nx*push;o.z+=nz*push; }
+        if(d>1e-4&&d<rr){ const push=Math.min(0.13,(rr-d)*0.4), nx=ddx/d, nz=ddz/d;   // capped nudge — no more mosh-pit jolts
+          const anch=u2=>u2.type==='worker'&&!u2.path&&(u2.cmd==='gather'||u2.cmd==='build'||u2.cmd==='tend'||u2.cmd==='hunt');
+          const fE=anch(e)?0.15:1, fO=anch(o)?0.15:1;   // men at work stand their ground
+          e.x-=nx*push*fE;e.z-=nz*push*fE;o.x+=nx*push*fO;o.z+=nz*push*fO; }
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 const _toolV=new THREE.Vector3();
 function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
