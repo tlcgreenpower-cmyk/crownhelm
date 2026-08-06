@@ -60,7 +60,7 @@
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b102</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b103</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -748,7 +748,13 @@ function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
   // swampy lowland mottling
   const sw=noise2(vx*0.045+80,vz*0.045+80);
   if(e>1.05&&e<1.95&&sw<0.2){_tc2.setHex(0x5e6b42);out.lerp(_tc2,clamp((0.2-sw)*6,0,0.75));}
-  out.offsetHSL(0,0,(noise2(vx*0.18,vz*0.18)-0.5)*0.05); }
+  // wet dark sand where the land meets the sea (b103 AoE2 ground pass)
+  if(e>1.0&&e<1.26){_tc2.setHex(0x94794f);out.lerp(_tc2,clamp((1.26-e)/0.26,0,1)*0.55);}
+  out.offsetHSL(0,0,(noise2(vx*0.18,vz*0.18)-0.5)*0.05);
+  // fine grain speckle — reads as turf texture instead of flat paint
+  const spk=noise2(vx*1.9+31,vz*1.9+17);
+  if(spk>0.82)out.offsetHSL(0,0.03,0.045*(spk-0.82)/0.18);
+  else if(spk<0.14&&e>1.45)out.offsetHSL(0,0,-0.035); }
 function buildGroundTexture(){   // painted ground: bright grass with grain + worn dirt roads
   const TW=1024, TH=Math.max(256,Math.round(1024*MAP_H/MAP_W));
   const cv=document.createElement('canvas');cv.width=TW;cv.height=TH;const c2=cv.getContext('2d');groundCv=cv;groundCtx=c2;
@@ -996,6 +1002,35 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.45,0.22+hashN(i,29)*0.08); bushes.setColorAt(bi,col); bi++; }
   bushes.count=bi; ambientGroup.add(bushes);
+  // b103 AoE2 ground pass — shoreline reeds, pebbles, stumps and fallen logs
+  const eul=new THREE.Euler();
+  const RCAP=Math.round(2200*A);
+  const reeds=new THREE.InstancedMesh(new THREE.ConeGeometry(.05,1.15,4),new THREE.MeshStandardMaterial({roughness:1}),RCAP); let ri=0;
+  for(let i=0;i<26000*A&&ri<RCAP;i++){ const x=(hashN(i*4.3,61)-0.5)*WORLD_W, z=(hashN(67,i*2.9)-0.5)*WORLD_H;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.02||e>1.34)continue;
+    const s=.7+hashN(i,71)*.7; v3.set(x,heightAtWorld(x,z)+.5*s,z);
+    q0.setFromEuler(eul.set((hashN(i,101)-.5)*.22,hashN(103,i)*3,(hashN(i,107)-.5)*.22)); s3.set(1,s,1); m4.compose(v3,q0,s3);
+    reeds.setMatrixAt(ri,m4); col.setHSL(0.2+hashN(73,i)*0.07,0.42,0.22+hashN(i,79)*0.09); reeds.setColorAt(ri,col); ri++; }
+  reeds.count=ri; ambientGroup.add(reeds);
+  const PCAP2=Math.round(900*A);
+  const peb=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.16,0),new THREE.MeshStandardMaterial({roughness:.95}),PCAP2); let pi2=0;
+  for(let i=0;i<9000*A&&pi2<PCAP2;i++){ const x=(hashN(i*5.1,109)-0.5)*WORLD_W, z=(hashN(113,i*3.3)-0.5)*WORLD_H;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.08||e>3.3)continue;
+    const s=.5+hashN(i,127)*1.0; v3.set(x,heightAtWorld(x,z)+.08*s,z);
+    q0.setFromEuler(eul.set(hashN(i,131)*3,hashN(137,i)*3,0)); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
+    peb.setMatrixAt(pi2,m4); col.setHSL(0.09,0.05,0.32+hashN(i,139)*0.18); peb.setColorAt(pi2,col); pi2++; }
+  peb.count=pi2; ambientGroup.add(peb);
+  const SCAP2=Math.round(520*A);
+  const stumps=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.28,.38,7),new THREE.MeshStandardMaterial({color:0x6b4b2e,roughness:.95}),SCAP2); let si=0;
+  const logs=new THREE.InstancedMesh(new THREE.CylinderGeometry(.15,.19,1.7,6),new THREE.MeshStandardMaterial({color:0x5e4128,roughness:.95}),Math.round(240*A)); let li=0;
+  for(let i=0;i<woodNodes.length;i+=3){ const n=woodNodes[i];
+    const x=wx(n.tx)+(hashN(i,83)-.5)*8, z=wz(n.ty)+(hashN(89,i)-.5)*8;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; if(elev[ti(tx,tz2)]<1.55)continue;
+    if(si<SCAP2&&(i%2===0)){ m4.makeTranslation(x,heightAtWorld(x,z)+.17,z); stumps.setMatrixAt(si,m4); si++; }
+    else if(li<Math.round(240*A)){ v3.set(x,heightAtWorld(x,z)+.16,z);
+      q0.setFromEuler(eul.set(0,hashN(i,149)*3,Math.PI/2)); s3.set(1,1,1); m4.compose(v3,q0,s3);
+      logs.setMatrixAt(li,m4); li++; } }
+  stumps.count=si; logs.count=li; ambientGroup.add(stumps); ambientGroup.add(logs);
   if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
   const bm=new THREE.MeshBasicMaterial({color:0x2a2f36,side:THREE.DoubleSide});
   for(let f=0;f<Math.min(8,Math.round(3*areaScale()));f++){ const cx=(hashN(f,31)-0.5)*WORLD_W*.6, cz=(hashN(37,f)-0.5)*WORLD_H*.6;
