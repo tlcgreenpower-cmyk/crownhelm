@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b158</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b159</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2367,7 +2367,11 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     if(Math.random()<dt*(2+dmg*5)){ const px=b.cx+(Math.random()-.5)*b.w*TILE*.6, pz=b.cz+(Math.random()-.5)*b.h*TILE*.6, py=heightAtWorld(px,pz)+2+Math.random()*2;
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
   animFrame++;
-  astarBudget=24;astarBudgetAI=24;
+  // b159: the pathfinding allowance is shared by every AI realm on the map, and it was a flat 24 a
+  // step whether there were three realms or seven. With armies now actually marching — and a staged
+  // march asking for a fresh path at every waypoint — a seventh of the AI stood stuttering at any
+  // moment, ordered somewhere with no route to follow. It scales with the number of realms now.
+  astarBudget=24; astarBudgetAI=Math.min(72,14+7*AI_REALMS.length);
   _animK=Math.max(2,Math.min(7,Math.ceil(ents.length/110)));   // b144: the bigger the host, the coarser the distant skinning
   _animNear=camDist<28?2200:camDist<46?900:0;                  // and pulled back far enough, nobody needs 30 frames a second
   _animFull=0;
@@ -3051,6 +3055,20 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
       if(orderPath(e,clamp(txFromW(rx),0,MAP_W-1),clamp(tzFromW(rz),0,MAP_H-1),0))sent++; }
     if(sent){ ai.raid.t=elapsed-18; return; }                          // seeing to the town IS this second's work
   }
+  // b159: and a realm MANS its towers. It has always built them and left them empty, while the
+  // loopholes only shoot when somebody is standing at them. Two men to a tower, from whoever is
+  // idle nearby, and never the last of the host.
+  if(!ai.garT||elapsed>ai.garT){ ai.garT=elapsed+9;
+    const idle=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk&&!UNIT[e.type].siege&&!e.inGar&&e.cmd==='idle');
+    let inTowers=0; for(const e of ents)if(e.owner===o&&e.inGar)inTowers++;
+    if(idle.length>4&&inTowers<8){                                     // never wall the whole host up in its own towers
+      for(const t of blds){ if(t.owner!==o||!t.done||!GAR_CAP[t.type])continue;
+        const have=(t.gar||[]).length, want=Math.min(2,GAR_CAP[t.type]);
+        if(have>=want)continue;
+        let best=null,bd=90;
+        for(const e of idle){ if(e.garB||e.inGar)continue; const d=Math.hypot(e.x-t.cx,e.z-t.cz); if(d<bd){bd=d;best=e;} }
+        if(best){ best.cmd='gar'; best.garB=t; best.slot=null;
+          orderPath(best,t.tx+(t.w>>1),t.ty+t.h,t.id); return; } } } }
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
   const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o)+popQueued(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);   // b143: count the men already ordered
   if(workers<8&&used+1<=cap&&r.f>=50&&hall.queue.length===0){r.f-=50;hall.queue.push({type:'worker',t:6});return;}
@@ -3114,7 +3132,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   // march on whoever this realm is at war with (the player, or a rival realm via alliances)
   const foes=REALMS.filter(t=>isHostile(o,t)&&blds.some(b=>b.owner===t&&b.type==='hall'));
   const defending=ai.raid&&elapsed-ai.raid.t<25;   // b158: no new wave leaves while the town is burning
-  if(foes.length&&ai.attackTimer<=0&&!defending){const army=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk);
+  if(foes.length&&ai.attackTimer<=0&&!defending){const army=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk&&!e.inGar);   // b159: men in the towers stay in the towers
     if(army.length>=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave))){const foe=foes.includes('player')?'player':foes[0];const tgt=pickTargetFor(foe);
       army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;
       if(foe==='player'){SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}}
