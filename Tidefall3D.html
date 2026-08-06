@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b151</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b152</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2358,7 +2358,7 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     if(tgt){b.cd=isC?0.6:isW?1.1:isT?((b.up||b.up2)?TOWER_CD*1.6:TOWER_CD):1.2;
       spawnProj(b.cx,heightAtWorld(b.cx,b.cz)+(isC?9:isW?5:isT?7:8),b.cz,tgt,dm,b.owner,(isC||(isT&&(b.up||b.up2)))?'ball':'arrow');}}}
   _t=_pt('towers',_t);
-  updateProjectiles(dt);updateParticles(dt);updateCorpses(dt);updateCitizens(dt);updateVillages(dt);advanceAge(dt);
+  updateProjectiles(dt);updateParticles(dt);updateCorpses(dt);updateCitizens(dt);updateCarts(dt);updateVillages(dt);advanceAge(dt);
   _t=_pt('misc',_t);
   ents=ents.filter(e=>{if(e.hp<=0){for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
     const udd=e.mesh.userData;
@@ -2807,6 +2807,67 @@ function spawnCitizen(b){ if(citizens.length>=22)return;
   scene.add(g);
   const sx0=b.cx+(Math.random()-.5)*10,sz0=b.cz+7+Math.random()*4;   // start outside the walls
   citizens.push({mesh:g,armL,armR,legL,legR,phase:Math.random()*6,hx:b.cx,hz:b.cz,x:sx0,z:sz0,tx:sx0,tz:sz0,wait:1}); }
+// ---- b152 CARTS ON THE ROADS: goods move, so the network is doing something ----
+// A cart is an ox, a body and two turning wheels, and it tours the road network edge by edge,
+// picking up whatever the town trades in. It follows the SAME edges the roads are painted along,
+// so it is always on the road and never through a wall.
+let carts=[],cartT=0;
+// one material family again, so a cart body merges to a single mesh
+const CART_CAP=5, _cMat=c=>new THREE.MeshStandardMaterial({color:c,roughness:.92,flatShading:true});
+const OX_MAT=_cMat(0x6b4a30), C_BED=_cMat(0x6b4a2b), C_FRAME=_cMat(0x5a3d22), C_LOAD=_cMat(0xbf9a54);
+function makeCart(){ const g=new THREE.Group();
+  const body=new THREE.Group();
+  const bed=new THREE.Mesh(new THREE.BoxGeometry(1.25,.34,2.0),C_BED);bed.position.y=.72;bed.castShadow=true;body.add(bed);
+  for(const sx of[-1,1]){const side=new THREE.Mesh(new THREE.BoxGeometry(.1,.42,1.9),C_FRAME);side.position.set(sx*.62,.95,0);body.add(side);}
+  const back=new THREE.Mesh(new THREE.BoxGeometry(1.2,.42,.1),C_FRAME);back.position.set(0,.95,-.95);body.add(back);
+  const load=new THREE.Mesh(new THREE.BoxGeometry(.95,.42,1.3),C_LOAD);load.position.set(0,1.08,.05);load.castShadow=true;body.add(load);
+  const shaft=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,1.5),C_FRAME);shaft.position.set(0,.62,1.5);body.add(shaft);
+  const mb=BGU?mergeStaticModel(body):body; mb.traverse(o=>{if(o.isMesh)o.castShadow=true;}); g.add(mb);
+  const wg=new THREE.CylinderGeometry(.42,.42,.12,9);
+  const wheels=[];
+  for(const sx of[-1,1]){ const w=new THREE.Mesh(wg,C_FRAME); w.rotation.z=Math.PI/2; w.position.set(sx*.68,.44,-.35); w.castShadow=true; g.add(w); wheels.push(w); }
+  const ox=new THREE.Group();
+  const obody=new THREE.Mesh(new THREE.BoxGeometry(.72,.78,1.6),OX_MAT);obody.position.y=1.0;obody.castShadow=true;ox.add(obody);
+  const ohead=new THREE.Mesh(new THREE.BoxGeometry(.44,.44,.6),OX_MAT);ohead.position.set(0,1.12,1.0);ox.add(ohead);
+  for(const[lx,lz]of[[-.26,.55],[.26,.55],[-.26,-.55],[.26,-.55]]){const l=new THREE.Mesh(new THREE.BoxGeometry(.16,.62,.16),OX_MAT);l.position.set(lx,.31,lz);ox.add(l);}
+  const mo=BGU?mergeStaticModel(ox):ox; mo.position.z=2.35; mo.traverse(o=>{if(o.isMesh)o.castShadow=true;}); g.add(mo);
+  g.userData.wheels=wheels; return g; }
+function roadEdges(owner){ const out=[];
+  for(const b of blds){ if(b.owner!==owner||!b.done||!b._road||!b._roadTo)continue;
+    const t=b._roadTo; if(!blds.includes(t))continue; out.push([b,t]); }
+  return out; }
+function refreshCarts(){
+  const owners=['player'];
+  for(const o of AI_REALMS)if(blds.some(b=>b.owner===o&&b._road&&explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))]))owners.push(o);
+  let want=0; const edgesBy={};
+  for(const o of owners){ const e=roadEdges(o); edgesBy[o]=e; want+=Math.min(2,Math.floor(e.length/5)); }
+  want=Math.min(CART_CAP,want);
+  while(carts.length>want){ const c=carts.pop(); scene.remove(c.mesh); }
+  while(carts.length<want){ const o=owners[carts.length%owners.length], e=edgesBy[o];
+    if(!e||!e.length)break;
+    const m=makeCart(); scene.add(m);
+    carts.push({mesh:m,owner:o,edge:e[(Math.random()*e.length)|0],t:Math.random(),dir:1,wait:0,spd:0.10+Math.random()*0.05}); } }
+function updateCarts(dt){
+  cartT-=dt; if(cartT<=0){ cartT=6; refreshCarts(); }
+  for(const c of carts){ const e=c.edge;
+    if(!e||!blds.includes(e[0])||!blds.includes(e[1])){ const all=roadEdges(c.owner); if(!all.length){c.mesh.visible=false;continue;} c.edge=all[(Math.random()*all.length)|0]; c.t=0; continue; }
+    if(c.wait>0){ c.wait-=dt; }
+    else { const len=Math.hypot(e[1].cx-e[0].cx,e[1].cz-e[0].cz)||1;
+      c.t+=c.dir*c.spd*dt*12/len;
+      if(c.t>=1||c.t<=0){ c.t=clamp(c.t,0,1); c.wait=1.5+Math.random()*2.5;   // a pause at the door to load or unload
+        const here=c.t>=1?e[1]:e[0];
+        const opts=roadEdges(c.owner).filter(q=>q[0]===here||q[1]===here);
+        if(opts.length){ const nx=opts[(Math.random()*opts.length)|0];
+          c.edge=nx; c.dir=1; c.t=(nx[0]===here)?0:1; if(nx[1]===here)c.dir=-1; }
+        else c.dir=-c.dir; } }
+    const A=c.edge[0],B=c.edge[1], x=A.cx+(B.cx-A.cx)*c.t, z=A.cz+(B.cz-A.cz)*c.t;
+    const gy=heightAtWorld(x,z);
+    c.mesh.position.set(x,gy,z);
+    const ang=Math.atan2((B.cz-A.cz)*c.dir,(B.cx-A.cx)*c.dir);
+    c.mesh.rotation.y=-ang+Math.PI/2;
+    const vis=(c.owner==='player'||tileVis(x,z))&&Math.hypot(x-camTarget.x,z-camTarget.z)<160;
+    c.mesh.visible=vis;
+    if(vis&&!c.wait)for(const w of c.mesh.userData.wheels)w.rotation.y+=dt*4.5; } }
 function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
   const d=Math.hypot(c.tx-c.x,c.tz-c.z);
   let moving=false;
@@ -3789,7 +3850,7 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
