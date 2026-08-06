@@ -1534,8 +1534,9 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
   // right-click your own farm = workers tend the rows (+50% harvest each, max 2)
   if(workers0.length){ const ftx=txFromW(x),fty=tzFromW(z),fid=inB(ftx,fty)?buildGrid[ti(ftx,fty)]:0;
     const fb=blds.find(q=>q.id===fid&&q.owner==='player'&&q.done&&q.type==='farm');
-    if(fb){ workers0.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;orderPath(w,fb.tx+(fb.w>>1),fb.ty+(fb.h>>1),fb.id);});
-      flashMsg('\u{1F468}\u200D\u{1F33E} Workers tend the farm \u2014 richer harvest!');SFX.cmd();return; } }
+    if(fb){ const free=ents.some(u=>u.cmd==='tend'&&u.tendB===fb)?[]:[workers0[0]];   // one farmhand per farm
+      free.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;orderPath(w,fb.tx+(fb.w>>1),fb.ty+(fb.h>>1),fb.id);});
+      flashMsg(free.length?'\u{1F468}\u200D\u{1F33E} A farmhand takes the field \u2014 the farm will feed you now':'\u{1F468}\u200D\u{1F33E} That farm already has its farmhand');SFX.cmd();return; } }
   const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));spawnMoveMark(eu.x,eu.z,0xff4632);flashMsg('⚔ Attack! Your men charge the '+(UNIT[eu.type].name));SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
   // right-click your own tower/keep/castle with soldiers = garrison them inside
@@ -1565,7 +1566,7 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 
 // ==================================================== UPDATE
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
-  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(2,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*tenders*dt;}}   // b99: no farmhand, no harvest — farms must be sown
+  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*tenders*dt;}}   // b99: one farmhand sows each farm — no farmhand, no harvest
   for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*dt;
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=0.8*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.5*dt;               // villages pay tribute
@@ -1667,7 +1668,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'amove':if(arrived)e.cmd='idle';autoAcq(e,false);break;
     case 'idle':autoAcq(e,true);
       if(e.type==='worker'&&Math.random()<dt*2){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
-        else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&ents.filter(u=>u.cmd==='tend'&&u.tendB===q).length<2):null;
+        else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
           else{ let best=null,bd=48;   // b93: idle peasants find their own work — nearest resource within ~12 tiles
             for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}
@@ -2201,6 +2202,17 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 function selUnits(){return selected.map(id=>ents.find(e=>e.id===id)).filter(e=>e&&!e.inGar);}
+function unitDoing(e){ if(e.type!=='worker')return e.cmd==='attack'||e.cmd==='attackb'?'⚔ Fighting':e.cmd==='amove'?'⚔ Attack-marching':e.cmd==='move'?'Marching':e.cmd==='gar'?'Heading to garrison':e.cmd==='inside'?'⛨ Garrisoned':e.cmd==='hunt'?'Hunting game':'Standing ready';
+  switch(e.cmd){
+    case 'gather': return e.gather?({wood:'🌲 Chopping timber',metal:'⛏️ Mining iron',gold:'💰 Mining gold',food:'🍖 Butchering meat'})[e.gather.type]||'Gathering':'Gathering';
+    case 'return': return '🎒 Hauling '+Math.round(e.carry)+' '+(e.carryType==='wood'?'timber':e.carryType||'goods')+' home';
+    case 'build': return '🔨 Building '+(e.build?BLD[e.build.type].name:'');
+    case 'tend': return '👨‍🌾 Tending the farm';
+    case 'hunt': return '🔫 Hunting game';
+    case 'gar': return 'Heading to garrison';
+    case 'inside': return '⛨ Garrisoned';
+    case 'move': return 'Walking';
+    default: return '💤 Idle — needs a job'; } }
 let idleCycle=0;
 function idleWorkers(){return ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd==='idle');}
 function selectIdle(){const iw=idleWorkers();
@@ -2259,13 +2271,16 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       else if(UPG[b.type]&&b.up)info.innerHTML+='<br><span style="color:#7fd08a">✅ '+UPG[b.type][1]+'</span>';
       if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount','120⛏️ 60💰',res.player.m>=120&&res.player.g>=60,()=>{res.player.m-=120;res.player.g-=60;b.up2=true;flashMsg('💣 Cannon mounted — this tower now throws iron');SFX.build();refreshUI();});
       else if(b.type==='tower'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">💣 Cannon Mount</span>';
-      if(b.type==='farm'){const tn=Math.min(2,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
-        info.innerHTML+='<br>👨‍🌾 Farmhands: '+tn+'/2'+(tn?'':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with workers</span>');}
+      if(b.type==='farm'){const tn=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
+        info.innerHTML+='<br>👨‍🌾 Farmhand: '+tn+'/1'+(tn?' — the field is sown':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with a worker</span>');}
       if(GAR_CAP[b.type]){const gn=(b.gar||[]).length;
         info.innerHTML+='<br>⛨ Garrison '+gn+'/'+GAR_CAP[b.type]+(gn?'':' <span style="color:#6f93a8;font-size:11px">— right-click here with soldiers selected</span>');
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
       if(b.type==='market'){marketBtn(cmds,'💰 Sell Wood','−100🌲 +50💰',()=>trade('w',-100,50));marketBtn(cmds,'💰 Sell Food','−100🍖 +50💰',()=>trade('f',-100,50));marketBtn(cmds,'💰 Sell Metal','−100⛏️ +65💰',()=>trade('m',-100,65));marketBtn(cmds,'🛒 Buy Wood','−70💰 +100🌲',()=>trade('w',100,-70));marketBtn(cmds,'🛒 Buy Metal','−80💰 +100⛏️',()=>trade('m',100,-80));marketBtn(cmds,'🛒 Buy Food','−70💰 +100🍖',()=>trade('f',100,-70));}}}return;}
   const sel=selUnits();if(sel.length){const counts={};sel.forEach(e=>counts[e.type]=(counts[e.type]||0)+1);info.innerHTML=`<b>Selected (${sel.length})</b> <span style="color:#6f93a6;font-size:11px">(Esc clears)</span><br>`+Object.entries(counts).map(([t,n])=>`<span style="white-space:nowrap">${n}×${UNIT_IC[t]||''}${UNIT[t].name}</span>`).join(' · ');
+    if(sel.length===1)info.innerHTML+=`<br>HP ${Math.max(0,Math.round(sel[0].hp))}/${sel[0].maxHp}<br><span id="uDoing" style="color:#9fe8b0">${unitDoing(sel[0])}</span>`;
+    else{const ws=sel.filter(e=>e.type==='worker');if(ws.length===sel.length){const dt2={};ws.forEach(e=>{const d=unitDoing(e);dt2[d]=(dt2[d]||0)+1;});
+      info.innerHTML+='<br><span id="uDoing" style="color:#9fe8b0;font-size:12px">'+Object.entries(dt2).map(([d,n])=>n+'× '+d).join(' · ')+'</span>';}}
     if(sel.some(e=>e.type!=='worker')){ const fr=document.createElement('div');fr.style.cssText='display:flex;gap:4px;margin-top:6px;flex-wrap:wrap';
       for(const k in FORMS){ const fb=document.createElement('button');fb.textContent=FORMS[k].ic+' '+FORMS[k].name;
         fb.title='Formation — right-click-drag the ground to place & aim it (T cycles)';
