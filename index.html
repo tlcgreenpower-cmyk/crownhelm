@@ -60,7 +60,7 @@
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b95</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b96</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1128,7 +1128,15 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     if(type==='worker'){ const gun=new THREE.Group();   // hunting musket — shown only while on the hunt
       const stock=new THREE.Mesh(new THREE.BoxGeometry(.09,.11,.7),M.wood);stock.position.z=-.25;gun.add(stock);
       const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.95,6),ironGrey);barrel.rotation.x=Math.PI/2;barrel.position.z=.3;gun.add(barrel);
-      gun.position.set(.34,1.28,.18);gun.rotation.y=-.15;gun.visible=false;g.add(gun);g.userData.gun=gun; }
+      gun.position.set(.34,1.28,.18);gun.rotation.y=-.15;gun.visible=false;g.add(gun);g.userData.gun=gun;
+      const axe=new THREE.Group();   // felling axe — in hand while chopping
+      const haft=new THREE.Mesh(new THREE.CylinderGeometry(.04,.05,.78,5),M.wood);haft.rotation.x=Math.PI/2;axe.add(haft);
+      const blade=new THREE.Mesh(new THREE.BoxGeometry(.06,.24,.14),ironGrey);blade.position.set(0,.02,.34);axe.add(blade);
+      axe.position.set(.36,1.12,.12);axe.rotation.z=.55;axe.visible=false;g.add(axe);g.userData.axe=axe;
+      const pick=new THREE.Group();   // pickaxe — in hand at the mines
+      const ph2=new THREE.Mesh(new THREE.CylinderGeometry(.04,.05,.78,5),M.wood);ph2.rotation.x=Math.PI/2;pick.add(ph2);
+      const cross=new THREE.Mesh(new THREE.BoxGeometry(.44,.06,.09),ironGrey);cross.position.z=.34;pick.add(cross);
+      pick.position.set(.36,1.12,.12);pick.rotation.z=.55;pick.visible=false;g.add(pick);g.userData.pick=pick; }
     const mixer=new THREE.AnimationMixer(ch);
     const find=re=>src.clips.find(c=>re.test(c.name));
     const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
@@ -1602,7 +1610,12 @@ function separateUnits(){ const cell=3, grid=new Map();
           e.x-=nx*push;e.z-=nz*push;o.x+=nx*push;o.z+=nz*push; }
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
-  const _gp=e.mesh.userData.gun;if(_gp&&_gp.visible!==(e.cmd==='hunt'))_gp.visible=(e.cmd==='hunt');
+  { const ud=e.mesh.userData;
+    if(ud.gun){ const gt=(e.cmd==='gather'&&e.gather)?e.gather.type:null;
+      const wantG=e.cmd==='hunt', wantA=gt==='wood', wantP=gt==='metal'||gt==='gold';
+      if(ud.gun.visible!==wantG)ud.gun.visible=wantG;
+      if(ud.axe&&ud.axe.visible!==wantA)ud.axe.visible=wantA;
+      if(ud.pick&&ud.pick.visible!==wantP)ud.pick.visible=wantP; } }
   if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;}}}
