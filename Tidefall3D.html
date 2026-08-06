@@ -61,7 +61,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b106</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b107</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -383,7 +383,7 @@ function isHostile(a,b){ if(a===b)return false;
 const isFriend=o=>diplo[o]&&diplo[o].stance!=='war'&&diplo[o].score>=60;
 function realmName(o){return o==='player'?'You':FACTIONS[faction[o]].name;}
 const UNIT={
-  worker:{hp:45,speed:10,range:2.4,dmg:3,cd:.8,r:.9,vis:8,dom:'land',color:0xd7dee2,name:'Worker'},
+  worker:{hp:45,speed:9,range:2.4,dmg:3,cd:.8,r:.9,vis:8,dom:'land',color:0xd7dee2,name:'Worker'},
   spear:{hp:105,speed:12,range:2.6,dmg:11,cd:.9,r:1.05,vis:8,dom:'land',color:0x9aa6b0,name:'Pikeman',coat:true},
   archer:{hp:62,speed:13,range:17,dmg:9,cd:1.1,r:1.0,vis:10,dom:'land',color:0x7ac8e0,name:'Skirmisher'},
   infantry:{hp:110,speed:12,range:16,dmg:13,cd:1.5,r:1.05,vis:9,dom:'land',color:0xcccccc,name:'Infantry',coat:true,ranged:true},
@@ -423,6 +423,10 @@ const BLD={
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
 const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80};
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
+// b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
+const RSCH={
+  weapon:{ic:'⚔',name:'Weapons',costs:[{m:80,f:80},{m:150,f:120},{m:220,f:180}],times:[35,55,75],age:[1,2,3]},
+  armor:{ic:'🛡',name:'Armor',costs:[{w:80,f:80},{w:150,f:120},{w:220,f:180}],times:[30,50,70],age:[1,2,3]}};
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=2.6,MILL_FOOD=2.0,CARRY=12,MINE=6.5,AGE2={f:300,w:250,time:70},AGE3={f:600,w:400,m:200,time:100};
 const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu',sacred:'hoplite'};
 
@@ -1229,7 +1233,10 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
       const ph2=new THREE.Mesh(new THREE.CylinderGeometry(.04,.05,.78,5),M.wood);ph2.rotation.x=Math.PI/2;pick.add(ph2);
       const cross=new THREE.Mesh(new THREE.BoxGeometry(.44,.06,.09),ironGrey);cross.position.z=.34;pick.add(cross);
       pick.position.set(.36,1.12,.12);pick.rotation.z=.55;pick.visible=false;g.add(pick);g.userData.pick=pick;
-      const sack=new THREE.Mesh(new THREE.SphereGeometry(.26,6,5),M.thatch);sack.scale.set(1,.8,.7);sack.position.set(0,1.5,-.32);sack.visible=false;g.add(sack);g.userData.sack=sack; }
+      const sack=new THREE.Mesh(new THREE.SphereGeometry(.26,6,5),M.thatch);sack.scale.set(1,.8,.7);sack.position.set(0,1.5,-.32);sack.visible=false;g.add(sack);g.userData.sack=sack;
+      const log=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,1.15,6),M.trunk);log.rotation.x=Math.PI/2;log.rotation.z=.35;log.position.set(-.12,1.62,0);log.visible=false;g.add(log);g.userData.log=log;   // felled timber over the shoulder
+      const ore=new THREE.Mesh(new THREE.DodecahedronGeometry(.3,0),ironGrey);ore.position.set(0,1.5,-.32);ore.visible=false;g.add(ore);g.userData.ore=ore;
+      const goldOre=new THREE.Mesh(new THREE.DodecahedronGeometry(.28,0),M.gold);goldOre.position.set(0,1.5,-.32);goldOre.visible=false;g.add(goldOre);g.userData.goldOre=goldOre; }
     const mixer=new THREE.AnimationMixer(ch);
     const find=re=>src.clips.find(c=>re.test(c.name));
     const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
@@ -1537,7 +1544,7 @@ function popUsed(o){let p=0;for(const e of ents)if(e.owner===o)p+=COST[e.type].p
 function countType(o,t){return ents.filter(e=>e.owner===o&&e.type===t).length;}
 function countBld(o,t){return blds.filter(b=>b.owner===o&&b.type===t).length;}
 function hasBld(o,t){return blds.some(b=>b.owner===o&&b.type===t&&b.done);}
-function effDmg(e){let d=UNIT[e.type].dmg*(1+tech[e.owner].weapon*0.2);if(UNIT[e.type].coat&&UNIT[e.type].ranged&&faction[e.owner]==='english')d*=1.15;return d*(1+0.1*(e.rank||0));}
+function effDmg(e){let d=UNIT[e.type].dmg*(1+tech[e.owner].weapon*0.15);if(UNIT[e.type].coat&&UNIT[e.type].ranged&&faction[e.owner]==='english')d*=1.15;return d*(1+0.1*(e.rank||0));}
 // ---- veterancy: soldiers earn stripes in battle — harder-hitting, tougher, gold pips overhead ----
 const RANK_XP=[60,180,400];
 function gainXp(e,amt){ if(e.type==='worker'||UNIT[e.type].noAtk)return; e.xp=(e.xp||0)+amt*(faction[e.owner]==='sacred'?1.5:1);
@@ -1694,7 +1701,10 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     else corpses.push({mesh:e.mesh,t:0});
     SFX.die();selected=selected.filter(id=>id!==e.id);for(const k in groups)groups[k]=groups[k].filter(id=>id!==e.id);return false;}return true;});
   if(!paradeMode)for(const o of AI_REALMS)realmBrain(o,dt);atkPing.t+=dt;computeVision();if(!paradeMode)checkWin();}
-function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of Empire — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}}}
+function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of Empire — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}
+  if(t.rsch){t.rsch.t-=dt;if(t.rsch.t<=0){const k=t.rsch.k;t[k]=Math.min(3,(t[k]||0)+1);t.rsch=null;
+    if(k==='armor'&&o==='player')bumpHp();
+    if(o==='player'){SFX.build();flashMsg('✅ '+RSCH[k].name+' '+t[k]+' forged — '+(k==='weapon'?'blades and shot bite deeper':'coats and mail turn more blows'));refreshUI();}}}}}
 function ungarrison(b){ if(!b.gar)return; for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
   const sp=spawnSpot(b,u.type); u.inGar=null; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
   b.gar=[]; SFX.cmd(); }
@@ -1711,6 +1721,10 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;b.m
       bhb.quaternion.copy(b.mesh.quaternion).invert().multiply(camera.quaternion); } else bhb.visible=false; }
   if(!b._stamped&&b.type!=='wall'){ const ex=explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))];
     if(b.owner==='player'||ex){ stampDirt(b.cx,b.cz,Math.max(b.w,b.h)+0.6); b._stamped=true; } }
+  if(b.rschK){ b.rschT-=dt; if(b.rschT<=0){ const k=b.rschK; b.rschK=null;
+    if(k==='up'){ b.up=true; if(b.type==='wall'||b.type==='gate'){b.maxHp*=1.5;b.hp*=1.5;} }
+    else if(k==='up2')b.up2=true;
+    if(b.owner==='player'){SFX.build();flashMsg('✅ '+BLD[b.type].name+' upgrade complete');if(selBuilding===b.id)refreshUI();} } }
   if(b.mesh.userData.flag)b.mesh.userData.flag.rotation.y=Math.sin(elapsed*3+b.id)*0.3;
   if(b.mesh.userData.blades)b.mesh.userData.blades.rotation.z+=dt*1.4;
   if((b.type==='house'||b.type==='hall')&&Math.random()<dt*0.7&&(b.owner==='player'||tileVis(b.cx,b.cz)))spawnPart(b.cx,heightAtWorld(b.cx,b.cz)+(b.type==='hall'?9:5),b.cz,'smoke');
@@ -1742,7 +1756,12 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(ud.gun.visible!==wantG)ud.gun.visible=wantG;
       if(ud.axe&&ud.axe.visible!==wantA)ud.axe.visible=wantA;
       if(ud.pick&&ud.pick.visible!==wantP)ud.pick.visible=wantP;
-      if(ud.sack&&ud.sack.visible!==(e.carry>3))ud.sack.visible=(e.carry>3);
+      { const carrying=e.carry>3, ct=e.carryType;   // each load looks like what it is
+        const wS=carrying&&(ct==='food'||!ct), wL=carrying&&ct==='wood', wO=carrying&&ct==='metal', wG2=carrying&&ct==='gold';
+        if(ud.sack&&ud.sack.visible!==wS)ud.sack.visible=wS;
+        if(ud.log&&ud.log.visible!==wL)ud.log.visible=wL;
+        if(ud.ore&&ud.ore.visible!==wO)ud.ore.visible=wO;
+        if(ud.goldOre&&ud.goldOre.visible!==wG2)ud.goldOre.visible=wG2; }
       // the held tool swings in the same rhythm as the arms (workT drives the b93 swing anim)
       const tl=wantA?ud.axe:wantP?ud.pick:null;
       if(tl){ const mvg=e.path&&e.pi<e.path.length;
@@ -1752,7 +1771,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2;
       const held=tl||(wantG?ud.gun:null);
       if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } }   // pin the tool to the swinging fist
-  if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
+  if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;}}}
   const arrived=!e.path||e.pi>=e.path.length;
@@ -2057,8 +2076,10 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(T.age===2){if(countBld(o,'castle')<1&&r.w>=220&&r.m>=150){if(placeAI(o,'castle'))return;}if(countBld(o,'siege')<1&&r.w>=130&&r.m>=60){if(placeAI(o,'siege'))return;}if(barr.length<2&&r.w>=110){if(placeAI(o,'barracks'))return;}}
   if(countBld(o,'tower')<(T.age>=2?3:2)&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
   if(T.age>=2)for(const tb of blds)if(tb.owner===o&&tb.type==='tower'&&tb.done&&!tb.up&&r.w>=80&&r.m>=60&&Math.random()<.25){r.w-=80;r.m-=60;tb.up=true;break;}
-  if(barr.length&&T.weapon<2&&r.m>=80&&r.f>=80&&Math.random()<.3){r.m-=80;r.f-=80;T.weapon++;return;}
-  if(barr.length&&T.armor<2&&r.w>=80&&r.f>=80&&Math.random()<.3){r.w-=80;r.f-=80;T.armor++;return;}
+  if(barr.length&&!T.rsch)for(const rk of ['weapon','armor']){ const D=RSCH[rk],tier=T[rk]||0;
+    if(tier>=3||T.age<D.age[tier])continue; const c=D.costs[tier];
+    if((c.m||0)<=r.m&&(c.w||0)<=r.w&&(c.f||0)<=r.f&&Math.random()<.3){
+      r.m-=(c.m||0);r.w-=(c.w||0);r.f-=(c.f||0);T.rsch={k:rk,t:D.times[tier],total:D.times[tier]};return;} }
   if(barr.length&&used+2<=cap)for(const b0 of barr){if(b0.queue.length===0){const c=COST;
     if(T.age===2&&r.f>=c.knight.f&&r.m>=c.knight.m&&Math.random()<.4){r.f-=c.knight.f;r.m-=c.knight.m;b0.queue.push({type:'knight',t:c.knight.time});}
     else if(T.age>=2&&r.f>=c.samurai.f&&r.m>=c.samurai.m&&r.g>=(c.samurai.g||0)&&Math.random()<.25){r.f-=c.samurai.f;r.m-=c.samurai.m;r.g-=(c.samurai.g||0);b0.queue.push({type:'samurai',t:c.samurai.time});}
@@ -2362,8 +2383,18 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         else if(T.age===2){const c={f:AGE3.f,w:AGE3.w,m:AGE3.m};techBtn(cmds,'⏫','Advance to Age III',`${AGE3.f}🍖 ${AGE3.w}🌲 ${AGE3.m}⛏️`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;res.player.m-=c.m;T.ageTimer=AGE3.time;T.ageTo=3;flashMsg('Advancing to the Age of Empire…');refreshUI();});}
         else info.innerHTML+='<br><span style="color:#e0c878">Age of Empire reached</span>';}
       if(b.type==='barracks'){trainBtn(cmds,b,'spear','🛡','Pikeman',can);trainBtn(cmds,b,'archer','🏹','Skirmisher',can);trainBtn(cmds,b,'viking','⚔️','Viking Raider',can);if(tech.player.age>=2){trainBtn(cmds,b,'samurai','🗡️','Samurai',can);trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'dragoon','🐴','Dragoon',can);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const T=tech.player;
-        techBtn(cmds,'⚔','Weapons '+(T.weapon+1),'80⛏️ 80🍖',T.weapon<2&&res.player.m>=80&&res.player.f>=80,()=>{res.player.m-=80;res.player.f-=80;T.weapon++;flashMsg('Weapons upgraded');refreshUI();},T.weapon>=2);
-        techBtn(cmds,'🛡','Armor '+(T.armor+1),'80🌲 80🍖',T.armor<2&&res.player.w>=80&&res.player.f>=80,()=>{res.player.w-=80;res.player.f-=80;T.armor++;bumpHp();flashMsg('Armor upgraded');refreshUI();},T.armor>=2);}
+        for(const rk of ['weapon','armor']){ const D=RSCH[rk],tier=T[rk]||0,R=T.rsch;
+          if(tier>=3){techBtn(cmds,D.ic,D.name+' MAX','forged',false,()=>{},true);continue;}
+          const c=D.costs[tier],needAge=D.age[tier];
+          const costStr=(c.m?c.m+'⛏️ ':'')+(c.w?c.w+'🌲 ':'')+(c.f?c.f+'🍖':'')+' · '+D.times[tier]+'s';
+          techBtn(cmds,D.ic,D.name+' '+(tier+1),R?(R.k===rk?'researching…':'smiths busy'):(tech.player.age<needAge?'Age '+needAge:costStr),!R&&tech.player.age>=needAge&&can(c),()=>{
+            if(T.rsch){flashMsg('The smiths are busy — one research at a time');return;}
+            if(tech.player.age<needAge){flashMsg('Advance to Age '+needAge+' first — at your Keep');return;}
+            if(!can(c)){flashMsg('Need '+shortOf(c)+' more');return;}
+            res.player.m-=(c.m||0);res.player.w-=(c.w||0);res.player.f-=(c.f||0);
+            T.rsch={k:rk,t:D.times[tier],total:D.times[tier]};
+            flashMsg('🔬 '+D.name+' '+(tier+1)+' — the smiths set to work ('+D.times[tier]+'s)');SFX.cmd();refreshUI(); }); }
+        if(T.rsch)info.innerHTML+='<br><span id="rschLine" style="color:#9fe8b0">🔬 '+RSCH[T.rsch.k].name+' '+((T[T.rsch.k]||0)+1)+' — '+Math.ceil(T.rsch.t)+'s</span>';}
       if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2)trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);}
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2)trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
@@ -2376,12 +2407,16 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         barracks:['⚙','Drill Yard','60🌲 40⛏️',{w:60,m:40},'Troops train 20% faster'],
         gate:['🛡','Iron Gate','50⛏️',{m:50},'+50% gate strength']};
       if(UPG[b.type]&&!b.up){ const upd=UPG[b.type];
-        techBtn(cmds,upd[0],upd[1],upd[2],can(upd[3]),()=>{ const cc=upd[3]; if(!can(cc)){flashMsg('Need '+shortOf(cc)+' more');return;}
+        techBtn(cmds,upd[0],upd[1],b.rschK?'upgrading… '+Math.ceil(b.rschT)+'s':upd[2]+' · 35s',!b.rschK&&can(upd[3]),()=>{
+          if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
+          const cc=upd[3]; if(!can(cc)){flashMsg('Need '+shortOf(cc)+' more');return;}
           res.player.w-=(cc.w||0);res.player.m-=(cc.m||0);res.player.f-=(cc.f||0);res.player.g-=(cc.g||0);
-          b.up=true; if(b.type==='wall'||b.type==='gate'){b.maxHp*=1.5;b.hp*=1.5;}
-          flashMsg('✅ '+upd[1]+' — '+upd[4]);SFX.build();refreshUI(); }); }
+          b.rschK='up'; b.rschT=35;
+          flashMsg('🔨 '+upd[1]+' underway — '+upd[4]+' (35s)');SFX.cmd();refreshUI(); }); }
       else if(UPG[b.type]&&b.up)info.innerHTML+='<br><span style="color:#7fd08a">✅ '+UPG[b.type][1]+'</span>';
-      if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount','120⛏️ 60💰',res.player.m>=120&&res.player.g>=60,()=>{res.player.m-=120;res.player.g-=60;b.up2=true;flashMsg('💣 Cannon mounted — this tower now throws iron');SFX.build();refreshUI();});
+      if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount',b.rschK?'mounting… '+Math.ceil(b.rschT)+'s':'120⛏️ 60💰 · 50s',!b.rschK&&res.player.m>=120&&res.player.g>=60,()=>{
+        if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
+        res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=50;flashMsg('💣 Hoisting the cannon — 50s');SFX.cmd();refreshUI();});
       else if(b.type==='tower'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">💣 Cannon Mount</span>';
       if(b.type==='farm'){const tn=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
         info.innerHTML+='<br>👨‍🌾 Farmhand: '+tn+'/1'+(tn?' — the field is sown':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with a worker</span>');}
@@ -2435,7 +2470,9 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
   $('age').textContent=tech.player.ageTimer>0?'Advancing…':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
   $('clock').textContent=Math.floor(elapsed/60)+':'+String(Math.floor(elapsed%60)).padStart(2,'0');
   const qe=document.getElementById('qline');
-  if(qe&&selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)qe.innerHTML=qlineHTML(b);}}
+  if(qe&&selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)qe.innerHTML=qlineHTML(b);}
+  const rl=document.getElementById('rschLine');
+  if(rl&&tech.player.rsch)rl.textContent='🔬 '+RSCH[tech.player.rsch.k].name+' '+((tech.player[tech.player.rsch.k]||0)+1)+' — '+Math.ceil(tech.player.rsch.t)+'s';}
 // ---- diplomacy panel ----
 function stanceLabel(o){const d=diplo[o];return d.stance==='war'?'<span style="color:#ff8a6a">AT WAR</span>':d.score>=60?'<span style="color:#9fe6b0">Friend</span>':d.score>=25?'<span style="color:#bfe4a0">Warm</span>':d.score>=-10?'Neutral':'<span style="color:#e0b070">Wary</span>';}
 function renderDiplo(){const p=$('diplo');if(p.classList.contains('hidden'))return;
@@ -2576,7 +2613,7 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
-    blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
+    blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,rk:b.rschK||0,rt:Math.round(b.rschT||0),la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
     ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
     cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,pitch:camPitch,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
@@ -2599,7 +2636,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   const HP_LEGACY={hall:1600,house:320,farm:260,storehouse:360,barracks:760,siege:820,gunshop:820,church:640,castle:3200,wall:1000,gate:900,mill:340,watch:440,market:400,statue:220,garden:160,dock:640,tower:560};
   for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);
     b.hp=s.hpv>=2?sb.hp:Math.round(sb.hp*(BLD[sb.t].hp/(HP_LEGACY[sb.t]||BLD[sb.t].hp)));   // pre-b95 saves used the old HP scale
-    b.progress=sb.p;if(sb.up){b.up=true;if(sb.t==='wall'||sb.t==='gate')b.maxHp*=1.5;}if(sb.u2)b.up2=true;if(sb.la!==undefined&&sb.la!==null){b.la=sb.la;b.lx=sb.lx;b.lz=sb.lz;b.mesh.position.set(b.lx,heightAtWorld(b.lx,b.lz),b.lz);orientWall(b);}
+    b.progress=sb.p;if(sb.up){b.up=true;if(sb.t==='wall'||sb.t==='gate')b.maxHp*=1.5;}if(sb.u2)b.up2=true;if(sb.rk){b.rschK=sb.rk;b.rschT=sb.rt||10;}if(sb.la!==undefined&&sb.la!==null){b.la=sb.la;b.lx=sb.lx;b.lz=sb.lz;b.mesh.position.set(b.lx,heightAtWorld(b.lx,b.lz),b.lz);orientWall(b);}
     if(!sb.d)b.mesh.scale.y=0.05+0.95*sb.p; b.queue=(sb.q||[]).map(q=>({type:q.type,t:q.t})); b.rally=sb.r||null;
     if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }
   for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;e.xp=se.xp||0;e.rank=se.rk||0;if(e.rank)addRankPips(e);placeMesh(e);
