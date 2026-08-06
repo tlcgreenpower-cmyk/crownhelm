@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b163</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b164</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2724,7 +2724,11 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
         if(e.pfFail>=3){ e.pfFail=0; e.gather=null; e.cmd='idle'; e.noWork=elapsed+9;   // can't get there — stand down so the 💤 button finds him
           if(e.owner==='player')flashMsg('💤 A worker can\'t reach his target through the forest — he stands ready for new orders'); } }
       else if(e.path)e.pfFail=0; }break;}
-    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
+    // b164: the delivery reach is measured from the STORE'S CENTRE, so it has to clear the store
+    // itself. A flat 7.6 was smaller than a 3x3 Keep — the nearest ground a man can stand on is
+    // 8.00 from its middle — so a worker hauling to the Keep, which is where every game begins,
+    // could not put his load down at all except by a lucky jostle. It scales with the building now.
+    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}   // can't get the load home — stand down rather than shuffle
         else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
