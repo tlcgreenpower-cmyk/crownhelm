@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b133</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b134</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1223,6 +1223,9 @@ function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGr
   const grave=new THREE.InstancedMesh(new THREE.BoxGeometry(.42,.6,.13),new THREE.MeshStandardMaterial({color:0x8a8f96,roughness:.95,flatShading:true}),240);
   const hay=new THREE.InstancedMesh(new THREE.BoxGeometry(.95,.55,.65),new THREE.MeshStandardMaterial({color:0xd9b95c,roughness:1,flatShading:true}),160);
   const bldr=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.42,0),new THREE.MeshStandardMaterial({color:0x7d8288,roughness:.95,flatShading:true}),240);
+  const fireStone=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.15,0),new THREE.MeshStandardMaterial({color:0x6d675e,roughness:1,flatShading:true}),480);
+  const fireLog=new THREE.InstancedMesh(new THREE.CylinderGeometry(.08,.09,.9,5),new THREE.MeshStandardMaterial({color:0x4a3323,roughness:1}),160);
+  let fs4=0,fl4=0; _campfirePos=[];
   let ri4=0,sp4=0,an4=0,gv4=0,hy4=0,bd4=0;
   let pi3=0,li3=0,ci3=0,bi3=0,fi3=0,pl3=0;
   const col2=new THREE.Color();
@@ -1246,6 +1249,11 @@ function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGr
         v3.set(bx+dx*t*.8,by+1.12,bz+dz*t*.8); q0.setFromEuler(eul.set(0,-ry,(hashN(b.id,k*13)-.5)*.12)); s3.set(1,1,1);
         m4.compose(v3,q0,s3); lCloth.setMatrixAt(ci3,m4);
         col2.setHex(CLOTH_COLS[(b.id+k)%CLOTH_COLS.length]); lCloth.setColorAt(ci3,col2); ci3++; } }
+    if((b.type==='barracks'||b.type==='castle')&&fs4<474&&fl4<158){ const fx=b.cx+(hashN(b.id,401)-.5)*b.w*TILE*.4, fz=b.cz-b.h*TILE*.5-1.6, fy=heightAtWorld(fx,fz);
+      for(let k=0;k<6;k++){ const fa=k/6*6.28; v3.set(fx+Math.cos(fa)*.55,fy+.1,fz+Math.sin(fa)*.55);
+        q0.setFromEuler(eul.set(hashN(k,b.id)*3,hashN(b.id,k)*3,0)); s3.setScalar(.8+hashN(k*3,b.id)*.5); m4.compose(v3,q0,s3); fireStone.setMatrixAt(fs4,m4); fs4++; }
+      for(let k=0;k<2;k++){ v3.set(fx,fy+.16,fz); q0.setFromEuler(eul.set(0,k?2.2:0.6,1.35)); s3.setScalar(1); m4.compose(v3,q0,s3); fireLog.setMatrixAt(fl4,m4); fl4++; }
+      _campfirePos.push([fx,fz,fy]); }
     if((b.type==='barracks'||b.type==='range')&&ri4<200&&sp4<597){ const rx=b.cx+b.w*TILE*.5+.9, rz=b.cz+(hashN(311,b.id)-.5)*b.h*TILE*.5, ryy=heightAtWorld(rx,rz), ra=hashN(b.id,313)*3;
       v3.set(rx,ryy+.75,rz); q0.setFromEuler(eul.set(0,ra,0)); s3.set(1,1,1); m4.compose(v3,q0,s3); rack.setMatrixAt(ri4,m4); ri4++;
       for(let k=0;k<3;k++){ v3.set(rx+Math.cos(ra)*(k-1)*.3,ryy+.82,rz-Math.sin(ra)*(k-1)*.3);
@@ -1264,14 +1272,14 @@ function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGr
         for(let f=0;f<2&&fi3<240;f++){ m4.makeTranslation(bx+(hashN(b.id,f+k*7)-.5)*.25,by+.34,bz+(hashN(f,b.id)-.5)*.25);
           fruit.setMatrixAt(fi3,m4); col2.setHex(FRUIT_COLS[(b.id+f+k)%FRUIT_COLS.length]); fruit.setColorAt(fi3,col2); fi3++; } } } }
   lPole.count=pi3;lLine.count=li3;lCloth.count=ci3;basket.count=bi3;fruit.count=fi3;pileLog.count=pl3;
-  rack.count=ri4;rackSpear.count=sp4;anvil.count=an4;grave.count=gv4;hay.count=hy4;bldr.count=bd4;
+  rack.count=ri4;rackSpear.count=sp4;anvil.count=an4;grave.count=gv4;hay.count=hy4;bldr.count=bd4;fireStone.count=fs4;fireLog.count=fl4;
   barrel.count=bi;crate.count=ci;sack.count=ki;scPole.count=si;scArm.count=si;scHead.count=si;
-  for(const m of [barrel,crate,sack,scPole,scArm,scHead,lPole,lLine,lCloth,basket,fruit,pileLog,rack,rackSpear,anvil,grave,hay,bldr]){ m.castShadow=false; m.instanceMatrix.needsUpdate=true; if(m.instanceColor)m.instanceColor.needsUpdate=true; clutterGroup.add(m); } }
+  for(const m of [barrel,crate,sack,scPole,scArm,scHead,lPole,lLine,lCloth,basket,fruit,pileLog,rack,rackSpear,anvil,grave,hay,bldr,fireStone,fireLog]){ m.castShadow=false; m.instanceMatrix.needsUpdate=true; if(m.instanceColor)m.instanceColor.needsUpdate=true; clutterGroup.add(m); } }
 function tickClutter(dt){ _clutT-=dt; if(_clutT>0)return; _clutT=2;
   const sig=blds.reduce((s,b)=>b.done?s+b.id:s,0)+':'+blds.length;
   if(sig!==_clutSig){ _clutSig=sig; refreshClutter(); } }
 // b131: leaves ride the wind out of the treetops, tumble, and settle
-let leafMesh=null,leaves=[],_fishSpots=[],_fishT=3;
+let leafMesh=null,leaves=[],_fishSpots=[],_fishT=3,_campfirePos=[];
 const _lm4=new THREE.Matrix4(),_lq=new THREE.Quaternion(),_le=new THREE.Euler(),_lv=new THREE.Vector3(),_ls=new THREE.Vector3(1,1,1);
 function newLeaf(i){ const n=woodNodes.length?woodNodes[(i*37+((Math.random()*woodNodes.length)|0))%woodNodes.length]:null;
   const x=n?wx(n.tx)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_W, z=n?wz(n.ty)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_H;
@@ -1293,6 +1301,9 @@ function updateLeaves(dt,now){ if(!leafMesh)return;
     leafMesh.setMatrixAt(i,_lm4); }
   leafMesh.instanceMatrix.needsUpdate=true; }
 function updateAmbient(dt,now){ tickClutter(dt); updateLeaves(dt,now);
+  for(const f of _campfirePos){ if(Math.random()<dt*2.2&&Math.hypot(f[0]-camTarget.x,f[1]-camTarget.z)<110){
+    spawnPart(f[0]+(Math.random()-.5)*.3,f[2]+.45,f[1]+(Math.random()-.5)*.3,'flame');
+    if(Math.random()<0.25)spawnPart(f[0],f[2]+.8,f[1],'smoke'); } }
   _fishT-=dt; if(_fishT<=0){ _fishT=2.5+Math.random()*3.5;   // somewhere near, a fish breaks the surface
     if(_fishSpots.length){ const s=_fishSpots[(Math.random()*_fishSpots.length)|0];
       if(Math.hypot(s[0]-camTarget.x,s[1]-camTarget.z)<130)for(let i=0;i<5;i++)spawnPart(s[0],waterY+0.25,s[1],'splash'); } }
@@ -2058,6 +2069,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
     case 'amove':if(arrived)e.cmd='idle';autoAcq(e,false);break;
     case 'idle':autoAcq(e,true);
+      if(!e.inGar&&!e.path&&Math.random()<dt*0.045&&e.mesh.userData.cheerA)playOnce(e,Math.random()<0.6?'cheerA':'attackA');   // b134: idle folk stretch, wave, drill
       if(e.type==='worker'&&Math.random()<dt*2&&!(e.noWork&&elapsed<e.noWork)){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
         else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
