@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b149</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b150</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2376,20 +2376,40 @@ function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){
   if(t.rsch){t.rsch.t-=dt;if(t.rsch.t<=0){const k=t.rsch.k;t[k]=Math.min(3,(t[k]||0)+1);t.rsch=null;
     if(k==='armor'&&o==='player')bumpHp();
     if(o==='player'){SFX.build();flashMsg('✅ '+RSCH[k].name+' '+t[k]+' forged — '+(k==='weapon'?'blades and shot bite deeper':'coats and mail turn more blows'));refreshUI();}}}}}
-// b129: towns grow streets — each finished building tramples a worn footpath to its nearest neighbour
-const PATH_SKIP=new Set(['wall','gate','bridge','tower','watch','farm']);
-function stampPath(ax,az,bx,bz){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
+// ---- b150 THE ROADS OF THE REALM (brief priority 4) ----
+// Every finished building used to trample its own stub to whichever neighbour happened to be
+// nearest, which left a town scattered with disconnected smudges. Roads now GROW AS A NETWORK:
+// each new building joins the nearest building that is already ON the network, and the network is
+// rooted at the Keep. That is a growing spanning tree, so every door in the town is joined to
+// every other by a road you can follow, and the trunk out of the Keep carries the whole town.
+const PATH_SKIP=new Set(['wall','bridge','farm']);   // gates and towers now take a road — a road SHOULD run through a gate
+const ROAD_ROOT=new Set(['hall','castle']);
+function stampPath(ax,az,bx,bz,width,wear){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
   const toPx=(x,z)=>[(x/WORLD_W+0.5)*TW,(z/WORLD_H+0.5)*TH];
   const A=toPx(ax,az),B=toPx(bx,bz),seg=6,pts=[A];
   for(let s=1;s<seg;s++){const t=s/seg;pts.push([A[0]+(B[0]-A[0])*t+(hashN(ax+s,bz)-0.5)*6,A[1]+(B[1]-A[1])*t+(hashN(az,bx+s)-0.5)*6]);}
-  pts.push(B); const c2=groundCtx;
-  c2.strokeStyle='rgba(178,150,104,0.30)'; c2.lineWidth=Math.max(2,TW/MAP_W*0.5); c2.lineCap='round'; c2.lineJoin='round';
-  c2.beginPath();c2.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)c2.lineTo(pts[i][0],pts[i][1]);c2.stroke();
+  pts.push(B); const c2=groundCtx, base=Math.max(2,TW/MAP_W*0.5), w=base*(width||1);
+  const run=()=>{c2.beginPath();c2.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)c2.lineTo(pts[i][0],pts[i][1]);c2.stroke();};
+  c2.lineCap='round'; c2.lineJoin='round';
+  c2.strokeStyle='rgba(150,128,90,0.16)'; c2.lineWidth=w*1.65; run();              // the soft verge either side
+  c2.strokeStyle='rgba(178,150,104,'+(0.26+0.16*(wear||0))+')'; c2.lineWidth=w; run();   // and the worn road itself
+  if((wear||0)>0.5){ c2.strokeStyle='rgba(150,122,78,0.14)'; c2.lineWidth=w*0.42; run(); }   // ruts down the middle of a busy one
   groundTex.needsUpdate=true; }
-function stampTownPath(b){ if(PATH_SKIP.has(b.type))return; let nb2=null,nd2=46;
+function stampTownPath(b){ if(PATH_SKIP.has(b.type))return;
+  // the network starts at the Keep; anything else joins the nearest thing already joined
+  if(ROAD_ROOT.has(b.type)){ b._road=1; b._roadDepth=0; return; }
+  let best=null,bd=1e9,fallback=null,fd=1e9;
   for(const q of blds){ if(q===b||!q.done||q.owner!==b.owner||PATH_SKIP.has(q.type))continue;
-    const d2=Math.hypot(q.cx-b.cx,q.cz-b.cz); if(d2<nd2){nd2=d2;nb2=q;} }
-  if(nb2)stampPath(b.cx,b.cz,nb2.cx,nb2.cz); }
+    const d=Math.hypot(q.cx-b.cx,q.cz-b.cz);
+    if(q._road){ if(d<bd){bd=d;best=q;} } else if(d<fd){fd=d;fallback=q;} }
+  const to=best||fallback; if(!to||Math.min(bd,fd)>90)return;
+  const depth=(to._roadDepth||0)+1;
+  b._road=1; b._roadDepth=depth;
+  // a road nearer the Keep carries more of the town, so it is broader and more worn
+  const width=depth<=1?1.9:depth===2?1.45:depth===3?1.15:0.95;
+  stampPath(b.cx,b.cz,to.cx,to.cz,width,depth<=2?1:0);
+  // and once in a while a second link, so a town has a loop or two rather than a pure tree
+  if(best&&fallback&&fallback!==best&&fd<46&&hashN(b.tx,b.ty)<0.34)stampPath(b.cx,b.cz,fallback.cx,fallback.cz,0.9,0); }
 // ---- b109 battle grime: the land remembers — scorched earth and rubble where buildings fell ----
 function stampScorch(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
   const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(2.5,tiles*TILE/WORLD_W*TW*0.6);
@@ -2445,7 +2465,8 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
       bhb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
       bhb.quaternion.copy(b.mesh.quaternion).invert().multiply(camera.quaternion); } else bhb.visible=false; }
   if(!b._stamped&&b.type!=='wall'){ const ex=explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))];
-    if(b.owner==='player'||ex){ stampDirt(b.cx,b.cz,Math.max(b.w,b.h)+0.6); b._stamped=true; } }
+    if(b.owner==='player'||ex){ stampDirt(b.cx,b.cz,Math.max(b.w,b.h)+0.6); b._stamped=true;
+      if(!b._roadDone){ b._roadDone=1; stampTownPath(b); } } }   // b150: and the road that serves it, once the land is known
   if(b.rschK){ b.rschT-=dt; if(b.rschT<=0){ const k=b.rschK; b.rschK=null;
     if(k==='up'){ b.up=true; if(b.type==='wall'||b.type==='gate'){b.maxHp*=1.5;b.hp*=1.5;} }
     else if(k==='up2')b.up2=true;
@@ -2599,7 +2620,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
         else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();stampTownPath(b);}}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-b.cx,e.z-b.cz))){clearStall(e);e.cmd='idle';e.build=null;e.noWork=elapsed+8;}   // can't reach the site — stop treading water
         else orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id); } break;}
     case 'gar':{const b=e.garB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.garB=null;break;}
@@ -3737,7 +3758,7 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
