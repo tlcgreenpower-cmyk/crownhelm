@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b161</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b162</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2158,7 +2158,7 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
   if(own&&own!=='player'){if(astarBudgetAI<=0)return null;astarBudgetAI--;}
   else{if(astarBudget<=0)return null;astarBudget--;}
   if(!passable(gx,gy,goalId,dom,own)){let best=null,bd=1e9;for(let r=1;r<=5&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=gx+dx,y=gy+dy;if(passable(x,y,goalId,dom,own)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(!best)return null;gx=best[0];gy=best[1];}
-  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?3200:2400;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?3200:2600;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
   while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
     if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k!==undefined){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=came[k];}return p.reverse();}
     if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
@@ -2167,7 +2167,12 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
 // away simply got null back, stood still, waited out its cooldown and tried again forever. Any
 // order beyond about 34 tiles is now walked in stages: aim at a waypoint along the line, and take
 // the next stage on arrival. Each hop is a cheap search that reliably succeeds.
-const MARCH_HOP=34;
+// b162: measured, not guessed. A* here costs 0.6ms for a 14-tile search, 1.5ms at 20 and a ruinous
+// 14ms at 30 — the open list is scanned linearly, so the price climbs steeply with distance — and
+// under the old iteration cap it simply FAILED beyond about 25 tiles. So a 34-tile hop was itself
+// unreachable: every long order failed its hop, failed the full search too, and gave up. Hops are
+// short now, which is both reliable and cheap, and anything past one hop is walked in stages.
+const MARCH_HOP=15;
 function orderPath(e,gx,gy,goalId){if(e.pfCool&&elapsed<e.pfCool)return false;
   const stx=txFromW(e.x),stz=tzFromW(e.z);
   const far=Math.hypot(gx-stx,gy-stz);
@@ -4011,7 +4016,8 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
-      popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+      popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
+      findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
