@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b136</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b137</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -570,7 +570,8 @@ function updateRain(dt){
   const cx=camTarget.x,cz=camTarget.z;
   for(let i=0;i<RAIN_N;i++){ const d=rainDrops[i];
     d.y-=60*dt; d.x+=7*dt;
-    if(d.y<heightAtWorld(d.x,d.z)){ d.x=cx+(Math.random()-0.5)*115; d.z=cz+(Math.random()-0.5)*115; d.y=38+Math.random()*34; }
+    if(d.y<heightAtWorld(d.x,d.z)){ if(Math.random()<0.09)spawnPart(d.x,heightAtWorld(d.x,d.z)+0.12,d.z,'splash');   // b137: drops burst where they land
+      d.x=cx+(Math.random()-0.5)*115; d.z=cz+(Math.random()-0.5)*115; d.y=38+Math.random()*34; }
     const o=i*6; rainPos[o]=d.x;rainPos[o+1]=d.y;rainPos[o+2]=d.z; rainPos[o+3]=d.x+0.5;rainPos[o+4]=d.y+2.4;rainPos[o+5]=d.z; }
   rainGeo.attributes.position.needsUpdate=true; }
 
