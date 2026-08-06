@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b110</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b111</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -496,11 +496,11 @@ function applyQuality(){
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.30;
 const scene=new THREE.Scene();
-const SUNDIR=new THREE.Vector3(0.5,0.8,0.35).normalize();
+const SUNDIR=new THREE.Vector3(0.55,0.62,0.38).normalize();   // b111 golden hour: sun sits lower — longer, more dramatic shadows
 scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
 const camera=new THREE.PerspectiveCamera(52,2,0.5,1400);
-const hemi=new THREE.HemisphereLight(0xcfe6ff,0x415536,0.82); scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xfff0d6,1.55); sun.position.copy(SUNDIR).multiplyScalar(140); sun.castShadow=true;
+const hemi=new THREE.HemisphereLight(0xd8e6f8,0x4d5438,0.8); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffe7bd,1.52); sun.position.copy(SUNDIR).multiplyScalar(140); sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H;sc.near=20;sc.far=400; sun.shadow.bias=-0.0004;
 scene.add(sun,sun.target);
@@ -523,7 +523,7 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(600,24,16),skyMat); scene.add(
 
 // ---- day/night cycle: 5-minute days, warm dusks, moonlit nights, lanterns ----
 const LANTERN_MAT=new THREE.MeshStandardMaterial({color:0x6a4a20,emissive:0xffb050,emissiveIntensity:0});
-const _sunDay=new THREE.Color(0xfff0d6),_sunDusk=new THREE.Color(0xffa060),_sunMoon=new THREE.Color(0x9db8e8),_sunC=new THREE.Color();
+const _sunDay=new THREE.Color(0xffe7bd),_sunDusk=new THREE.Color(0xffa060),_sunMoon=new THREE.Color(0x9db8e8),_sunC=new THREE.Color();
 let dayNight=0;
 let chirpT=4,waveT=9;
 function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
@@ -583,7 +583,7 @@ try{
     const sao=new SAOPass(scene,camera);
     sao.params.saoIntensity=0.012; sao.params.saoScale=60; sao.params.saoKernelRadius=48; sao.params.saoBlur=true;
     composer.addPass(sao); }catch(e){}
-  bloomPass=new UnrealBloomPass(new THREE.Vector2(1280,640),0.15,0.4,0.92);
+  bloomPass=new UnrealBloomPass(new THREE.Vector2(1280,640),0.19,0.4,0.92);
   composer.addPass(bloomPass);
   // vignette + gentle saturation lift
   composer.addPass(new ShaderPass({
@@ -592,7 +592,8 @@ try{
     fragmentShader:`uniform sampler2D tDiffuse;varying vec2 vUv;
       void main(){vec4 c=texture2D(tDiffuse,vUv);
         float g=dot(c.rgb,vec3(0.299,0.587,0.114));
-        c.rgb=mix(vec3(g),c.rgb,1.22);                       // saturation lift
+        c.rgb=mix(vec3(g),c.rgb,1.26);                       // saturation lift
+        c.rgb*=vec3(1.045,1.005,0.94);                       // golden-hour warm grade
         float d=distance(vUv,vec2(0.5));
         c.rgb*=1.0-smoothstep(0.42,0.85,d)*0.28;             // vignette
         gl_FragColor=c;}`}));
@@ -1613,7 +1614,7 @@ function orderPath(e,gx,gy,goalId){if(e.pfCool&&elapsed<e.pfCool)return false;
   e.path=null;e.pfCool=elapsed+1.0+Math.random()*0.9;return false;}
 
 // ==================================================== COMMANDS
-let formation='ranks';
+let formation='ranks',formSpread=1;   // 1 = shoulder-to-shoulder, 2 = open order
 const FORMS={
   ranks:{ic:'\u25a4',name:'Ranks',slot:(i,n)=>{const cols=Math.max(1,Math.ceil(Math.sqrt(n*1.6)));return[(i%cols)-((cols-1)>>1),Math.floor(i/cols)];}},
   line:{ic:'\u2501',name:'Line',slot:(i,n)=>{const cols=Math.max(1,Math.ceil(n/2));return[(i%cols)-((cols-1)>>1),Math.floor(i/cols)];}},
@@ -1623,8 +1624,8 @@ const FORMS={
 function formTiles(n,gx,gy,fdir){ // tile targets for n units — shared by orders and the drag preview
   const F=FORMS[formation]||FORMS.ranks, out=[];
   const fx=fdir===undefined?0:Math.cos(fdir), fz=fdir===undefined?0:Math.sin(fdir);
-  let rowsN=1; for(let i=0;i<n;i++)rowsN=Math.max(rowsN,F.slot(i,n)[1]+1);
-  for(let i=0;i<n;i++){ const s=F.slot(i,n), c=s[0], rw=s[1]; let ox,oy;
+  let rowsN=1; for(let i=0;i<n;i++)rowsN=Math.max(rowsN,F.slot(i,n)[1]*formSpread+1);
+  for(let i=0;i<n;i++){ const s=F.slot(i,n), c=s[0]*formSpread, rw=s[1]*formSpread; let ox,oy;
     if(fdir===undefined){ ox=gx+Math.round(c); oy=gy+rw-(rowsN>>1); }
     else { ox=gx+Math.round(c*-fz-rw*fx); oy=gy+Math.round(c*fx-rw*fz); }
     out.push([ox,oy]); }
@@ -2458,7 +2459,8 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
             res.player.m-=(c.m||0);res.player.w-=(c.w||0);res.player.f-=(c.f||0);
             T.rsch={k:rk,t:D.times[tier],total:D.times[tier]};
             flashMsg('🔬 '+D.name+' '+(tier+1)+' — the smiths set to work ('+D.times[tier]+'s)');SFX.cmd();refreshUI(); }); }
-        if(T.rsch)info.innerHTML+='<br><span id="rschLine" style="color:#9fe8b0">🔬 '+RSCH[T.rsch.k].name+' '+((T[T.rsch.k]||0)+1)+' — '+Math.ceil(T.rsch.t)+'s</span>';}
+        if(T.rsch)info.innerHTML+='<br><span id="rschLine" style="color:#9fe8b0">🔬 '+RSCH[T.rsch.k].name+' '+((T[T.rsch.k]||0)+1)+' — '+Math.ceil(T.rsch.t)+'s</span>'
+          +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="rschBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#2f8a3a,#9fe8b0);width:'+Math.round((1-T.rsch.t/T.rsch.total)*100)+'%"></div></div>';}
       if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2)trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);}
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2)trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
@@ -2475,15 +2477,17 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
           if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
           const cc=upd[3]; if(!can(cc)){flashMsg('Need '+shortOf(cc)+' more');return;}
           res.player.w-=(cc.w||0);res.player.m-=(cc.m||0);res.player.f-=(cc.f||0);res.player.g-=(cc.g||0);
-          b.rschK='up'; b.rschT=35;
+          b.rschK='up'; b.rschT=35; b.rschTot=35;
           flashMsg('🔨 '+upd[1]+' underway — '+upd[4]+' (35s)');SFX.cmd();refreshUI(); }); }
       else if(UPG[b.type]&&b.up)info.innerHTML+='<br><span style="color:#7fd08a">✅ '+UPG[b.type][1]+'</span>';
       if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount',b.rschK?'mounting… '+Math.ceil(b.rschT)+'s':'120⛏️ 60💰 · 50s',!b.rschK&&res.player.m>=120&&res.player.g>=60,()=>{
         if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
-        res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=50;flashMsg('💣 Hoisting the cannon — 50s');SFX.cmd();refreshUI();});
+        res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=50;b.rschTot=50;flashMsg('💣 Hoisting the cannon — 50s');SFX.cmd();refreshUI();});
       else if(b.type==='tower'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">💣 Cannon Mount</span>';
       if(b.type==='farm'){const tn=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
         info.innerHTML+='<br>👨‍🌾 Farmhand: '+tn+'/1'+(tn?' — the field is sown':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with a worker</span>');}
+      if(b.rschK)info.innerHTML+='<br><span id="bRschLine" style="color:#9fe8b0">🔨 Upgrading — '+Math.ceil(b.rschT)+'s</span>'
+        +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="bRschBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#2f8a3a,#9fe8b0);width:'+Math.round((1-b.rschT/(b.rschTot||35))*100)+'%"></div></div>';
       if(GAR_CAP[b.type]){const gn=(b.gar||[]).length;
         info.innerHTML+='<br>⛨ Garrison '+gn+'/'+GAR_CAP[b.type]+(gn?'':' <span style="color:#6f93a8;font-size:11px">— right-click here with soldiers selected</span>');
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
@@ -2497,6 +2501,11 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         fb.title='Formation — right-click-drag the ground to place & aim it (T cycles)';
         fb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#dff0f9;background:'+(formation===k?'#2c5c7a':'#17303f')+';border:1px solid '+(formation===k?'#8fd4f0':'#2c5164');
         fb.onclick=()=>{formation=k;flashMsg('Formation: '+FORMS[k].name+' — right-click-drag to place it');refreshUI();};fr.appendChild(fb); }
+      const sb2=document.createElement('button'); sb2.textContent=formSpread===1?'▪▪ Tight':'▪ ▪ Loose';
+      sb2.title='Spacing — bunched ranks hit harder in melee; spread ranks lose fewer men to cannon splash';
+      sb2.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#f3e4be;background:#3a2c17;border:1px solid #c9a44a';
+      sb2.onclick=()=>{formSpread=formSpread===1?2:1;flashMsg(formSpread===1?'▪▪ The men close ranks — shoulder to shoulder':'▪ ▪ The men spread out — cannon splash bites less');refreshUI();};
+      fr.appendChild(sb2);
       info.appendChild(fr); }
     if(sel.some(e=>e.type==='worker')){
       const CATS={
@@ -2535,8 +2544,13 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
   $('clock').textContent=Math.floor(elapsed/60)+':'+String(Math.floor(elapsed%60)).padStart(2,'0');
   const qe=document.getElementById('qline');
   if(qe&&selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)qe.innerHTML=qlineHTML(b);}
-  const rl=document.getElementById('rschLine');
-  if(rl&&tech.player.rsch)rl.textContent='🔬 '+RSCH[tech.player.rsch.k].name+' '+((tech.player[tech.player.rsch.k]||0)+1)+' — '+Math.ceil(tech.player.rsch.t)+'s';}
+  const rl=document.getElementById('rschLine'),R=tech.player.rsch;
+  if(rl&&R){rl.textContent='🔬 '+RSCH[R.k].name+' '+((tech.player[R.k]||0)+1)+' — '+Math.ceil(R.t)+'s';
+    const rb2=document.getElementById('rschBar'); if(rb2)rb2.style.width=Math.round((1-R.t/R.total)*100)+'%';}
+  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);
+    if(b&&b.rschK){const bl2=document.getElementById('bRschLine'),bb2=document.getElementById('bRschBar');
+      if(bl2)bl2.textContent='🔨 Upgrading — '+Math.ceil(b.rschT)+'s';
+      if(bb2)bb2.style.width=Math.round((1-b.rschT/(b.rschTot||35))*100)+'%';}}}
 // ---- diplomacy panel ----
 function stanceLabel(o){const d=diplo[o];return d.stance==='war'?'<span style="color:#ff8a6a">AT WAR</span>':d.score>=60?'<span style="color:#9fe6b0">Friend</span>':d.score>=25?'<span style="color:#bfe4a0">Warm</span>':d.score>=-10?'Neutral':'<span style="color:#e0b070">Wary</span>';}
 function renderDiplo(){const p=$('diplo');if(p.classList.contains('hidden'))return;
