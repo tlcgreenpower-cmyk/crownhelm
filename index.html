@@ -61,7 +61,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b107</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b108</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -186,7 +186,7 @@
       <div style="width:310px;background:#0e2230;border:1px solid #2c5164;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.65);">
         <div style="font:700 21px Georgia,serif;color:#f3e4be;text-align:center;letter-spacing:3px;margin-bottom:6px;">☰ GAME MENU</div>
         <button class="gmb" id="gmResume">▶ Resume</button>
-        <button class="gmb" id="muteBtn">🔊 Sound</button>
+        <button class="gmb" id="muteBtn">🔊 Sound: On</button>
         <button class="gmb" id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks">⚙ Medium</button>
         <button class="gmb" id="saveBtn">💾 Save / Load</button>
         <button class="gmb" id="menuBtn" title="Back to the main menu — your kingdom is autosaved first">🏰 Quit to Main Menu</button>
@@ -474,7 +474,7 @@ function setSpeed(s){ gameSpeed=Math.max(1,Math.min(3,s));
   document.getElementById('speedBtn').textContent='⏩ '+gameSpeed+'×';
   flashMsg('⏩ Game speed '+gameSpeed+'×'); }
 document.getElementById('speedBtn').onclick=()=>setSpeed(gameSpeed>=3?1:gameSpeed+1);
-document.getElementById('muteBtn').onclick=()=>{audioOn=!audioOn;document.getElementById('muteBtn').textContent=audioOn?'🔊 Sound':'🔇 Muted';if(audioOn)initAudio();};
+document.getElementById('muteBtn').onclick=()=>{audioOn=!audioOn;document.getElementById('muteBtn').textContent=audioOn?'🔊 Sound: On':'🔇 Sound: Off';if(audioOn)initAudio();};
 
 // ==================================================== THREE CORE
 const canvas=document.getElementById('view');
@@ -488,7 +488,7 @@ function applyQuality(){
   if(typeof composer!=='undefined'&&composer)composer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?1.5:QUAL==='med'?1.25:1));
   scene&&scene.traverse(o=>{if(o.isMesh&&o.material)o.material.needsUpdate=true;});
   for(const e of (typeof ents!=='undefined'?ents:[]))e.mesh.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});
-  const qb=document.getElementById('qualBtn'); if(qb)qb.textContent='⚙ '+(QUAL==='high'?'High':QUAL==='med'?'Medium':'Fast');
+  const qb=document.getElementById('qualBtn'); if(qb)qb.textContent='⚙ Graphics: '+(QUAL==='high'?'High — full shadows, for strong PCs':QUAL==='med'?'Medium — balanced look & speed':'Fast — smoothest, no shadows');
 }
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.30;
@@ -2492,15 +2492,32 @@ window._peace=o=>{if(res.player.g<200){flashMsg('Not enough gold');return;}res.p
   SFX.cmd();flashMsg('Peace with '+realmName(o)+'.');renderDiplo();updateHUD();};
 document.getElementById('realmsBtn').onclick=()=>{const p=$('diplo');p.classList.toggle('hidden');renderDiplo();};
 function renderForces(){const p=$('forces');if(p.classList.contains('hidden'))return;
-  const counts={};for(const e of ents)if(e.owner==='player')counts[e.type]=(counts[e.type]||0)+1;
-  p.innerHTML='<b style="color:#f3e4be">⚔ Your Forces</b> <span style="color:#7fa8bd;font-size:11px">— click a row to select the whole regiment</span><br>';
+  const counts={};for(const e of ents)if(e.owner==='player'&&!e.inGar)counts[e.type]=(counts[e.type]||0)+1;
+  p.innerHTML='<b style="color:#f3e4be">⚔ Your Forces</b> <span style="color:#7fa8bd;font-size:11px">— click: regiment · Shift+click: add · +1: one unit</span><br>';
   const keys=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
   if(!keys.length){p.innerHTML+='<span style="color:#7fa8bd">No units yet — train Workers at your Keep.</span>';return;}
+  const finish=()=>{ selBuilding=null; const e0=ents.find(e=>e.id===selected[0]); if(e0)camTarget.set(e0.x,0,e0.z); SFX.select(); refreshUI(); };
+  const topRow=document.createElement('div'); topRow.style.cssText='display:flex;gap:4px;margin-top:4px';
+  const mkTop=(label,fn)=>{ const b=document.createElement('button');
+    b.style.cssText='flex:1;cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:5px 6px;font-size:12px;font-weight:600';
+    b.textContent=label; b.onclick=fn; topRow.appendChild(b); };
+  mkTop('⚔ ALL SOLDIERS',()=>{ selected=ents.filter(e=>e.owner==='player'&&!e.inGar&&e.type!=='worker').map(e=>e.id); if(selected.length)finish(); });
+  mkTop('👥 EVERYONE',()=>{ selected=ents.filter(e=>e.owner==='player'&&!e.inGar).map(e=>e.id); if(selected.length)finish(); });
+  p.appendChild(topRow);
   for(const t of keys){ const row=document.createElement('button');
-    row.style.cssText='display:flex;justify-content:space-between;width:100%;margin-top:4px;cursor:pointer;background:#122b3a;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:5px 10px;font-size:13px;text-align:left';
-    row.innerHTML='<span>'+(UNIT_IC[t]||'⚔')+' '+UNIT[t].name+'</span><b style="color:#f3e4be">'+counts[t]+'</b>';
-    row.onclick=()=>{ selected=ents.filter(e=>e.owner==='player'&&e.type===t).map(e=>e.id); selBuilding=null;
-      const e0=ents.find(e=>e.id===selected[0]); if(e0)camTarget.set(e0.x,0,e0.z); SFX.select(); refreshUI(); };
+    row.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:6px;width:100%;margin-top:4px;cursor:pointer;background:#122b3a;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:5px 10px;font-size:13px;text-align:left';
+    row.innerHTML='<span>'+(UNIT_IC[t]||'⚔')+' '+UNIT[t].name+'</span><span style="display:flex;align-items:center;gap:8px"><b style="color:#f3e4be">'+counts[t]+'</b></span>';
+    const one=document.createElement('button');
+    one.textContent='+1'; one.title='Select a single '+UNIT[t].name+' — click again to jump to the next one';
+    one.style.cssText='cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#9fd6ec;border-radius:5px;padding:1px 7px;font-size:11px';
+    one.onclick=ev=>{ ev.stopPropagation(); const all=ents.filter(e=>e.owner==='player'&&!e.inGar&&e.type===t); if(!all.length)return;
+      const cur=(selected.length===1)?all.findIndex(e=>e.id===selected[0]):-1;
+      selected=[all[(cur+1)%all.length].id]; finish(); };
+    row.lastChild.appendChild(one);
+    row.onclick=ev=>{ const ids=ents.filter(e=>e.owner==='player'&&!e.inGar&&e.type===t).map(e=>e.id);
+      if(ev.shiftKey)selected=[...new Set([...selected,...ids])];   // shift stacks regiments into one army
+      else selected=ids;
+      finish(); };
     p.appendChild(row); } }
 document.getElementById('qualBtn').onclick=()=>{QUAL=QUAL==='med'?'low':QUAL==='low'?'high':'med';localStorage.setItem('tidefall_quality',QUAL);localStorage.setItem('tidefall_quality_user','1');applyQuality();
   flashMsg('⚙ Graphics: '+(QUAL==='high'?'High — full shadows':QUAL==='med'?'Medium — balanced':'Fast — smoothest, no shadows'));};
