@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b164</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b165</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -892,7 +892,7 @@ function genMap(){
     const grove=Math.max(0,Math.sin(x*0.11+7)*Math.sin(y*0.13+3)-0.55)*2.2;         // scattered woodland patches
     const plain=Math.max(0,Math.sin(x*0.07+1.7)*Math.sin(y*0.09+5.2)-0.5);          // deliberate open ground
     let fmul=0.3+2.8*corner+1.9*grove; if(plain>0)fmul*=0.12;
-    if(h<0.09*MM.forest*fmul*FOREST_DENSITY)scatter(x,y);   // b144: half the woodland (owner request) — open country to march and build in
+    if(h<0.09*MM.forest*fmul)scatter(x,y);   // b165: the thinning is applied ONCE, inside scatter — see there
     else if(h>0.982&&e>=1.8)depositCluster(metalNodes,x,y,'metal',Math.round(1200*MM.depAmt),MM.dep);
     else if(h>0.9715&&h<=0.982&&e>=1.8)depositCluster(goldNodes,x,y,'gold',Math.round(800*MM.depAmt),MM.dep);
   }
@@ -912,7 +912,12 @@ const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','
 function depositCluster(arr,cx,cy,type,amt,n){ arr.push({tx:cx,ty:cy,amount:amt,type});
   for(let i=1;i<n;i++){ const x=cx+Math.round((hashN(cx+i*3,cy*2+i)-.5)*3.4),y=cy+Math.round((hashN(cx*2+i,cy+i*5)-.5)*3.4);
     if(inB(x,y)&&elev[ti(x,y)]>=1.7&&!arr.some(q=>q.tx===x&&q.ty===y))arr.push({tx:x,ty:y,amount:amt,type}); } }
-const FOREST_DENSITY=0.5;   // b144: owner asked for half the forest across the map
+// b165: the owner asked for half the forest and got a quarter of it — b144 applied this factor
+// BOTH to whether a grove appeared at all and to how many trees were in it, and a half times a
+// half is a quarter. A 96x64 map came out with 57 trees on the whole of it and the nearest one 82
+// paces from the Keep, which is why nobody could gather any timber. It thins the groves ONCE now,
+// so the woods stand where they always did with half the trees in them.
+const FOREST_DENSITY=0.5;
 function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=6+CL*3;for(let i=0;i<Math.round((11+Math.floor(hashN(cx,cy)*7))*CL*FOREST_DENSITY);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:220,type:'wood'});}}
 function plateau(cx,cy,val,rad){for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(!inB(x,y))continue;const d=Math.hypot(dx,dy);if(d>rad+.5)continue;elev[ti(x,y)]=Math.max(elev[ti(x,y)],val-(d/(rad+1))*0.5);}}
 function minFootElev(tx,ty,w,h){let m=9;for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++)if(inB(x,y))m=Math.min(m,elev[ti(x,y)]);return m;}
@@ -3963,6 +3968,13 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   if(chopStumps){scene.remove(chopStumps);chopStumps=null;chopStumpN=0;}
   initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
+  // b165: clear the ground a realm is founded on. Trees are scattered before the keeps are placed,
+  // so a starting town could be built around standing timber that blocks its own doorway — and with
+  // the woods restored to their proper density that is likelier, not less.
+  for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
+    for(const n of woodNodes){ if(n.amount<=0)continue;
+      if(n.tx>=hx-1&&n.tx<=hx+3&&n.ty>=hy-1&&n.ty<=hy+3){ n.amount=0; if(n.mesh)n.mesh.visible=false; else if(n.tim)setTreeK(n,0); } } }
+  rebuildTreeGrid();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
     addBuilding('hall',hx,hy,o,true);
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
@@ -4060,7 +4072,8 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
   _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
-      findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+      findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
+      get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
