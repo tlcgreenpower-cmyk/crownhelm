@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b150</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b151</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2404,12 +2404,30 @@ function stampTownPath(b){ if(PATH_SKIP.has(b.type))return;
     if(q._road){ if(d<bd){bd=d;best=q;} } else if(d<fd){fd=d;fallback=q;} }
   const to=best||fallback; if(!to||Math.min(bd,fd)>90)return;
   const depth=(to._roadDepth||0)+1;
-  b._road=1; b._roadDepth=depth;
+  b._road=1; b._roadDepth=depth; b._roadTo=to;   // remember the edge — the townsfolk walk these
   // a road nearer the Keep carries more of the town, so it is broader and more worn
   const width=depth<=1?1.9:depth===2?1.45:depth===3?1.15:0.95;
   stampPath(b.cx,b.cz,to.cx,to.cz,width,depth<=2?1:0);
   // and once in a while a second link, so a town has a loop or two rather than a pure tree
   if(best&&fallback&&fallback!==best&&fd<46&&hashN(b.tx,b.ty)<0.34)stampPath(b.cx,b.cz,fallback.cx,fallback.cz,0.9,0); }
+// b151: lay the whole network at once — for a kingdom restored from a save, whose streets were
+// stamped by the old nearest-neighbour rule (or not at all). Prim's algorithm out from the Keep.
+function rebuildRoads(owner){
+  const list=blds.filter(b=>b.owner===owner&&b.done&&!PATH_SKIP.has(b.type));
+  if(list.length<2)return 0;
+  for(const b of list){b._road=0;b._roadDepth=undefined;b._roadTo=null;b._roadDone=1;}
+  const root=list.find(b=>ROAD_ROOT.has(b.type))||list[0];
+  root._road=1; root._roadDepth=0;
+  const rest=list.filter(b=>b!==root); let laid=0;
+  while(rest.length){
+    let bi=-1,bq=null,bd=1e9;
+    for(let i=0;i<rest.length;i++){ const b=rest[i];
+      for(const q of list){ if(!q._road)continue; const d=Math.hypot(q.cx-b.cx,q.cz-b.cz); if(d<bd){bd=d;bi=i;bq=q;} } }
+    if(bi<0||bd>90)break;
+    const b=rest.splice(bi,1)[0], depth=(bq._roadDepth||0)+1;
+    b._road=1; b._roadDepth=depth; b._roadTo=bq;
+    stampPath(b.cx,b.cz,bq.cx,bq.cz,depth<=1?1.9:depth===2?1.45:depth===3?1.15:0.95,depth<=2?1:0); laid++; }
+  return laid; }
 // ---- b109 battle grime: the land remembers — scorched earth and rubble where buildings fell ----
 function stampScorch(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
   const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(2.5,tiles*TILE/WORLD_W*TW*0.6);
@@ -2792,7 +2810,17 @@ function spawnCitizen(b){ if(citizens.length>=22)return;
 function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
   const d=Math.hypot(c.tx-c.x,c.tz-c.z);
   let moving=false;
-  if(d<0.6){ if(c.wait<=0){ c.tx=c.hx+(Math.random()-.5)*14; c.tz=c.hz+(Math.random()-.5)*14;
+  if(d<0.6){ if(c.wait<=0){
+      // b151: townsfolk keep to the streets. Most trips are an errand along a road to another
+      // building on the network — the rest is loitering by the door, as ever.
+      let took=false;
+      if(Math.random()<0.68){ const near=[];
+        for(const q of blds){ if(!q.done||!q._road||q.owner!=='player')continue;
+          const dd=Math.hypot(q.cx-c.x,q.cz-c.z); if(dd>4&&dd<52)near.push(q); }
+        if(near.length){ const q=near[(Math.random()*near.length)|0];
+          const ang=Math.random()*6.283, r=2.6+Math.random()*2.2;    // stop at the door, not inside the wall
+          c.tx=q.cx+Math.cos(ang)*r; c.tz=q.cz+Math.sin(ang)*r; took=true; } }
+      if(!took){ c.tx=c.hx+(Math.random()-.5)*14; c.tz=c.hz+(Math.random()-.5)*14; }
       const t1=txFromW(c.tx),t2=tzFromW(c.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){c.tx=c.hx;c.tz=c.hz;} c.wait=2+Math.random()*4; } }
   else { moving=true; const sp=3.2*dt; c.x+=(c.tx-c.x)/d*sp; c.z+=(c.tz-c.z)/d*sp;
     c.mesh.rotation.y=-Math.atan2(c.tz-c.z,c.tx-c.x)+Math.PI/2; }
@@ -3720,6 +3748,9 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
       if(!inB(x,y))continue;
       for(const n of woodNodes)if(n.tx===x&&n.ty===y&&n.amount>0){n.amount=0;if(n.mesh)n.mesh.visible=false;else if(n.tim)setTreeK(n,0);cut++;} }
     if(cut)rebuildTreeGrid(); }
+  rebuildRoads('player');   // b151: a restored kingdom gets the proper street network laid over it
+  for(const o of AI_REALMS){ const seen=blds.some(b=>b.owner===o&&explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))]);
+    if(seen)rebuildRoads(o); }
   camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camPitch=s.cam.pitch||0.92;camDist=s.cam.dist;
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
 let autosaveT=40,_loadThin=false;
@@ -3758,7 +3789,7 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
