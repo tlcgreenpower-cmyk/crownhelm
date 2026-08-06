@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b145</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b146</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -547,9 +547,9 @@ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bot
 scene.add(sun,sun.target);
 
 // sky dome
-const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{uSun:{value:SUNDIR},uNight:{value:0}},
+const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{uSun:{value:SUNDIR},uNight:{value:0},uCloud:{value:0},uFlash:{value:0}},
   vertexShader:`varying vec3 vD; void main(){ vD=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-  fragmentShader:`varying vec3 vD; uniform vec3 uSun; uniform float uNight;
+  fragmentShader:`varying vec3 vD; uniform vec3 uSun; uniform float uNight; uniform float uCloud; uniform float uFlash;
     void main(){ float t=clamp(vD.y*0.5+0.5,0.0,1.0);
       vec3 horizon=vec3(0.78,0.86,0.92), zenith=vec3(0.26,0.5,0.78);
       vec3 nHorizon=vec3(0.10,0.13,0.22), nZenith=vec3(0.02,0.04,0.10);
@@ -557,8 +557,13 @@ const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,unif
       float dusk=uNight*(1.0-uNight)*4.0;                        // orange band at sunset/sunrise
       col+=vec3(1.0,0.45,0.18)*dusk*pow(1.0-t,2.0)*0.55;
       float s=max(dot(vD,normalize(uSun)),0.0);
-      col+=vec3(1.0,0.92,0.75)*pow(s,180.0)*1.2*(1.0-uNight*0.85);
-      col+=vec3(1.0,0.85,0.6)*pow(s,8.0)*0.12*(1.0-uNight);
+      col+=vec3(1.0,0.92,0.75)*pow(s,180.0)*1.2*(1.0-uNight*0.85)*(1.0-uCloud*0.92);
+      col+=vec3(1.0,0.85,0.6)*pow(s,8.0)*0.12*(1.0-uNight)*(1.0-uCloud*0.8);
+      // b146: weather. Cloud drains the blue out of the sky and drops a flat grey lid over it,
+      // and lightning washes the whole dome white for an instant.
+      vec3 grey=mix(vec3(0.60,0.63,0.66),vec3(0.36,0.38,0.42),pow(t,0.9));
+      col=mix(col,grey,clamp(uCloud,0.0,1.0));
+      col+=vec3(0.85,0.88,1.0)*uFlash;
       gl_FragColor=vec4(col,1.0); }`});
 const sky=new THREE.Mesh(new THREE.SphereGeometry(600,24,16),skyMat); scene.add(sky);
 
@@ -576,15 +581,19 @@ function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
   waveT-=dt; if(waveT<=0){ waveT=8+Math.random()*9; noiseBurst(1.4,0.028,420); } }
 function updateDayNight(){ const dayLight=1, a=0;   // permanent bright daylight (owner request b41)
   dayNight=0;
-  sun.intensity=1.85*Math.max(dayLight,0.42)*(1-0.15*rainI);
+  sun.intensity=1.85*Math.max(dayLight,0.42)*wSun+flashI*1.9;
   if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
+  if(wCloud>0.01)_sunC.lerp(_sunOvercast,Math.min(0.85,wCloud));   // b146: under cloud the light goes flat and cold
   sun.color.copy(_sunC);
-  hemi.intensity=0.55+0.60*dayLight;
+  hemi.intensity=(0.55+0.60*dayLight)*(1-0.22*wCloud)+flashI*1.2;
   skyMat.uniforms.uNight.value=dayNight;
+  skyMat.uniforms.uCloud.value=wCloud;
+  skyMat.uniforms.uFlash.value=flashI*0.85;
   scene.fog.color.setRGB(0.77-0.40*dayNight,0.86-0.46*dayNight,0.91-0.40*dayNight);
-  LANTERN_MAT.emissiveIntensity=dayNight*2.3;
-  scene.fog.density=0.0010+0.0014*rainI;
-  if(rainI>0.01)scene.fog.color.lerp(RAIN_FOG,rainI*0.55); }
+  LANTERN_MAT.emissiveIntensity=Math.max(dayNight*2.3,wCloud*1.5);   // shutters lit against a dark sky
+  scene.fog.density=0.0010*wFog;
+  if(wCloud>0.01)scene.fog.color.lerp(RAIN_FOG,Math.min(0.75,wCloud*0.6));
+  if(wMist>0.01)scene.fog.color.lerp(MIST_FOG,wMist*0.8); }
 
 // ---- passing rain showers: streak lines around the camera, dimmed sun, thicker mist ----
 const RAIN_N=1400, RAIN_FOG=new THREE.Color(0.60,0.66,0.71);
@@ -593,20 +602,47 @@ rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPos,3));
 const rainMat=new THREE.LineBasicMaterial({color:0xaac8dd,transparent:true,opacity:0,depthWrite:false});
 const rainMesh=new THREE.LineSegments(rainGeo,rainMat); rainMesh.visible=false; rainMesh.frustumCulled=false; scene.add(rainMesh);
 const rainDrops=[]; for(let i=0;i<RAIN_N;i++)rainDrops.push({x:0,y:-1,z:0});
-let rainI=0,raining=false,rainT=70+Math.random()*120;
+// ---- b146 WEATHER FRONTS: the sky keeps its own weather, and the whole scene answers to it ----
+// Each front sets targets; everything eases toward them, so weather arrives and clears rather
+// than switching. rain = drops, cloud = flat grey lid + cold flat light, fog = view distance,
+// mist = a pale ground haze, wind = how hard the leaves and the rain are driven.
+const MIST_FOG=new THREE.Color(0.80,0.83,0.85);
+const _sunOvercast=new THREE.Color(0xb9c2cc);
+const FRONTS=[
+  {k:'clear',   w:30,dur:[130,240],rain:0,  cloud:0.06,fog:1.0,mist:0, wind:0.5,msg:null},
+  {k:'fair',    w:20,dur:[110,200],rain:0,  cloud:0.34,fog:1.3,mist:0, wind:0.8,msg:'\u{1F324} High cloud drifts in off the sea'},
+  {k:'overcast',w:15,dur:[100,170],rain:0,  cloud:0.80,fog:1.9,mist:0.15,wind:1.0,msg:'\u2601 The sky closes over \u2014 the light goes flat'},
+  {k:'showers', w:14,dur:[45,85],  rain:0.62,cloud:0.86,fog:2.3,mist:0.1,wind:1.3,msg:'\u{1F326} Showers sweep across the land'},
+  {k:'storm',   w:8, dur:[50,90],  rain:1.0,cloud:1.0, fog:3.0,mist:0.2,wind:2.1,msg:'\u26c8 A storm rolls in \u2014 keep your powder dry'},
+  {k:'mist',    w:7, dur:[80,150], rain:0,  cloud:0.45,fog:4.6,mist:1.0,wind:0.3,msg:'\u{1F32B} A sea mist rolls in \u2014 the land goes quiet'}
+];
+let front=FRONTS[0],frontT=60+Math.random()*90;
+let rainI=0,wCloud=0.06,wFog=1,wMist=0,wWind=0.5,wSun=1,flashI=0,thunderT=0,rainHissT=0;
+function pickFront(){ const tot=FRONTS.reduce((s,f)=>s+f.w,0); let r=Math.random()*tot;
+  for(const f of FRONTS){ r-=f.w; if(r<=0)return f; } return FRONTS[0]; }
 function updateRain(dt){
-  rainT-=dt;
-  if(rainT<=0){ raining=!raining; rainT=raining?(28+Math.random()*32):(110+Math.random()*180);
-    if(raining&&running&&!gameOver)flashMsg('\u{1F327} Rain sweeps across the land\u2026'); }
-  rainI+=((raining?1:0)-rainI)*Math.min(1,dt*0.5);
+  frontT-=dt;
+  if(frontT<=0){ let nf=front; for(let i=0;i<6&&nf===front;i++)nf=pickFront();   // never the same weather twice running
+    front=nf; frontT=front.dur[0]+Math.random()*(front.dur[1]-front.dur[0]);
+    if(front.msg&&running&&!gameOver)flashMsg(front.msg); }
+  const ease=(v,t,k)=>v+(t-v)*Math.min(1,dt*k);
+  rainI=ease(rainI,front.rain,0.5); wCloud=ease(wCloud,front.cloud,0.35);
+  wFog=ease(wFog,front.fog,0.3);    wMist=ease(wMist,front.mist,0.3);
+  wWind=ease(wWind,front.wind,0.4); wSun=ease(wSun,1-0.42*front.cloud,0.35);
+  // lightning: a hard white flash, then thunder rolling in a beat or two later
+  if(flashI>0)flashI=Math.max(0,flashI-dt*5.5);
+  if(front.k==='storm'&&rainI>0.5&&Math.random()<dt*0.11){ flashI=1;
+    thunderT=0.5+Math.random()*2.2; }
+  if(thunderT>0){ thunderT-=dt; if(thunderT<=0&&audioOn&&actx){ noiseBurst(2.2,0.075,240); setTimeout(()=>{try{noiseBurst(1.6,0.05,160);}catch(e){}},420); } }
+  if(rainI>0.35&&audioOn&&actx){ rainHissT-=dt; if(rainHissT<=0){ rainHissT=0.75+Math.random()*0.5; noiseBurst(1.1,0.013*rainI,900); } }   // the hiss of rain on the roofs
   if(rainI<0.02){ rainMesh.visible=false; return; }
   rainMesh.visible=true; rainMat.opacity=0.38*rainI;
-  const cx=camTarget.x,cz=camTarget.z;
+  const cx=camTarget.x,cz=camTarget.z, drift=7*wWind, slant=0.5*wWind;
   for(let i=0;i<RAIN_N;i++){ const d=rainDrops[i];
-    d.y-=60*dt; d.x+=7*dt;
+    d.y-=(60+22*wWind)*dt; d.x+=drift*dt;
     if(d.y<heightAtWorld(d.x,d.z)){ if(Math.random()<0.09)spawnPart(d.x,heightAtWorld(d.x,d.z)+0.12,d.z,'splash');   // b137: drops burst where they land
       d.x=cx+(Math.random()-0.5)*115; d.z=cz+(Math.random()-0.5)*115; d.y=38+Math.random()*34; }
-    const o=i*6; rainPos[o]=d.x;rainPos[o+1]=d.y;rainPos[o+2]=d.z; rainPos[o+3]=d.x+0.5;rainPos[o+4]=d.y+2.4;rainPos[o+5]=d.z; }
+    const o=i*6; rainPos[o]=d.x;rainPos[o+1]=d.y;rainPos[o+2]=d.z; rainPos[o+3]=d.x+slant;rainPos[o+4]=d.y+2.4;rainPos[o+5]=d.z; }
   rainGeo.attributes.position.needsUpdate=true; }
 
 // ---- image-based lighting + post-processing (bloom, anti-aliasing) ----
@@ -1337,7 +1373,8 @@ function buildLeaves(){ if(leafMesh){scene.remove(leafMesh);leafMesh=null;} leav
 function updateLeaves(dt,now){ if(!leafMesh)return;
   for(let i=0;i<leaves.length;i++){ const L=leaves[i]; L.t+=dt;
     if(L.t>=L.life){ leaves[i]=newLeaf(i); continue; }
-    L.x+=L.sp*dt; L.z+=L.sp*0.4*dt; L.y-=0.35*dt; L.y+=Math.sin(now*3+L.ph)*0.012;
+    const gust=0.6+0.9*wWind;   // b146: the wind of the day drives the leaves
+    L.x+=L.sp*gust*dt; L.z+=L.sp*0.4*gust*dt; L.y-=0.35*dt; L.y+=Math.sin(now*3+L.ph)*0.012*gust;
     const gy=heightAtWorld(L.x,L.z); if(L.y<gy+0.1)L.y=gy+0.1;
     _lq.setFromEuler(_le.set(Math.sin(now*4+L.ph)*0.9,now*1.3+L.ph,Math.cos(now*3.4+L.ph)*0.7));
     _lm4.compose(_lv.set(L.x,L.y,L.z),_lq,_ls);
@@ -1356,7 +1393,9 @@ function updateAmbient(dt,now){ tickClutter(dt); updateLeaves(dt,now);
     b.g.rotation.y=-b.a; const fl2=Math.sin(now*20+b.r*7); b.w1.rotation.y=fl2; b.w2.rotation.y=-fl2; }
   for(const b of birds){ b.a+=dt*b.sp; b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.h,b.cz+Math.sin(b.a)*b.r);
     b.g.rotation.y=-b.a; const fl=Math.sin(now*7+b.r)*0.55; b.w1.rotation.y=fl; b.w2.rotation.y=-fl; }
-  if(cloudGroup)for(const c of cloudGroup.children){ c.position.x+=dt*c.userData.sp; if(c.position.x>HALF_W+80)c.position.x=-HALF_W-80; } }
+  // b146: cloud runs before the wind, and thickens or thins out with the weather
+  if(cloudGroup)for(const c of cloudGroup.children){ c.position.x+=dt*c.userData.sp*(0.5+1.6*wWind); if(c.position.x>HALF_W+80)c.position.x=-HALF_W-80;
+    const want=0.22+0.62*wCloud; c.traverse(o=>{if(o.isMesh&&o.material)o.material.opacity+=(want-o.material.opacity)*Math.min(1,dt*0.6);}); } }
 
 // ---- wandering sheep flocks ----
 let sheep=[],meatNodes=[];
@@ -3538,8 +3577,12 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,commandMove,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,commandMove,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
+  get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
+    mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
+  setWeather(k){ const f=FRONTS.find(x=>x.k===k); if(!f)return 'try: '+FRONTS.map(x=>x.k).join(', ');
+    front=f; frontT=f.dur[0]+Math.random()*(f.dur[1]-f.dur[0]); if(f.msg)flashMsg(f.msg); return f.k; },
   profile(n){ n=n||120; _prof={}; const t0=performance.now();
     for(let i=0;i<n;i++)update(1/30);
     const total=performance.now()-t0, out={steps:n,msPerStep:+(total/n).toFixed(2),units:ents.length};
