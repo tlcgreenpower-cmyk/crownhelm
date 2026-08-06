@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b112</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b113</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -496,11 +496,12 @@ function applyQuality(){
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.30;
 const scene=new THREE.Scene();
-const SUNDIR=new THREE.Vector3(0.55,0.62,0.38).normalize();   // b111 golden hour: sun sits lower — longer, more dramatic shadows
+const SUNDIR=new THREE.Vector3(0.5,0.8,0.35).normalize();   // shader sun (water glints + sky) — stays high or the sea stripes
+const LIGHTDIR=new THREE.Vector3(0.55,0.62,0.38).normalize();   // b111 golden hour: the LIGHT sits lower for long shadows
 scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
 const camera=new THREE.PerspectiveCamera(52,2,0.5,1400);
 const hemi=new THREE.HemisphereLight(0xd8e6f8,0x4d5438,0.8); scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xffe7bd,1.52); sun.position.copy(SUNDIR).multiplyScalar(140); sun.castShadow=true;
+const sun=new THREE.DirectionalLight(0xffe7bd,1.52); sun.position.copy(LIGHTDIR).multiplyScalar(140); sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H;sc.near=20;sc.far=400; sun.shadow.bias=-0.0004;
 scene.add(sun,sun.target);
@@ -1624,8 +1625,9 @@ const FORMS={
 function formTiles(n,gx,gy,fdir){ // tile targets for n units — shared by orders and the drag preview
   const F=FORMS[formation]||FORMS.ranks, out=[];
   const fx=fdir===undefined?0:Math.cos(fdir), fz=fdir===undefined?0:Math.sin(fdir);
-  let rowsN=1; for(let i=0;i<n;i++)rowsN=Math.max(rowsN,F.slot(i,n)[1]*formSpread+1);
-  for(let i=0;i<n;i++){ const s=F.slot(i,n), c=s[0]*formSpread, rw=s[1]*formSpread; let ox,oy;
+  const sf=formSpread===1?0.7:1.5;   // tight = shoulder-to-shoulder (sub-tile), loose = open order
+  let rowsN=1; for(let i=0;i<n;i++)rowsN=Math.max(rowsN,F.slot(i,n)[1]*sf+1);
+  for(let i=0;i<n;i++){ const s=F.slot(i,n), c=s[0]*sf, rw=s[1]*sf; let ox,oy;
     if(fdir===undefined){ ox=gx+Math.round(c); oy=gy+rw-(rowsN>>1); }
     else { ox=gx+Math.round(c*-fz-rw*fx); oy=gy+Math.round(c*fx-rw*fz); }
     out.push([ox,oy]); }
