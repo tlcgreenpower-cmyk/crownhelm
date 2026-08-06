@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b116</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b117</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1710,7 +1710,14 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
     if(gb&&mil.length){ mil.forEach(u=>{u.cmd='gar';u.garB=gb;u.target=null;u.gather=null;u.build=null;orderPath(u,gb.tx+(gb.w>>1),gb.ty+gb.h,gb.id);});
       spawnMoveMark(gb.cx,gb.cz,0x9fd6ec); flashMsg('⛨ Garrison the '+BLD[gb.type].name+'! Select it and Sally Forth to release them');
       const rest=list.filter(e=>!mil.includes(e)); if(rest.length)commandMove(rest,x,z); SFX.cmd(); return; } }
-  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));
+  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){
+    // a crew sent to one tree fans out across the grove — two men per tree, nearest first
+    const arr2=node.type==='wood'?woodNodes:node.type==='gold'?goldNodes:node.type==='food'?meatNodes:metalNodes;
+    const near=arr2.filter(n2=>n2.amount>0&&Math.hypot(n2.tx-node.tx,n2.ty-node.ty)<10)
+      .sort((a2,b2)=>Math.hypot(a2.tx-node.tx,a2.ty-node.ty)-Math.hypot(b2.tx-node.tx,b2.ty-node.ty));
+    if(!near.length)near.push(node);
+    const PER=2;
+    workers.forEach((e,i)=>gatherOrder(e,near[Math.floor(i/PER)%near.length]));
     spawnNodeFlash(wx(node.tx),wz(node.ty),node.type==='wood'?0x7fd08a:node.type==='gold'?0xf3d55a:node.type==='food'?0xff9a6a:0xc4d2dc);
     const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
   commandMove(list,x,z,false);}
