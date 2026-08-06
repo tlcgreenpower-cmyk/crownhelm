@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b119</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b120</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -487,8 +487,9 @@ renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 let QUAL=localStorage.getItem('tidefall_quality')||'med';
 function applyQuality(){
   renderer.shadowMap.enabled=QUAL!=='low';
-  renderer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?1.5:QUAL==='med'?1.25:1));
-  if(typeof composer!=='undefined'&&composer)composer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?1.5:QUAL==='med'?1.25:1));
+  renderer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?2:QUAL==='med'?1.5:1));
+  if(typeof composer!=='undefined'&&composer)composer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?2:QUAL==='med'?1.5:1));
+  sun.shadow.mapSize.set(QUAL==='high'?4096:2048,QUAL==='high'?4096:2048); if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
   scene&&scene.traverse(o=>{if(o.isMesh&&o.material)o.material.needsUpdate=true;});
   for(const e of (typeof ents!=='undefined'?ents:[]))e.mesh.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});
   const qb=document.getElementById('qualBtn'); if(qb)qb.textContent='⚙ Graphics: '+(QUAL==='high'?'High — full shadows, for strong PCs':QUAL==='med'?'Medium — balanced look & speed':'Fast — smoothest, no shadows');
@@ -502,7 +503,7 @@ scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
 const camera=new THREE.PerspectiveCamera(52,2,0.5,1400);
 const hemi=new THREE.HemisphereLight(0xd8e6f8,0x4d5438,0.8); scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xffe7bd,1.52); sun.position.copy(LIGHTDIR).multiplyScalar(140); sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
+sun.shadow.mapSize.set(4096,4096); sun.shadow.radius=2.5;   // b120: crisper yet softer-edged shadows
 const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H;sc.near=20;sc.far=400; sun.shadow.bias=-0.0004;
 scene.add(sun,sun.target);
 
@@ -582,7 +583,7 @@ try{
   // ambient occlusion — soft contact shadows that ground everything (skipped gracefully if unsupported)
   try{ const {SAOPass}=await import('three/addons/postprocessing/SAOPass.js');
     const sao=new SAOPass(scene,camera);
-    sao.params.saoIntensity=0.012; sao.params.saoScale=60; sao.params.saoKernelRadius=48; sao.params.saoBlur=true;
+    sao.params.saoIntensity=0.016; sao.params.saoScale=60; sao.params.saoKernelRadius=48; sao.params.saoBlur=true;
     composer.addPass(sao); }catch(e){}
   bloomPass=new UnrealBloomPass(new THREE.Vector2(1280,640),0.19,0.4,0.92);
   composer.addPass(bloomPass);
@@ -816,7 +817,7 @@ function buildGroundTexture(){   // painted ground: bright grass with grain + wo
   for(const v of villages){ let best=ks[0],bd=1e9;
     for(const k of ks){const dd=Math.hypot(v.tx-k[0],v.ty-k[1]);if(dd<bd){bd=dd;best=k;}}
     road([v.tx,v.ty],best); }
-  const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; groundTex=tex; return tex; }
+  const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=16; groundTex=tex; return tex; }
 let groundCv=null,groundCtx=null,groundTex=null;
 function stampDirt(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
   const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(3,tiles*TILE/WORLD_W*TW*0.68);
@@ -953,7 +954,7 @@ function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
   const r2=new THREE.Mesh(new THREE.DodecahedronGeometry(.9,0),goldRock);r2.position.set(1.3,.5,.4);r2.castShadow=true;r2.rotation.set(hashN(n.ty,5),hashN(n.tx,6),1);g.add(r2);
   for(const[dx,dz,s]of[[.6,.3,.5],[-.45,.6,.42],[.15,-.6,.46],[-.7,-.3,.38],[1.3,.4,.34]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),M.gold);v.position.set(dx,1.5+dz*.3,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
-const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
+const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c,0x86c05a,0x549e3e].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
 const PINE_MATS=[0x338549,0x3a9553,0x2e7742].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.9,flatShading:true}));
 function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),h2=hashN(n.ty*3.1,n.tx*1.9),h3=hashN(n.tx*2.9,n.ty*1.7);
   if(h3<0.68){ // broadleaf: tapered trunk + clustered rounded canopies
@@ -1936,6 +1937,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
     case 'inside':break;   // safe behind the walls — the building does the fighting
     case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
+      if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;break;}   // one farmhand per farm — extras step off
       e.tendT=(e.tendT||0)-dt;
       if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
         const tx2=b.tx+Math.floor(Math.random()*b.w),ty2=b.ty+Math.floor(Math.random()*b.h);
