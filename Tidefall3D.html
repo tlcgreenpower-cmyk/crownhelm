@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b137</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b138</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1588,22 +1588,78 @@ function makeHealthBar(){const grp=new THREE.Group();
   mk(1.7,.24,0x2a1010,1,997,.01);           // empty track
   const fg=mk(1.7,.24,0x54e468,1,998,.02);  // health fill on top
   grp.userData.fg=fg;grp.visible=false;return grp;}
-function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
-  // farms: hand-built square tilled field — soil furrows, golden wheat rows, fence posts
-  if(type==='farm'){
-    const soil=new THREE.Mesh(new THREE.BoxGeometry(wpx*.96,.5,hpx*.96),new THREE.MeshStandardMaterial({color:0x6b4a2e,roughness:1,flatShading:true}));
-    soil.position.y=.25;soil.receiveShadow=true;g.add(soil);
-    const furrow=new THREE.MeshStandardMaterial({color:0x54371f,roughness:1});
-    const wheatA=new THREE.MeshStandardMaterial({color:0xd8b53c,roughness:.9,flatShading:true});
-    const wheatB=new THREE.MeshStandardMaterial({color:0xc9a232,roughness:.9,flatShading:true});
-    for(let i=-2;i<=2;i++){
-      const row=new THREE.Mesh(new THREE.BoxGeometry(wpx*.88,.1,.5),furrow);row.position.set(0,.52,i*hpx*.17);g.add(row);
-      for(let jx=-3;jx<=3;jx++){ const wcl=new THREE.Mesh(new THREE.ConeGeometry(.26,.85,5),(i+jx)%2?wheatA:wheatB);
-        wcl.position.set(jx*wpx*.12,1.0,i*hpx*.17);wcl.castShadow=true;g.add(wcl); } }
-    for(const[fx,fz]of[[-wpx*.45,-hpx*.45],[wpx*.45,-hpx*.45],[-wpx*.45,hpx*.45],[wpx*.45,hpx*.45]]){
-      const post=new THREE.Mesh(new THREE.BoxGeometry(.18,1.0,.18),M.wood);post.position.set(fx,.75,fz);post.castShadow=true;g.add(post);}
-    const hbf=makeHealthBar();hbf.scale.setScalar(1.4);hbf.position.y=3;g.add(hbf);g.userData.hb=hbf;
-    return g; }
+// ---- b138: REAL FARMS — every field sows one of six crops on ridged soil, ringed by a post-and-rail fence ----
+const FARM_CROPS=[
+  {n:'Wheat',a:0xd8b53c,b:0xc19a2c,k:'grain'},
+  {n:'Barley',a:0xe3d091,b:0xcbb56c,k:'grain'},
+  {n:'Cabbage',a:0x5c9440,b:0x74a94f,k:'round'},
+  {n:'Pumpkin',a:0xd4761c,b:0xbf6414,k:'round'},
+  {n:'Flax',a:0x8f8fd6,b:0x7a7ac4,k:'stalk'},
+  {n:'Turnip',a:0x6ea84a,b:0x86bd5c,k:'leaf'}
+];
+const _cropMats={};
+function cropMat(i,w){const k=i+w;return _cropMats[k]||(_cropMats[k]=new THREE.MeshStandardMaterial({color:FARM_CROPS[i][w],roughness:.9,flatShading:true}));}
+const FARM_SOIL=new THREE.MeshStandardMaterial({color:0x5b3d24,roughness:1,flatShading:true});
+const FARM_RIDGE=new THREE.MeshStandardMaterial({color:0x77532f,roughness:1,flatShading:true});
+function makeFarmField(seed){
+  const g=new THREE.Group(),parts=new THREE.Group(),wpx=BLD.farm.w*TILE,hpx=BLD.farm.h*TILE;
+  const S=(a,b)=>hashN(seed*7.3+a*1.7+3.1,seed*3.1+b*2.3+1.7);
+  const ci=Math.floor(S(1,1)*FARM_CROPS.length)%FARM_CROPS.length,C=FARM_CROPS[ci];
+  g.userData.crop=C.n;
+  const soil=new THREE.Mesh(new THREE.BoxGeometry(wpx*.94,.28,hpx*.94),FARM_SOIL);soil.position.y=.11;parts.add(soil);
+  // ridge-and-furrow: long raised beds with the crop planted thick along each crown
+  const B=.46,round=C.k==='round',ma=cropMat(ci,'a'),mb=cropMat(ci,'b');
+  const ROWS=round?5:7,PER=round?6:11,rowGap=hpx*.74/ROWS,colGap=wpx*.76/PER;
+  for(let r=0;r<ROWS;r++){
+    const rz=(r-(ROWS-1)/2)*rowGap;
+    const ridge=new THREE.Mesh(new THREE.BoxGeometry(wpx*.86,.16,rowGap*.72),FARM_RIDGE);ridge.position.set(0,.38,rz);parts.add(ridge);
+    for(let p=0;p<PER;p++){
+      const px=(p-(PER-1)/2)*colGap+(S(r,p)-.5)*.16,pz=rz+(S(p,r)-.5)*.16,hj=.8+S(r+9,p)*.5,m=(r+p)%2?ma:mb;
+      if(C.k==='grain'){const w=new THREE.Mesh(new THREE.ConeGeometry(.2,1.05*hj,5),m);w.position.set(px,B+.52*hj,pz);w.rotation.z=(S(p,r+4)-.5)*.3;parts.add(w);}
+      else if(round){const w=new THREE.Mesh(new THREE.SphereGeometry(.36*hj,7,5),m);w.position.set(px,B+.14+.26*hj,pz);w.scale.y=.78;parts.add(w);
+        const st=new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,.24,4),M.leafA);st.position.set(px,B+.18+.5*hj,pz);parts.add(st);}
+      else if(C.k==='stalk'){const st=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.8*hj,4),M.leafA);st.position.set(px,B+.4*hj,pz);parts.add(st);
+        const fl=new THREE.Mesh(new THREE.SphereGeometry(.12,5,4),m);fl.position.set(px,B+.82*hj,pz);parts.add(fl);}
+      else{const lf=new THREE.Mesh(new THREE.ConeGeometry(.28,.6*hj,5),m);lf.position.set(px,B+.3*hj,pz);lf.rotation.z=(S(r,p+3)-.5)*.45;parts.add(lf);}
+    } }
+  // post-and-rail fence with a gate gap on the near side
+  const fx=wpx*.51,fz=hpx*.51,N=4;
+  const post=(x,z,h)=>{const p=new THREE.Mesh(new THREE.BoxGeometry(.15,h,.15),M.wood);p.position.set(x,.05+h/2,z);parts.add(p);};
+  const rail=(x1,z1,x2,z2,y)=>{const dx=x2-x1,dz=z2-z1,len=Math.hypot(dx,dz);
+    const rl=new THREE.Mesh(new THREE.BoxGeometry(len,.09,.07),M.trunk);rl.position.set((x1+x2)/2,y,(z1+z2)/2);rl.rotation.y=-Math.atan2(dz,dx);parts.add(rl);};
+  const SIDES=[[-fx,-fz,fx,-fz],[fx,fz,-fx,fz],[-fx,fz,-fx,-fz],[fx,-fz,fx,fz]];
+  for(let s=0;s<4;s++){const[ax,az,bx,bz]=SIDES[s];
+    for(let i=0;i<N;i++){
+      const t0=i/N,t1=(i+1)/N,x0=ax+(bx-ax)*t0,z0=az+(bz-az)*t0,x1=ax+(bx-ax)*t1,z1=az+(bz-az)*t1;
+      const gate=(s===1&&i===2);                              // the way in
+      post(x0,z0,gate?1.35:1.05);
+      if(!gate){rail(x0,z0,x1,z1,1.0);rail(x0,z0,x1,z1,.66);}
+      else post(x1,z1,1.35);
+    } }
+  // yard corner: a couple of farmstead props, chosen per field
+  const SPOT=[[-fx*.72,-fz*.72],[fx*.72,-fz*.72],[-fx*.72,fz*.72],[fx*.72,fz*.72]];
+  const props=[
+    (x,z)=>{const h=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.85,7),M.thatch);h.rotation.z=Math.PI/2;h.position.set(x,.90,z);parts.add(h);
+            const h2=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,.75,7),M.thatch);h2.rotation.x=Math.PI/2;h2.position.set(x+.1,1.62,z);parts.add(h2);},  // hay bales
+    (x,z)=>{const b2=new THREE.Mesh(new THREE.CylinderGeometry(.34,.3,.8,8),M.wood);b2.position.set(x,.88,z);parts.add(b2);
+            const rim=new THREE.Mesh(new THREE.TorusGeometry(.34,.045,4,10),M.trunk);rim.rotation.x=Math.PI/2;rim.position.set(x,1.26,z);parts.add(rim);},     // water butt
+    (x,z)=>{for(let i=0;i<3;i++){const sk=new THREE.Mesh(new THREE.BoxGeometry(.46,.34,.36),M.thatch);sk.position.set(x+(i%2)*.2-.1,.65+i*.32,z+(i===1?.14:0));sk.rotation.y=i*.5;parts.add(sk);}},  // grain sacks
+    (x,z)=>{const tr=new THREE.Mesh(new THREE.BoxGeometry(.85,.34,.55),M.wood);tr.position.set(x,.68,z);parts.add(tr);
+            const wl=new THREE.Mesh(new THREE.CylinderGeometry(.26,.26,.09,8),M.trunk);wl.rotation.z=Math.PI/2;wl.position.set(x-.4,.72,z);parts.add(wl);
+            const hd=new THREE.Mesh(new THREE.BoxGeometry(.07,.07,.8),M.trunk);hd.position.set(x+.42,.9,z);parts.add(hd);}                                     // handcart
+  ];
+  const p1=Math.floor(S(4,2)*4)%4,p2=(p1+1+Math.floor(S(6,3)*3))%4;
+  props[p1](SPOT[p1][0],SPOT[p1][1]);
+  if(S(8,8)<.7)props[p2](SPOT[p2][0],SPOT[p2][1]);
+  const merged=BGU?mergeStaticModel(parts):parts;
+  merged.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  g.add(merged);
+  return g;
+}
+function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
+  if(type==='farm'){ const fg=makeFarmField(seed||0);
+    const hbf=makeHealthBar();hbf.scale.setScalar(1.4);hbf.position.y=3;fg.add(hbf);fg.userData.hb=hbf;
+    return fg; }
   // professional model where one exists for this building type
   const teamCol=FACTION_TEAMCOL[faction[owner]],mdl=BLD_CHAR[type];
   if(BLD_LIB&&mdl&&BLD_LIB[teamCol]&&BLD_LIB[teamCol][mdl]){
@@ -1718,7 +1774,7 @@ function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
   e.mesh.position.set(e.x,y,e.z);}
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
-  bl.mesh=makeBldMesh(type,owner);const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
+  bl.mesh=makeBldMesh(type,owner,tx*131+ty*17);const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
   bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(type==='bridge')bl.mesh.position.y=waterY+0.1;if(!done)bl.mesh.scale.y=0.05;scene.add(bl.mesh);blds.push(bl);
   // dirt yards stamp lazily in updateBuilding, once the ground is explored (no fog leaks)
   if(!done){attachBuildUI(bl);if(type!=='wall')attachScaffold(bl);}
@@ -1775,7 +1831,7 @@ function updateBuildUI(bl,dt){ const ui=bl.buildUI; if(!ui)return;
     c.font='bold 22px Segoe UI';c.textAlign='center';c.textBaseline='middle';
     c.strokeStyle='rgba(0,0,0,0.8)';c.lineWidth=4;c.strokeText(txt,64,20);
     c.fillStyle=bl._rate>0.004?'#ffe9c0':'#ff9a8a';c.fillText(txt,64,20); ui.tex.needsUpdate=true; } }
-function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; removeBuildUI(bl); const nm=makeBldMesh(bl.type,bl.owner);
+function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; removeBuildUI(bl); const nm=makeBldMesh(bl.type,bl.owner,bl.tx*131+bl.ty*17);
     nm.position.copy(old.position); nm.scale.y=bl.done?1:(0.05+0.95*bl.progress);
     scene.remove(old); bl.mesh=nm; scene.add(nm); if(!bl.done)attachBuildUI(bl); } visT=0; }
 function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;}for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
@@ -2676,7 +2732,7 @@ document.getElementById('gmResume').onclick=closeGameMenu;
 // ---- b125: the Kingdom Guide — every building & person, with pictures and plain words ----
 const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deliveries. Lose it and the realm falls.',
   house:'+8 population room (Attic upgrade +4). Lose houses and training stops until rebuilt.',
-  farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Irrigation +50%.',
+  farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Every field sows its own crop: wheat, barley, cabbage, pumpkin, flax or turnip. Irrigation +50%.',
   mill:'Automatic flour, +2 food/s, no labour. Great Millstones (Age II) and Windworks (Age III) double it.',
   storehouse:'Drop-off point for goods — build near forests & mines; +15% gathering nearby. Keeps a woodpile.',
   market:'Trade wood, food and metal for gold — and back again.',
@@ -2796,6 +2852,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=100;b.rschTot=100;flashMsg('💣 Hoisting the cannon — 100s');SFX.cmd();refreshUI();});
       else if(b.type==='tower'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">💣 Cannon Mount</span>';
       if(b.type==='farm'){const tn=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
+        const crp=b.mesh&&b.mesh.userData.crop;if(crp)info.innerHTML+='<br>🌱 Crop: <span style="color:#e8d08a">'+crp+'</span>';
         info.innerHTML+='<br>👨‍🌾 Farmhand: '+tn+'/1'+(tn?' — the field is sown':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with a worker</span>');}
       if(b.rschK)info.innerHTML+='<br><span id="bRschLine" style="color:#9fe8b0">🔨 Upgrading — '+Math.ceil(b.rschT)+'s</span>'
         +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="bRschBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#2f8a3a,#9fe8b0);width:'+Math.round((1-b.rschT/(b.rschTot||35))*100)+'%"></div></div>';
@@ -3095,7 +3152,9 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
 let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.Vector3();
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
-    calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};}};
+    calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
+  _dbg(){window.__D={addBuilding,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;}};return 'ok';},
+  get farms(){return blds.filter(b=>b.type==='farm').map(b=>{let n=0;b.mesh.traverse(o=>{if(o.isMesh)n++;});return {owner:b.owner,crop:b.mesh.userData.crop,parts:n};});}};
 (()=>{ // b93 Map Builder — sizes, terrain painting, mirror symmetry, random scatter (AoE2-style)
   const SIZES=[['Small',96,64],['Medium',168,112],['Large',224,144],['Epic',256,176]];
   const KEYS=['f','m','g','w2','hi','lo'];
