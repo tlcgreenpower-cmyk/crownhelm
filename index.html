@@ -61,7 +61,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b108</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b109</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1705,13 +1705,38 @@ function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){
   if(t.rsch){t.rsch.t-=dt;if(t.rsch.t<=0){const k=t.rsch.k;t[k]=Math.min(3,(t[k]||0)+1);t.rsch=null;
     if(k==='armor'&&o==='player')bumpHp();
     if(o==='player'){SFX.build();flashMsg('✅ '+RSCH[k].name+' '+t[k]+' forged — '+(k==='weapon'?'blades and shot bite deeper':'coats and mail turn more blows'));refreshUI();}}}}}
+// ---- b109 battle grime: the land remembers — scorched earth and rubble where buildings fell ----
+function stampScorch(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
+  const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(2.5,tiles*TILE/WORLD_W*TW*0.6);
+  const c2=groundCtx;
+  for(let i=0;i<6;i++){ const a=i/6*Math.PI*2+cx*0.7, rr=r*(0.5+((Math.abs(cx*13+cz*7)+i*31)%13)/13*0.6);
+    c2.fillStyle=i?'rgba(30,26,22,0.28)':'rgba(22,19,16,0.5)';
+    c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.3,py+Math.sin(a)*r*0.25,rr,rr*0.75,a,0,7); c2.fill(); }
+  groundTex.needsUpdate=true; }
+let rubblePiles=[];
+const rubGeo=new THREE.BoxGeometry(1,1,1);
+const rubMatA=new THREE.MeshStandardMaterial({color:0x6d675e,roughness:1,flatShading:true});
+const rubMatB=new THREE.MeshStandardMaterial({color:0x4c463e,roughness:1,flatShading:true});
+function spawnRubble(b){ const g=new THREE.Group(); const w=b.w*TILE,h=b.h*TILE;
+  const n=4+Math.min(5,b.w*b.h);
+  for(let i=0;i<n;i++){ const m=new THREE.Mesh(rubGeo,i%3?rubMatA:rubMatB);
+    const s=0.7+hashN(b.id,i)*1.6; m.scale.set(s,s*0.55,s*(0.7+hashN(i,b.id)*0.6));
+    m.position.set(b.cx+(hashN(b.id*3,i)-.5)*w*0.7,0,b.cz+(hashN(i,b.id*5)-.5)*h*0.7);
+    m.position.y=heightAtWorld(m.position.x,m.position.z)+s*0.18;
+    m.rotation.set(0,hashN(i*7,b.id)*3,(hashN(b.id,i*11)-.5)*0.3); g.add(m); }
+  scene.add(g); rubblePiles.push({g,t:0});
+  if(rubblePiles.length>24){const old=rubblePiles.shift();scene.remove(old.g);} }
+function updateRubble(dt){ for(const r of rubblePiles){ r.t+=dt; if(r.t>70)r.g.position.y=-(r.t-70)*0.05; }
+  rubblePiles=rubblePiles.filter(r=>{ if(r.t>=95){scene.remove(r.g);return false;} return true; }); }
 function ungarrison(b){ if(!b.gar)return; for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
   const sp=spawnSpot(b,u.type); u.inGar=null; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
   b.gar=[]; SFX.cmd(); }
 function destroyBuilding(b){ if(b.gar&&b.gar.length){ for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
     u.inGar=null; u.cmd='idle'; u.hp=Math.max(1,Math.round(u.hp*0.5));   // the garrison scrambles clear, battered
     u.x=b.cx+(Math.random()-.5)*4; u.z=b.cz+(Math.random()-.5)*4; u.mesh.visible=true; placeMesh(u); } b.gar=[]; }
-  removeBuildUI(b);if(Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<90)camShake=Math.min(1.6,camShake+1.0);const y=heightAtWorld(b.cx,b.cz)+3;for(let i=0;i<16;i++)spawnPart(b.cx,y,b.cz,'debris');SFX.boom();removeBuilding(b);}
+  removeBuildUI(b);if(Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<90)camShake=Math.min(1.6,camShake+1.0);const y=heightAtWorld(b.cx,b.cz)+3;for(let i=0;i<16;i++)spawnPart(b.cx,y,b.cz,'debris');
+  stampScorch(b.cx,b.cz,Math.max(b.w,b.h)+1);spawnRubble(b);   // the land remembers the fire
+  SFX.boom();removeBuilding(b);}
 function fleeWater(e){const tx=txFromW(e.x),ty=tzFromW(e.z);let best=null,bd=1e9;for(let r=1;r<=6;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=tx+dx,y=ty+dy;if(passable(x,y,0,'land')){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(best){e.cmd='move';orderPath(e,best[0],best[1],0);}}
 function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;b.mesh.scale.y=0.05+0.95*b.progress;updateBuildUI(b,dt);return;}
   const bhb=b.mesh.userData.hb;
@@ -1923,7 +1948,7 @@ function updateProjectiles(dt){for(const p of projs){p.t+=dt;const tx=p.target.x
   const prog=Math.min(1,p.t/(d/p.speed+0.2));const arc=p.kind==='boulder'?Math.sin(prog*Math.PI)*6:0;p.py=(heightAtWorld(p.px,p.pz)+1.5)+arc;
   p.mesh.position.set(p.px,p.py,p.pz);if(p.kind==='arrow')p.mesh.lookAt(tx,ty,tz);else p.mesh.rotation.x+=dt*8;}
   projs=projs.filter(p=>{if(p.dead){scene.remove(p.mesh);return false;}return true;});}
-function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
+function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');if(Math.random()<0.4)stampScorch(p.target.x,p.target.z,1);SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
   if(p.target.bld){if(blds.includes(p.target.bld)){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(ents.includes(p.target)){p.target.hp-=p.dmg;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
 const partGeo=new THREE.SphereGeometry(0.18,5,4);
 const partMats={smoke:new THREE.MeshBasicMaterial({color:0x9098a0,transparent:true}),splash:new THREE.MeshBasicMaterial({color:0x9fd6ec}),chip:new THREE.MeshBasicMaterial({color:0xa9803f}),spark:new THREE.MeshBasicMaterial({color:0xffdca0}),debris:new THREE.MeshBasicMaterial({color:0xb08050}),blood:new THREE.MeshBasicMaterial({color:0xa03828}),heal:new THREE.MeshBasicMaterial({color:0x9ff0b0,transparent:true}),
@@ -2613,6 +2638,7 @@ function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HA
 function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   for(const n of meatNodes)if(n.mesh)scene.remove(n.mesh); meatNodes=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};if(demoMode)setDemo(false);updateGhost();
+  for(const r of rubblePiles)scene.remove(r.g); rubblePiles=[];
   initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
@@ -2674,7 +2700,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     while(simAcc>=SIM_DT&&steps<6*gameSpeed){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
-  updateGhost();updateRings();updateUnitLOD();updateMoveMarks(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateRings();updateUnitLOD();updateMoveMarks(frame);updateRubble(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   { const aa=document.getElementById('atkArrow');
     if(running&&!gameOver&&atkPing.t<6){ _aaV.set(atkPing.x,heightAtWorld(atkPing.x,atkPing.z),atkPing.z).project(camera);
       const sx=(_aaV.x+1)/2*vw, sy=(-_aaV.y+1)/2*vh;
