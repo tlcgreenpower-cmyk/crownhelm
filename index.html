@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b152</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b153</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2529,9 +2529,11 @@ function separateUnits(){ const cell=3, grid=new Map();
           e.x-=nx*push*fE;e.z-=nz*push*fE;o.x+=nx*push*fO;o.z+=nz*push*fO; }
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 const _toolV=new THREE.Vector3();
-function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
+function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
   // b144: NOBODY LIVES IN THE TREES. Whatever put a man on ground he cannot stand on — a formation
   // place in the woods, a shove from the crowd, an old save — he finds his way back out.
+  // (b153: this runs BEFORE `moving` is read. It can order a new path — or fail and clear the old
+  // one — and a stale `moving` then walked straight into a null path and threw.)
   if(!e.inGar&&((animFrame+e.id)%24)===0){
     const utx=txFromW(e.x),uty=tzFromW(e.z),dom=UNIT[e.type].dom;
     if(!passable(utx,uty,0,dom,e.owner)){
@@ -2542,6 +2544,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(out){ if(!orderPath(e,out[0],out[1],0)){   // walled in on every side — he pushes out on foot
           const ox=wx(out[0])-e.x,oz=wz(out[1])-e.z,od2=Math.hypot(ox,oz)||1,st=Math.min(od2,UNIT[e.type].speed*dt*8);
           e.x+=ox/od2*st; e.z+=oz/od2*st; } } } }
+  const moving=e.path&&e.pi<e.path.length;
   if(e._sc!==e.cmd){e._sc=e.cmd;clearStall(e);
     if(e.cmd!=='move'&&e.cmd!=='amove'&&e.cmd!=='idle')e.slot=null;}   // fresh orders, fresh patience — and he leaves the line
   if(e.flinch>0){ e.flinch-=dt; const kf=Math.max(0,e.flinch)/0.15;   // struck men visibly flinch
@@ -2567,7 +2570,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2;
       const held=tl||(wantG?ud.gun:null);
       if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } }   // pin the tool to the swinging fist
-  if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
+  if(moving&&e.path&&e.pi<e.path.length){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;
       if((UNIT[e.type].cav||UNIT[e.type].siege)&&Math.random()<dt*1.8)spawnPart(e.x-Math.cos(e.dir)*0.8,heightAtWorld(e.x,e.z)+0.25,e.z-Math.sin(e.dir)*0.8,'chip');}}}   // hooves & wheels kick dust
@@ -2774,14 +2777,17 @@ function spawnCitizen(b){ if(citizens.length>=22)return;
   if(CHAR_LIB){ const src=CHAR_LIB.lib[CIT_CHARS[citizens.length%CIT_CHARS.length]];
     if(src){ const g=CHAR_LIB.clone(src.scene);
       const box=modelBox(g),hgt=box.max.y-box.min.y||1.9;
-      g.scale.setScalar(1.9/hgt); g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
+      // b153: a town has children in it. Every third or so villager is a bairn — smaller, quicker,
+      // and never straying far from the door — which is what makes a settlement look lived in.
+      const kid=Math.random()<0.34;
+      g.scale.setScalar((kid?1.16:1.9)/hgt); g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
       const mixer=new THREE.AnimationMixer(g);
       const find=re=>src.clips.find(c=>re.test(c.name));
       const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
       const walkA=wc?mixer.clipAction(wc):null, idleA=ic?mixer.clipAction(ic):null;
       if(idleA)idleA.play();
       scene.add(g);
-      citizens.push({mesh:g,mixer,walkA,idleA,mode:'idle',armL:null,armR:null,legL:null,legR:null,phase:0,hx:b.cx,hz:b.cz,x:sx1,z:sz1,tx:sx1,tz:sz1,wait:1});
+      citizens.push({mesh:g,mixer,walkA,idleA,mode:'idle',armL:null,armR:null,legL:null,legR:null,phase:0,hx:b.cx,hz:b.cz,x:sx1,z:sz1,tx:sx1,tz:sz1,wait:1,kid});
       return; } }
   const g=new THREE.Group(),i=citizens.length,coat=citMats[i%citMats.length];
   // legs
@@ -2840,7 +2846,7 @@ function refreshCarts(){
   const owners=['player'];
   for(const o of AI_REALMS)if(blds.some(b=>b.owner===o&&b._road&&explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))]))owners.push(o);
   let want=0; const edgesBy={};
-  for(const o of owners){ const e=roadEdges(o); edgesBy[o]=e; want+=Math.min(2,Math.floor(e.length/5)); }
+  for(const o of owners){ const e=roadEdges(o); edgesBy[o]=e; want+=e.length>=10?2:e.length>=3?1:0; }   // b153: a modest town gets its cart too
   want=Math.min(CART_CAP,want);
   while(carts.length>want){ const c=carts.pop(); scene.remove(c.mesh); }
   while(carts.length<want){ const o=owners[carts.length%owners.length], e=edgesBy[o];
@@ -2875,15 +2881,18 @@ function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
       // b151: townsfolk keep to the streets. Most trips are an errand along a road to another
       // building on the network — the rest is loitering by the door, as ever.
       let took=false;
-      if(Math.random()<0.68){ const near=[];
+      if(c.kid){ const r2=3+Math.random()*5, a2=Math.random()*6.283;   // bairns play about the doorstep, and dart
+        c.tx=c.hx+Math.cos(a2)*r2; c.tz=c.hz+Math.sin(a2)*r2; took=true; c.wait=0.4+Math.random()*1.4; }
+      else if(Math.random()<0.68){ const near=[];
         for(const q of blds){ if(!q.done||!q._road||q.owner!=='player')continue;
           const dd=Math.hypot(q.cx-c.x,q.cz-c.z); if(dd>4&&dd<52)near.push(q); }
         if(near.length){ const q=near[(Math.random()*near.length)|0];
           const ang=Math.random()*6.283, r=2.6+Math.random()*2.2;    // stop at the door, not inside the wall
           c.tx=q.cx+Math.cos(ang)*r; c.tz=q.cz+Math.sin(ang)*r; took=true; } }
       if(!took){ c.tx=c.hx+(Math.random()-.5)*14; c.tz=c.hz+(Math.random()-.5)*14; }
-      const t1=txFromW(c.tx),t2=tzFromW(c.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){c.tx=c.hx;c.tz=c.hz;} c.wait=2+Math.random()*4; } }
-  else { moving=true; const sp=3.2*dt; c.x+=(c.tx-c.x)/d*sp; c.z+=(c.tz-c.z)/d*sp;
+      const t1=txFromW(c.tx),t2=tzFromW(c.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){c.tx=c.hx;c.tz=c.hz;}
+      if(!c.kid)c.wait=2+Math.random()*4; } }
+  else { moving=true; const sp=(c.kid?4.6:3.2)*dt; c.x+=(c.tx-c.x)/d*sp; c.z+=(c.tz-c.z)/d*sp;
     c.mesh.rotation.y=-Math.atan2(c.tz-c.z,c.tx-c.x)+Math.PI/2; }
   // animate: real skeletal animation if we have it, else procedural limb swing
   const cdx=c.x-camTarget.x,cdz=c.z-camTarget.z;
@@ -3850,7 +3859,7 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
