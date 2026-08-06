@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b132</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b133</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1136,6 +1136,24 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     v3.set(x+.35,y+1.9,z); q0.setFromEuler(eul.set(0,hashN(i,281)*3,1.05)); m4.compose(v3,q0,s3);
     deadBr.setMatrixAt(di2,m4); di2++; }
   dead.count=di2; deadBr.count=di2; ambientGroup.add(dead); ambientGroup.add(deadBr);
+  // b133 living water edges: foam along the shore, lilies in the coves, fish-splash spots
+  const foamGeo=new THREE.PlaneGeometry(1.7,.4); foamGeo.rotateX(-Math.PI/2);
+  const FOCAP=Math.round(1400*A), LYCAP=Math.round(400*A);
+  const foam=new THREE.InstancedMesh(foamGeo,new THREE.MeshBasicMaterial({color:0xeaf6ff,transparent:true,opacity:.42,depthWrite:false}),FOCAP);
+  const lilyGeo=new THREE.CircleGeometry(.5,7); lilyGeo.rotateX(-Math.PI/2);
+  const lily=new THREE.InstancedMesh(lilyGeo,new THREE.MeshStandardMaterial({color:0x3f8a45,roughness:.9}),LYCAP);
+  let fo=0,ly=0; _fishSpots=[];
+  for(let ty2=1;ty2<MAP_H-1;ty2++)for(let tx2=1;tx2<MAP_W-1;tx2++){ if(!isFlooded(tx2,ty2))continue;
+    let landN=0; for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]])if(!isFlooded(tx2+dx,ty2+dy))landN++;
+    if(!landN)continue;
+    const x=wx(tx2),z=wz(ty2),h9=hashN(tx2*3.7,ty2*5.1);
+    if(fo<FOCAP&&h9<0.55){ v3.set(x+(h9-.27)*2,waterY+0.06,z+(hashN(ty2,tx2)-.5)*2);
+      q0.setFromEuler(eul.set(0,hashN(tx2,ty2*7)*3.14,0)); s3.set(.7+h9,1,.8); m4.compose(v3,q0,s3);
+      foam.setMatrixAt(fo,m4); fo++; }
+    if(ly<LYCAP&&landN>=2&&h9>0.72){ v3.set(x,waterY+0.05,z); q0.setFromEuler(eul.set(0,h9*6,0));
+      s3.setScalar(.6+hashN(ty2*3,tx2)*0.8); m4.compose(v3,q0,s3); lily.setMatrixAt(ly,m4); ly++; }
+    if((tx2+ty2)%7===0)_fishSpots.push([x,z]); }
+  foam.count=fo; lily.count=ly; ambientGroup.add(foam); ambientGroup.add(lily);
   buildLeaves();
   if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
   const bm=new THREE.MeshBasicMaterial({color:0x2a2f36,side:THREE.DoubleSide});
@@ -1253,7 +1271,7 @@ function tickClutter(dt){ _clutT-=dt; if(_clutT>0)return; _clutT=2;
   const sig=blds.reduce((s,b)=>b.done?s+b.id:s,0)+':'+blds.length;
   if(sig!==_clutSig){ _clutSig=sig; refreshClutter(); } }
 // b131: leaves ride the wind out of the treetops, tumble, and settle
-let leafMesh=null,leaves=[];
+let leafMesh=null,leaves=[],_fishSpots=[],_fishT=3;
 const _lm4=new THREE.Matrix4(),_lq=new THREE.Quaternion(),_le=new THREE.Euler(),_lv=new THREE.Vector3(),_ls=new THREE.Vector3(1,1,1);
 function newLeaf(i){ const n=woodNodes.length?woodNodes[(i*37+((Math.random()*woodNodes.length)|0))%woodNodes.length]:null;
   const x=n?wx(n.tx)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_W, z=n?wz(n.ty)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_H;
@@ -1275,6 +1293,9 @@ function updateLeaves(dt,now){ if(!leafMesh)return;
     leafMesh.setMatrixAt(i,_lm4); }
   leafMesh.instanceMatrix.needsUpdate=true; }
 function updateAmbient(dt,now){ tickClutter(dt); updateLeaves(dt,now);
+  _fishT-=dt; if(_fishT<=0){ _fishT=2.5+Math.random()*3.5;   // somewhere near, a fish breaks the surface
+    if(_fishSpots.length){ const s=_fishSpots[(Math.random()*_fishSpots.length)|0];
+      if(Math.hypot(s[0]-camTarget.x,s[1]-camTarget.z)<130)for(let i=0;i<5;i++)spawnPart(s[0],waterY+0.25,s[1],'splash'); } }
   for(const b of bflies){ b.a+=dt*b.sp;
     const px=b.cx+Math.cos(b.a)*b.r, pz=b.cz+Math.sin(b.a)*b.r;
     b.g.position.set(px,heightAtWorld(px,pz)+b.h+Math.sin(b.a*2.7)*.5,pz);
