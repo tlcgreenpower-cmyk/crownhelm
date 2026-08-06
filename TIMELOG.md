@@ -19,6 +19,7 @@ is not counted.
 | 2026-08-05 | ~08:29 (est.)          | 0.5h  | b80: real cavalry |
 | 2026-08-05 | ~13:50 (est.)          | 0.5h  | CLAUDE.md |
 | 2026-08-05 | 18:06–20:46 (est.)     | 3.2h  | b81–b91: China, Thebes, saves, AI towns |
-| 2026-08-06 | 00:00–ongoing          | 0.4h+ | b92: mesh-merge surgery (overnight loop running) |
+| 2026-08-06 | 00:00–00:25            | 0.4h  | b92: mesh-merge surgery + TIMELOG |
+| 2026-08-06 | ~07:55–ongoing         | 0.5h+ | b93: 8 realms, map sizes, builder overhaul, idle-peasant fix, Menu button |
 
-**TOTAL: 26.3 hours** (as of 2026-08-06 00:25, overnight session still running)
+**TOTAL: 26.7 hours** (as of 2026-08-06 08:20, morning session still running)
