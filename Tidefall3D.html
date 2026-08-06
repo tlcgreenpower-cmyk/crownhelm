@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b129</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b130</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1100,6 +1100,42 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
       q0.setFromEuler(eul.set(0,hashN(i,149)*3,Math.PI/2)); s3.set(1,1,1); m4.compose(v3,q0,s3);
       logs.setMatrixAt(li,m4); li++; } }
   stumps.count=si; logs.count=li; ambientGroup.add(stumps); ambientGroup.add(logs);
+  // b130 forest variety: mushrooms under the eaves, saplings at the edges, the odd dead tree
+  const MCAP2=Math.round(600*A);
+  const mCap=new THREE.InstancedMesh(new THREE.SphereGeometry(.16,6,5),new THREE.MeshStandardMaterial({roughness:.8}),MCAP2);
+  const mStem=new THREE.InstancedMesh(new THREE.CylinderGeometry(.05,.06,.16,5),new THREE.MeshStandardMaterial({color:0xe8dcc4,roughness:.9}),MCAP2);
+  let mi2=0;
+  for(let i=0;i<woodNodes.length&&mi2<MCAP2;i+=2){ const n=woodNodes[i];
+    const x=wx(n.tx)+(hashN(i,211)-.5)*6, z=wz(n.ty)+(hashN(223,i)-.5)*6;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2)||elev[ti(tx,tz2)]<1.55)continue;
+    const s=.6+hashN(i,227)*.8, y=heightAtWorld(x,z);
+    q0.identity(); v3.set(x,y+.14*s,z); s3.set(s,s*.75,s); m4.compose(v3,q0,s3); mCap.setMatrixAt(mi2,m4);
+    col.setHex(i%3?0xc23c2a:0xd9a13a); mCap.setColorAt(mi2,col);
+    v3.set(x,y+.07*s,z); s3.setScalar(s); m4.compose(v3,q0,s3); mStem.setMatrixAt(mi2,m4); mi2++; }
+  mCap.count=mi2; mStem.count=mi2; ambientGroup.add(mCap); ambientGroup.add(mStem);
+  const SPCAP=Math.round(420*A);
+  const sapl=new THREE.InstancedMesh(new THREE.ConeGeometry(.34,.9,5),new THREE.MeshStandardMaterial({roughness:.9,flatShading:true}),SPCAP);
+  let sp2=0;
+  for(let i=1;i<woodNodes.length&&sp2<SPCAP;i+=3){ const n=woodNodes[i];
+    const x=wx(n.tx)+(hashN(i,229)-.5)*9, z=wz(n.ty)+(hashN(233,i)-.5)*9;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2)||elev[ti(tx,tz2)]<1.55)continue;
+    const s=.7+hashN(i,239)*.7, y=heightAtWorld(x,z);
+    v3.set(x,y+.45*s,z); q0.setFromEuler(eul.set(0,hashN(i,241)*3,(hashN(243,i)-.5)*.15)); s3.setScalar(s); m4.compose(v3,q0,s3);
+    sapl.setMatrixAt(sp2,m4); col.setHSL(0.27+hashN(i,251)*0.05,0.5,0.32); sapl.setColorAt(sp2,col); sp2++; }
+  sapl.count=sp2; ambientGroup.add(sapl);
+  const DCAP=Math.round(110*A);
+  const dead=new THREE.InstancedMesh(new THREE.CylinderGeometry(.12,.2,2.6,5),new THREE.MeshStandardMaterial({color:0x5d5248,roughness:1,flatShading:true}),DCAP);
+  const deadBr=new THREE.InstancedMesh(new THREE.CylinderGeometry(.05,.07,1.1,4),new THREE.MeshStandardMaterial({color:0x554b42,roughness:1}),DCAP);
+  let di2=0;
+  for(let i=2;i<woodNodes.length&&di2<DCAP;i+=9){ const n=woodNodes[i];
+    const x=wx(n.tx)+(hashN(i,257)-.5)*11, z=wz(n.ty)+(hashN(263,i)-.5)*11;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2)||elev[ti(tx,tz2)]<1.55)continue;
+    const y=heightAtWorld(x,z);
+    v3.set(x,y+1.2,z); q0.setFromEuler(eul.set((hashN(i,269)-.5)*.12,hashN(271,i)*3,(hashN(i,277)-.5)*.12)); s3.setScalar(1); m4.compose(v3,q0,s3);
+    dead.setMatrixAt(di2,m4);
+    v3.set(x+.35,y+1.9,z); q0.setFromEuler(eul.set(0,hashN(i,281)*3,1.05)); m4.compose(v3,q0,s3);
+    deadBr.setMatrixAt(di2,m4); di2++; }
+  dead.count=di2; deadBr.count=di2; ambientGroup.add(dead); ambientGroup.add(deadBr);
   if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
   const bm=new THREE.MeshBasicMaterial({color:0x2a2f36,side:THREE.DoubleSide});
   for(let f=0;f<Math.min(8,Math.round(3*areaScale()));f++){ const cx=(hashN(f,31)-0.5)*WORLD_W*.6, cz=(hashN(37,f)-0.5)*WORLD_H*.6;
