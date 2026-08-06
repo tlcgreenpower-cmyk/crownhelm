@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b127</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b128</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -622,8 +622,8 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   loader.load('assets/animals/Sheep.glb',g=>{lib['SheepA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
-  loader.load('assets/animals/Horse.glb',g=>{lib['HorseA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
-  loader.load('assets/animals/White Horse.glb',g=>{lib['HorseW']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
+  loader.load('assets/animals/Horse.glb',g=>{lib['HorseA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
+  loader.load('assets/animals/White Horse.glb',g=>{lib['HorseW']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
   loader.load('assets/pirate/glTF/Prop_Cannon.gltf',g=>{PIRATE_CANNON=mergeStaticModel(g.scene);},undefined,()=>{});
   loader.load('assets/pirate/glTF/Ship_Small.gltf',g=>{PIRATE_SHIP=mergeStaticModel(g.scene);},undefined,()=>{});
   loader.load('assets/pirate/glTF/Ship_Large.gltf',g=>{PIRATE_SHIP_L=mergeStaticModel(g.scene);},undefined,()=>{});
@@ -634,7 +634,18 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   console.log('b92 mesh-merge (characters): '+_mergeTally.charBefore+' skinned parts -> '+_mergeTally.charAfter);
   if(Object.keys(lib).length) CHAR_LIB={lib,clone:SK.clone};
   window._CHARLIB=CHAR_LIB;   // debug handle for the TF perf gate
+  refreshUnitModels();
 }catch(e){/* stay on procedural villagers */} })();
+// b128: units spawned before the character library finished (fast save-loads) kept their
+// stand-in bodies forever — knights on foot, capsule workers. Rebuild them once models land.
+function refreshUnitModels(){ try{ if(!CHAR_LIB||typeof ents==='undefined')return;
+  const MOUNTED={knight:1,dragoon:1,wolfrider:1,cuirassier:1};
+  for(const e of ents){ const wantsLib=MOUNTED[e.type]||UNIT_CHAR[e.type]||e.type==='worker';
+    if(!wantsLib)continue;
+    if(MOUNTED[e.type]&&(!CHAR_LIB.lib.HorseA||!CHAR_LIB.lib.HorseW))continue;
+    if(e.mesh.userData.mixer)continue;   // already the real model
+    const nm=makeUnitMesh(e.type,e.owner); nm.position.copy(e.mesh.position);
+    scene.remove(e.mesh); e.mesh=nm; scene.add(nm); if(e.rank)addRankPips(e); } }catch(err){} }
 
 // ---- professional medieval building models (KayKit Medieval Hexagon, CC0) ----
 let BLD_LIB=null,NATURE_LIB=null,NEUTRAL_LIB=null;
