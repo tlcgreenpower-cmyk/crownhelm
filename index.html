@@ -60,7 +60,7 @@
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b103</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b104</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -173,7 +173,7 @@
         </div>
         <div style="margin-top:30px;padding-top:20px;border-top:1px solid #33291a;display:flex;align-items:center;justify-content:space-between;gap:16px;">
           <div id="startSummary" style="font-size:16px;color:#9d8a67;font-style:italic;"></div>
-          <button id="marchBtn" style="cursor:pointer;font-family:'Cinzel',serif;font-weight:800;font-size:18px;letter-spacing:.1em;text-transform:uppercase;color:#f3e7cc;background:#7c2b23;border:1px solid #c9a24a;padding:14px 26px;box-shadow:0 8px 22px rgba(0,0,0,.5);flex:none;">March</button>
+          <button id="marchBtn" style="cursor:pointer;font-family:'Cinzel',serif;font-weight:800;font-size:18px;letter-spacing:.1em;text-transform:uppercase;color:#f3e7cc;background:#7c2b23;border:1px solid #c9a24a;padding:14px 26px;box-shadow:0 8px 22px rgba(0,0,0,.5);flex:none;">Begin</button>
         </div>
       </div>
       </div>
@@ -230,6 +230,10 @@ try{ THREE=await import('three'); }
 catch(e){ document.getElementById('loading').textContent='Could not load the 3D engine — check your internet, then reopen.'; showErr('Three.js load: '+e.message); throw e; }
 document.getElementById('loading').classList.add('hidden');
 document.getElementById('overlay').classList.remove('hidden');
+// the in-game top & bottom bars stay hidden until a kingdom actually starts
+function setGameUI(on){ const t=document.getElementById('topbar'),bb=document.getElementById('botbar');
+  if(t)t.style.display=on?'flex':'none'; if(bb)bb.style.display=on?'flex':'none'; }
+setGameUI(false);
 let BGU=null; try{ BGU=await import('three/addons/utils/BufferGeometryUtils.js'); }catch(e){}
 
 // ---- b92 MESH-MERGE SURGERY: collapse multi-part models into as few draw units as possible.
@@ -1045,7 +1049,42 @@ function spawnClouds(){ if(cloudGroup){scene.remove(cloudGroup);cloudGroup=null;
     m.scale.setScalar(1.5+hashN(i,41)*1.4);
     m.position.set((hashN(i,43)-0.5)*WORLD_W*1.2,105+hashN(47,i)*45,(hashN(i,53)-0.5)*WORLD_H*1.1);
     m.userData.sp=1.2+hashN(i,59)*1.6; cloudGroup.add(m); } }
-function updateAmbient(dt,now){ for(const b of birds){ b.a+=dt*b.sp; b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.h,b.cz+Math.sin(b.a)*b.r);
+// ---- b104 town life: barrels, crates & sacks gather round finished buildings; farms get scarecrows ----
+let clutterGroup=null,_clutSig='',_clutT=0;
+const CLUT_OK=new Set(['hall','house','barracks','gunshop','church','market','mill','storehouse','siege','dock','castle']);
+function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGroup=new THREE.Group(); scene.add(clutterGroup);
+  const m4=new THREE.Matrix4(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3(),eul=new THREE.Euler();
+  const CAP=900;
+  const barrel=new THREE.InstancedMesh(new THREE.CylinderGeometry(.3,.34,.56,8),new THREE.MeshStandardMaterial({color:0x8a5f34,roughness:.9,flatShading:true}),CAP);
+  const crate=new THREE.InstancedMesh(new THREE.BoxGeometry(.55,.5,.55),new THREE.MeshStandardMaterial({color:0xa9824f,roughness:.95,flatShading:true}),CAP);
+  const sack=new THREE.InstancedMesh(new THREE.SphereGeometry(.3,6,5),new THREE.MeshStandardMaterial({color:0xc9b28a,roughness:1,flatShading:true}),CAP);
+  const scPole=new THREE.InstancedMesh(new THREE.CylinderGeometry(.05,.06,1.9,5),new THREE.MeshStandardMaterial({color:0x6b4b2e,roughness:.95}),160);
+  const scArm=new THREE.InstancedMesh(new THREE.BoxGeometry(1.15,.08,.08),new THREE.MeshStandardMaterial({color:0x6b4b2e,roughness:.95}),160);
+  const scHead=new THREE.InstancedMesh(new THREE.SphereGeometry(.17,6,5),new THREE.MeshStandardMaterial({color:0xd9c48a,roughness:.9}),160);
+  let bi=0,ci=0,ki=0,si=0;
+  for(const b of blds){ if(!b.done)continue;
+    if(b.type==='farm'&&si<160){ const fx=b.cx+(hashN(b.id,3)-.5)*b.w*TILE*.5, fz=b.cz+(hashN(5,b.id)-.5)*b.h*TILE*.5, fy=heightAtWorld(fx,fz);
+      m4.makeTranslation(fx,fy+.95,fz); scPole.setMatrixAt(si,m4);
+      v3.set(fx,fy+1.45,fz); q0.setFromEuler(eul.set(0,hashN(b.id,7)*3,0)); s3.set(1,1,1); m4.compose(v3,q0,s3); scArm.setMatrixAt(si,m4);
+      m4.makeTranslation(fx,fy+1.85,fz); scHead.setMatrixAt(si,m4); si++; continue; }
+    if(!CLUT_OK.has(b.type))continue;
+    const n=1+(b.id%3);
+    for(let k=0;k<n;k++){ const h1=hashN(b.id*1.3,k*2.7),h2=hashN(k*3.1,b.id*1.9);
+      const side=(b.id+k)%4, ex=b.w*TILE*.5+.7, ez=b.h*TILE*.5+.7;
+      const px=b.cx+(side===0?(h1-.5)*b.w*TILE*.8:side===1?ex:side===2?(h1-.5)*b.w*TILE*.8:-ex);
+      const pz=b.cz+(side===0?ez:side===1?(h1-.5)*b.h*TILE*.8:side===2?-ez:(h1-.5)*b.h*TILE*.8);
+      const py=heightAtWorld(px,pz), kind=(b.id*7+k)%3;
+      q0.setFromEuler(eul.set(0,h2*3,0)); s3.setScalar(.8+h1*.5);
+      if(kind===0&&bi<CAP){ v3.set(px,py+.28*s3.x,pz); m4.compose(v3,q0,s3); barrel.setMatrixAt(bi,m4); bi++; }
+      else if(kind===1&&ci<CAP){ v3.set(px,py+.25*s3.x,pz); m4.compose(v3,q0,s3); crate.setMatrixAt(ci,m4); ci++; }
+      else if(ki<CAP){ v3.set(px,py+.18*s3.x,pz); s3.y*=.65; m4.compose(v3,q0,s3); sack.setMatrixAt(ki,m4); ki++; } } }
+  barrel.count=bi;crate.count=ci;sack.count=ki;scPole.count=si;scArm.count=si;scHead.count=si;
+  for(const m of [barrel,crate,sack,scPole,scArm,scHead]){ m.castShadow=false; m.instanceMatrix.needsUpdate=true; clutterGroup.add(m); } }
+function tickClutter(dt){ _clutT-=dt; if(_clutT>0)return; _clutT=2;
+  const sig=blds.reduce((s,b)=>b.done?s+b.id:s,0)+':'+blds.length;
+  if(sig!==_clutSig){ _clutSig=sig; refreshClutter(); } }
+function updateAmbient(dt,now){ tickClutter(dt);
+  for(const b of birds){ b.a+=dt*b.sp; b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.h,b.cz+Math.sin(b.a)*b.r);
     b.g.rotation.y=-b.a; const fl=Math.sin(now*7+b.r)*0.55; b.w1.rotation.y=fl; b.w2.rotation.y=-fl; }
   if(cloudGroup)for(const c of cloudGroup.children){ c.position.x+=dt*c.userData.sp; if(c.position.x>HALF_W+80)c.position.x=-HALF_W-80; } }
 
@@ -2516,7 +2555,7 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
 function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if(!raw){flashMsg('No saved kingdom');return;}
   document.getElementById('slots').classList.add('hidden');
   let s; try{s=JSON.parse(raw);}catch(e){flashMsg('Save file corrupted');return;}
-  $('overlay').classList.add('hidden'); initAudio(); resize();
+  $('overlay').classList.add('hidden'); setGameUI(true); initAudio(); resize();
   faction={...s.faction}; setRealmCount(s.players||4); difficulty=s.dif||difficulty; setMap(s.map||'heartlands');
   { const ms=document.getElementById('mapSel'),ps=document.getElementById('plSel'),ds=document.getElementById('diffSel');
     if(ms)ms.value=curMapId; if(ps)ps.value=String(playerCount); if(ds)ds.value=difficulty; }
@@ -2674,7 +2713,7 @@ function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
   AI_REALMS.forEach((o,i)=>faction[o]=others[i%others.length]);
-  $('overlay').classList.add('hidden');initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
+  $('overlay').classList.add('hidden');setGameUI(true);initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
 var selFac='english';
 function updateStartSummary(){const el=document.getElementById('startSummary');if(!el)return;
   const mn=(MAPS[curMapId]&&MAPS[curMapId].name)||'Heartlands';
