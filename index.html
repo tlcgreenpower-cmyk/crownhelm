@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b124</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b125</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -185,12 +185,14 @@
   </div>
   <div id="botbar"><div id="selInfo">Nothing selected.</div><div id="cmds"></div>
     <div id="pauseOv" style="display:none;position:absolute;inset:0;z-index:40;align-items:center;justify-content:center;pointer-events:none;background:rgba(4,10,16,.35)"><div style="font:700 54px Georgia,serif;color:#f3e4be;text-shadow:0 4px 18px #000;letter-spacing:6px">⏸ PAUSED</div></div>
+    <div id="guide" class="hidden" style="position:absolute;inset:28px 56px;z-index:44;overflow-y:auto;background:rgba(8,20,30,.97);border:1px solid #2c5164;border-radius:12px;padding:20px 26px;box-shadow:0 20px 60px rgba(0,0,0,.7)"></div>
     <div id="gameMenu" class="hidden">
       <div style="width:310px;background:#0e2230;border:1px solid #2c5164;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.65);">
         <div style="font:700 21px Georgia,serif;color:#f3e4be;text-align:center;letter-spacing:3px;margin-bottom:6px;">☰ GAME MENU</div>
         <button class="gmb" id="gmResume">▶ Resume</button>
         <button class="gmb" id="muteBtn">🔊 Sound: On</button>
         <button class="gmb" id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks">⚙ Medium</button>
+        <button class="gmb" id="guideBtn">📖 Guide — every unit &amp; building</button>
         <button class="gmb" id="saveBtn">💾 Save / Load</button>
         <button class="gmb" id="menuBtn" title="Back to the main menu — your kingdom is autosaved first">🏰 Quit to Main Menu</button>
         <div style="font-size:11px;color:#5f7f92;text-align:center;margin-top:4px;">the game stands paused while this menu is open</div>
@@ -2459,7 +2461,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
   if(k==='escape'){const busy=placing||attackMove||dragging||wallDrag||demoMode;if(demoMode)setDemo(false);placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();
     if(!busy){const gmEl=$('gameMenu');
       if(gmEl&&!gmEl.classList.contains('hidden'))closeGameMenu();
-      else{const pans=['forces','diplo','slots'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
+      else{const pans=['forces','diplo','slots','guide'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
       if(pans.length)pans.forEach(el=>el.classList.add('hidden'));
       else if(selected.length||selBuilding){selected=[];selBuilding=null;refreshUI();}
       else if(running&&!gameOver)openGameMenu();}}}   // Esc with nothing to cancel = pause + game menu, like any standard game
@@ -2506,6 +2508,49 @@ function openGameMenu(){ if(!running||gameOver)return; const gm=document.getElem
 document.getElementById('gmenuBtn').onclick=()=>{ const gm=document.getElementById('gameMenu');
   if(gm&&!gm.classList.contains('hidden'))closeGameMenu(); else openGameMenu(); };
 document.getElementById('gmResume').onclick=closeGameMenu;
+// ---- b125: the Kingdom Guide — every building & person, with pictures and plain words ----
+const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deliveries. Lose it and the realm falls.',
+  house:'+8 population room (Attic upgrade +4). Lose houses and training stops until rebuilt.',
+  farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Irrigation +50%.',
+  mill:'Automatic flour, +2 food/s, no labour. Great Millstones (Age II) and Windworks (Age III) double it.',
+  storehouse:'Drop-off point for goods — build near forests & mines; +15% gathering nearby. Keeps a woodpile.',
+  market:'Trade wood, food and metal for gold — and back again.',
+  church:'Trains Monks, Priests and Doctors; Cardinals at Age II.',
+  garden:'Beauty — villagers stroll your streets.', statue:'Beauty in stone.',
+  barracks:'Trains melee & ranged troops; forges Weapons and Armor research (staged, takes time).',
+  gunshop:'Muskets and Grenadiers; Cannon & Howitzer from Age II.',
+  siege:'Catapults and Battering Rams (Age II).',
+  dock:'Warboats; Privateers at Age II. Must touch water.',
+  castle:'Great fortress — trains elites and your faction champion, fires on foes, garrisons 10.',
+  wall:'Stone curtain. Fortify upgrade +50%.', gate:'A door in your wall — only YOUR troops pass.',
+  tower:'Arrow tower; Boulder Thrower upgrade, then Cannon Mount at Age III. Garrisons 4.',
+  watch:'Cheap eyes — long sight, light arrows. Garrisons 2.',
+  bridge:'Laid tile-by-tile ACROSS water — armies march over the planks.'};
+const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. The kingdom rests on his shoulders.',
+  spear:'Cheap line infantry; bonus vs cavalry.', archer:'Fast ranged harass.',
+  viking:'Tough axe infantry; bonus vs siege engines.', samurai:'Duelist — bonus vs enemy champions (Age II).',
+  knight:'Heavy shock cavalry (Age II).', dragoon:'Mounted musket — fast flanker (Age II).',
+  infantry:'The musket line — your ranged backbone.', grenadier:'Lobbed bombs with arcing splash.',
+  cannon:'Splash artillery — deadly vs buildings (Age II).', howitzer:'High-arc siege gun (Age II).',
+  monk:'Area healer.', priest:'Strong single-target healer.', doctor:'Field medic.', cardinal:'Grand healer (Age II).',
+  catapult:'Boulder thrower — building breaker (Age II).', ram:'Building-only wrecker; shrugs off arrows (Age II).',
+  warboat:'Fighting ship (Age II).', privateer:'Elite raider ship (Age II).',
+  chukonu:'Chinese repeating crossbow — champion.', hoplite:'Sacred Band spear elite — champion.',
+  highlander:'Scottish charger — champion.', grenguard:'English elite musket — champion.',
+  wolfrider:'Irish hound cavalry — champion.', cuirassier:'French armoured cavalry — champion.',
+  hero:'Your King — mighty, but there is only one. Guard him.'};
+function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.built)return; g.dataset.built='1';
+  const cost=c=>c?[c.f?c.f+'🍖':'',c.w?c.w+'🌲':'',c.m?c.m+'⛏️':'',c.g?c.g+'💰':''].filter(Boolean).join(' '):'';
+  const card=(ic,name,c2,desc)=>'<div style="background:#122b3a;border:1px solid #2c5164;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start"><div style="font-size:30px;flex:none">'+ic+'</div><div><b style="color:#e8f4fb">'+name+'</b> <small style="color:#c9a44a">'+c2+'</small><div style="color:#9fc0d2;font-size:12.5px;line-height:1.45">'+desc+'</div></div></div>';
+  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',storehouse:'📦',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
+  let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font:700 22px Georgia,serif;color:#f3e4be;letter-spacing:2px">📖 THE KINGDOM GUIDE</b><button class="big" id="guideClose" style="padding:6px 14px;cursor:pointer">✕ Close</button></div>';
+  h+='<div style="font:600 15px Georgia,serif;color:#c9a44a;margin:8px 0">BUILDINGS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
+  for(const k in BLD_DESC)h+=card(BICON[k]||'🏠',BLD[k].name,cost(COST[k]),BLD_DESC[k]);
+  h+='</div><div style="font:600 15px Georgia,serif;color:#c9a44a;margin:14px 0 8px">UNITS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
+  for(const k in UNIT_DESC)h+=card(UNIT_IC[k]||'⚔',UNIT[k].name,cost(COST[k]),UNIT_DESC[k]);
+  h+='</div>';
+  g.innerHTML=h; document.getElementById('guideClose').onclick=()=>g.classList.add('hidden'); }
+document.getElementById('guideBtn').onclick=()=>{ closeGameMenu(); buildGuide(); document.getElementById('guide').classList.remove('hidden'); };
 // ---- demolish hammer: a roaming tool instead of a per-building button ----
 const hammerCur=(()=>{try{const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d');x.font='26px serif';x.textBaseline='top';x.fillText('🔨',2,2);return 'url('+c.toDataURL()+') 5 24, crosshair';}catch(e){return 'crosshair';}})();
 function setDemo(on){demoMode=on;const bt=document.getElementById('demoBtn');
