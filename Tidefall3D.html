@@ -60,7 +60,7 @@
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b98</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b99</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1565,7 +1565,7 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 
 // ==================================================== UPDATE
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
-  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(2,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*(1+0.5*tenders)*dt;}}
+  for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(2,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*tenders*dt;}}   // b99: no farmhand, no harvest — farms must be sown
   for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*dt;
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=0.8*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.5*dt;               // villages pay tribute
@@ -1625,7 +1625,12 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;b.m
   if((b.type==='house'||b.type==='hall')&&Math.random()<dt*0.7&&(b.owner==='player'||tileVis(b.cx,b.cz)))spawnPart(b.cx,heightAtWorld(b.cx,b.cz)+(b.type==='hall'?9:5),b.cz,'smoke');
   if(b.queue.length){b.queue[0].t-=dt;if(b.queue[0].t<=0){const type=b.queue.shift().type;const sp=spawnSpot(b,type);const u=spawnUnit(type,b.owner,txFromW(sp.x),tzFromW(sp.z));if(b.owner==='player')SFX.train();
     u.x+=((u.id%5)-2)*0.6; u.z+=(((u.id*3)%5)-2)*0.6;
-    if(b.rally){u.cmd='move';orderPath(u,txFromW(b.rally.x),tzFromW(b.rally.z),0);}else if(b.owner!=='player'&&type==='worker'){const n=nearestNode(u,realmWant(b.owner));if(n)gatherOrder(u,n);}}}}
+    if(b.rally){ const nd2=type==='worker'?nodeAt(b.rally.x,b.rally.z):null;
+      if(nd2&&nd2.amount>0)gatherOrder(u,nd2);   // rally on a tree/vein = straight to work
+      else{u.cmd='move';orderPath(u,txFromW(b.rally.x),tzFromW(b.rally.z),0);} }else if(b.owner!=='player'&&type==='worker'){
+      const uf=blds.find(q=>q.owner===b.owner&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q));
+      if(uf){u.cmd='tend';u.tendB=uf;orderPath(u,uf.tx+(uf.w>>1),uf.ty+(uf.h>>1),uf.id);}
+      else{const n=nearestNode(u,realmWant(b.owner));if(n)gatherOrder(u,n);}}}}}
 function spawnSpot(b,type){const dom=UNIT[type].dom;for(let r=0;r<9;r++)for(const[dx,dy]of[[b.w>>1,b.h+r],[b.w+r,b.h>>1],[-1-r,b.h>>1],[b.w>>1,-1-r]]){const x=b.tx+dx,y=b.ty+dy;if(passable(x,y,0,dom))return{x:wx(x),z:wz(y)};}return{x:b.cx,z:b.cz+b.h*TILE};}
 let sepFlip=false,animFrame=0;
 function separateUnits(){ const cell=3, grid=new Map();
@@ -1645,7 +1650,14 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(ud.gun.visible!==wantG)ud.gun.visible=wantG;
       if(ud.axe&&ud.axe.visible!==wantA)ud.axe.visible=wantA;
       if(ud.pick&&ud.pick.visible!==wantP)ud.pick.visible=wantP;
-      if(ud.sack&&ud.sack.visible!==(e.carry>3))ud.sack.visible=(e.carry>3); } }
+      if(ud.sack&&ud.sack.visible!==(e.carry>3))ud.sack.visible=(e.carry>3);
+      // the held tool swings in the same rhythm as the arms (workT drives the b93 swing anim)
+      const tl=wantA?ud.axe:wantP?ud.pick:null;
+      if(tl){ const mvg=e.path&&e.pi<e.path.length;
+        if(mvg||e.workT===undefined)tl.rotation.x=0;
+        else{ const ph=1-Math.max(0,Math.min(1,(e.workT||0)/1.4));
+          tl.rotation.x=ph<0.6?-1.15*(ph/0.6):-1.15+2.1*((ph-0.6)/0.4); } }   // wind up slow, strike fast
+      if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2; } }   // musket recoil kick on each shot
   if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;}}}
@@ -1922,7 +1934,10 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
     if(diplo[o].stance==='neutral'){ diplo[o].score-=Math.random()*ai.aggro*0.3*dif().aggro;
       if(diplo[o].score<-30)declareWar(o,'ai'); }
     else if(diplo[o].stance==='war'&&diplo[o].score>20){diplo[o].stance='neutral';flashMsg(realmName(o)+' agrees to peace.');} }
-  for(const e of ents)if(e.owner===o&&e.type==='worker'&&e.cmd==='idle'){const n=nearestNode(e,realmWant(o));if(n)gatherOrder(e,n);}
+  for(const e of ents)if(e.owner===o&&e.type==='worker'&&e.cmd==='idle'){
+    const uf=blds.find(q=>q.owner===o&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q));
+    if(uf){e.cmd='tend';e.tendB=uf;orderPath(e,uf.tx+(uf.w>>1),uf.ty+(uf.h>>1),uf.id);continue;}
+    const n=nearestNode(e,realmWant(o));if(n)gatherOrder(e,n);}
   if(ai.t<1)return; ai.t=0;
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
   const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);
@@ -2138,7 +2153,12 @@ canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio(
     if(b){const cc=COST[b.type]||{};res.player.w+=Math.floor((cc.w||0)*0.5);res.player.m+=Math.floor((cc.m||0)*0.5);
       if(selBuilding===b.id)selBuilding=null;destroyBuilding(b);flashMsg('🔨 '+BLD[b.type].name+' torn down — half the materials recovered');refreshUI();}
     return;}if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
-  else if(ev.button===2){if(demoMode){setDemo(false);return;}if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length){rDrag={gx:g.x,gz:g.z,moved:false};return;}else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('🚩 Rally flag planted — new recruits will march there');SFX.cmd();refreshUI();}}}});
+  else if(ev.button===2){if(demoMode){setDemo(false);return;}if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length){rDrag={gx:g.x,gz:g.z,moved:false};return;}else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};
+      const nd=nodeAt(g.x,g.z);
+      if(nd){spawnNodeFlash(wx(nd.tx),wz(nd.ty),nd.type==='wood'?0x7fd08a:nd.type==='gold'?0xf3d55a:nd.type==='food'?0xff9a6a:0xc4d2dc);
+        flashMsg('🚩 Rally on the '+(nd.type==='wood'?'timber':nd.type)+' — new workers will march straight to it');}
+      else flashMsg('🚩 Rally flag planted — new recruits will march there');
+      SFX.cmd();refreshUI();}}}});
 window.addEventListener('mouseup',ev=>{
   if(orbitDrag&&(ev.button===0||ev.button===1)){orbitDrag=null;canvas.style.cursor='default';return;}
   if(ev.button===1&&panDrag){panDrag=null;canvas.style.cursor='default';return;}
@@ -2239,6 +2259,8 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       else if(UPG[b.type]&&b.up)info.innerHTML+='<br><span style="color:#7fd08a">✅ '+UPG[b.type][1]+'</span>';
       if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount','120⛏️ 60💰',res.player.m>=120&&res.player.g>=60,()=>{res.player.m-=120;res.player.g-=60;b.up2=true;flashMsg('💣 Cannon mounted — this tower now throws iron');SFX.build();refreshUI();});
       else if(b.type==='tower'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">💣 Cannon Mount</span>';
+      if(b.type==='farm'){const tn=Math.min(2,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
+        info.innerHTML+='<br>👨‍🌾 Farmhands: '+tn+'/2'+(tn?'':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with workers</span>');}
       if(GAR_CAP[b.type]){const gn=(b.gar||[]).length;
         info.innerHTML+='<br>⛨ Garrison '+gn+'/'+GAR_CAP[b.type]+(gn?'':' <span style="color:#6f93a8;font-size:11px">— right-click here with soldiers selected</span>');
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
