@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b121</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b122</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1026,7 +1026,7 @@ function addRock(n){const g=new THREE.Group();g.scale.setScalar(2);
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 
 // ==================================================== AMBIENT LIFE (grass, flowers, bushes, birds, clouds)
-let ambientGroup=null,cloudGroup=null,birdGroup=null,birds=[];
+let ambientGroup=null,cloudGroup=null,birdGroup=null,birds=[],bflyGroup=null,bflies=[];
 function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGroup=new THREE.Group(); scene.add(ambientGroup);
   const m4=new THREE.Matrix4(),col=new THREE.Color(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3();
   const A=areaScale(),GCAP=Math.round(9000*A),FCAP=Math.round(1600*A),BCAP=Math.round(1200*A);
@@ -1084,7 +1084,16 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     for(let b=0;b<4;b++){ const g=new THREE.Group();
       const w1=new THREE.Mesh(new THREE.PlaneGeometry(.9,.28),bm); w1.position.x=-.45; g.add(w1);
       const w2=w1.clone(); w2.position.x=.45; g.add(w2); birdGroup.add(g);
-      birds.push({g,w1,w2,cx,cz,r:8+b*2.2,a:hashN(b,f)*6,h:26+f*5+b,sp:.25+hashN(f,b)*.15}); } } }
+      birds.push({g,w1,w2,cx,cz,r:8+b*2.2,a:hashN(b,f)*6,h:26+f*5+b,sp:.25+hashN(f,b)*.15}); } }
+  // b122: butterflies flutter low over the meadows
+  if(bflyGroup)scene.remove(bflyGroup); bflyGroup=new THREE.Group(); scene.add(bflyGroup); bflies=[];
+  const bfMats=[0xf0d060,0xe66a8a,0xf0f0f0,0xb07ae0].map(c=>new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));
+  for(let f=0;f<Math.min(14,Math.round(6*A));f++){ const cx=(hashN(f*3,171)-0.5)*WORLD_W*.8, cz=(hashN(177,f*2)-0.5)*WORLD_H*.8;
+    const tx=txFromW(cx),tz2=tzFromW(cz); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.8)continue;
+    const g=new THREE.Group();
+    const w1=new THREE.Mesh(new THREE.PlaneGeometry(.24,.17),bfMats[f%4]); w1.position.x=-.12; g.add(w1);
+    const w2=w1.clone(); w2.position.x=.12; g.add(w2); bflyGroup.add(g);
+    bflies.push({g,w1,w2,cx,cz,r:1.5+hashN(f,181)*2.5,a:hashN(183,f)*6,h:1.6+hashN(f,187)*1.2,sp:.8+hashN(191,f)*.7}); } }
 function spawnClouds(){ if(cloudGroup){scene.remove(cloudGroup);cloudGroup=null;} if(!NATURE_LIB)return; const srcs=[NATURE_LIB.cloud_big,NATURE_LIB.cloud_small].filter(Boolean); if(!srcs.length)return;
   cloudGroup=new THREE.Group(); scene.add(cloudGroup);
   for(let i=0;i<Math.min(20,Math.round(10*Math.sqrt(areaScale())));i++){ const m=srcs[i%srcs.length].clone(true);
@@ -1156,6 +1165,10 @@ function tickClutter(dt){ _clutT-=dt; if(_clutT>0)return; _clutT=2;
   const sig=blds.reduce((s,b)=>b.done?s+b.id:s,0)+':'+blds.length;
   if(sig!==_clutSig){ _clutSig=sig; refreshClutter(); } }
 function updateAmbient(dt,now){ tickClutter(dt);
+  for(const b of bflies){ b.a+=dt*b.sp;
+    const px=b.cx+Math.cos(b.a)*b.r, pz=b.cz+Math.sin(b.a)*b.r;
+    b.g.position.set(px,heightAtWorld(px,pz)+b.h+Math.sin(b.a*2.7)*.5,pz);
+    b.g.rotation.y=-b.a; const fl2=Math.sin(now*20+b.r*7); b.w1.rotation.y=fl2; b.w2.rotation.y=-fl2; }
   for(const b of birds){ b.a+=dt*b.sp; b.g.position.set(b.cx+Math.cos(b.a)*b.r,b.h,b.cz+Math.sin(b.a)*b.r);
     b.g.rotation.y=-b.a; const fl=Math.sin(now*7+b.r)*0.55; b.w1.rotation.y=fl; b.w2.rotation.y=-fl; }
   if(cloudGroup)for(const c of cloudGroup.children){ c.position.x+=dt*c.userData.sp; if(c.position.x>HALF_W+80)c.position.x=-HALF_W-80; } }
@@ -2028,7 +2041,7 @@ function updateProjectiles(dt){for(const p of projs){p.t+=dt;const tx=p.target.x
   const prog=Math.min(1,p.t/(d/p.speed+0.2));const arc=p.kind==='boulder'?Math.sin(prog*Math.PI)*6:0;p.py=(heightAtWorld(p.px,p.pz)+1.5)+arc;
   p.mesh.position.set(p.px,p.py,p.pz);if(p.kind==='arrow')p.mesh.lookAt(tx,ty,tz);else p.mesh.rotation.x+=dt*8;}
   projs=projs.filter(p=>{if(p.dead){scene.remove(p.mesh);return false;}return true;});}
-function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');if(Math.random()<0.4)stampScorch(p.target.x,p.target.z,1);SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
+function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');for(let i=0;i<4;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1.6,p.target.z,'smoke');if(Math.random()<0.4)stampScorch(p.target.x,p.target.z,1);SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
   if(p.target.bld){if(blds.includes(p.target.bld)){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(ents.includes(p.target)){p.target.hp-=p.dmg;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
 const partGeo=new THREE.SphereGeometry(0.18,5,4);
 const partMats={smoke:new THREE.MeshBasicMaterial({color:0x9098a0,transparent:true}),splash:new THREE.MeshBasicMaterial({color:0x9fd6ec}),chip:new THREE.MeshBasicMaterial({color:0xa9803f}),spark:new THREE.MeshBasicMaterial({color:0xffdca0}),debris:new THREE.MeshBasicMaterial({color:0xb08050}),blood:new THREE.MeshBasicMaterial({color:0xa03828}),heal:new THREE.MeshBasicMaterial({color:0x9ff0b0,transparent:true}),
