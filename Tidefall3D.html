@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b162</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b163</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2158,10 +2158,35 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
   if(own&&own!=='player'){if(astarBudgetAI<=0)return null;astarBudgetAI--;}
   else{if(astarBudget<=0)return null;astarBudget--;}
   if(!passable(gx,gy,goalId,dom,own)){let best=null,bd=1e9;for(let r=1;r<=5&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=gx+dx,y=gy+dy;if(passable(x,y,goalId,dom,own)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(!best)return null;gx=best[0];gy=best[1];}
-  if(sx===gx&&sy===gy)return[[gx,gy]];const open=[],came={},g={},key=(x,y)=>x+y*MAP_W,sk=key(sx,sy);g[sk]=0;open.push({x:sx,y:sy,f:0});const closed=new Set();let it=0;const ITMAX=MAP_W*MAP_H>7000?3200:2600;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-  while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
-    if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k!==undefined){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=came[k];}return p.reverse();}
-    if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
+  if(sx===gx&&sy===gy)return[[gx,gy]];
+  // b163: the open list is a BINARY HEAP now. It used to be a plain array scanned end to end for
+  // the cheapest node on every single step, which is O(n) a pop and O(n squared) over a search —
+  // the reason a 30-tile journey cost 14ms and why the search had to be capped so short that long
+  // marches failed outright. Popping is O(log n) now and the cost curve flattens right out.
+  // …and the bookkeeping lives in typed arrays rather than hashed objects, with a generation stamp
+  // so nothing has to be cleared between searches.
+  if(!_pfG||_pfG.length!==MAP_W*MAP_H){_pfG=new Float32Array(MAP_W*MAP_H);_pfFrom=new Int32Array(MAP_W*MAP_H);_pfSeen=new Int32Array(MAP_W*MAP_H);_pfShut=new Int32Array(MAP_W*MAP_H);_pfGen=0;}
+  const open=[], GEN=++_pfGen, key=(x,y)=>x+y*MAP_W, sk=key(sx,sy);
+  _pfG[sk]=0; _pfSeen[sk]=GEN; _pfFrom[sk]=-1;
+  const hpush=n=>{ open.push(n); let i=open.length-1;
+    while(i>0){ const p=(i-1)>>1; if(open[p].f<=open[i].f)break; const t=open[p];open[p]=open[i];open[i]=t; i=p; } };
+  const hpop=()=>{ const top=open[0],last=open.pop();
+    if(open.length){ open[0]=last; let i=0;
+      for(;;){ const l=2*i+1,r=l+1; let m=i;
+        if(l<open.length&&open[l].f<open[m].f)m=l;
+        if(r<open.length&&open[r].f<open[m].f)m=r;
+        if(m===i)break; const t=open[m];open[m]=open[i];open[i]=t; i=m; } }
+    return top; };
+  hpush({x:sx,y:sy,f:0});
+  let it=0;const ITMAX=MAP_W*MAP_H>7000?9000:7000;const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  while(open.length&&it++<ITMAX){const cur=hpop(),ck=key(cur.x,cur.y);
+    if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k>=0){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=_pfFrom[k];}return p.reverse();}
+    if(_pfShut[ck]===GEN)continue;_pfShut[ck]=GEN;
+    for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;
+      if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}
+      const nk=key(nx,ny);if(_pfShut[nk]===GEN)continue;const ng=_pfG[ck]+(dx&&dy?1.414:1);
+      if(_pfSeen[nk]!==GEN||ng<_pfG[nk]){_pfSeen[nk]=GEN;_pfFrom[nk]=ck;_pfG[nk]=ng;hpush({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
+let _pfG=null,_pfFrom=null,_pfSeen=null,_pfShut=null,_pfGen=0;
 // b157: THE LONG MARCH. A* is capped at a few thousand expansions, which is plenty across a town
 // but nowhere near enough to cross one of the big maps — so an army ordered onto a keep 160 tiles
 // away simply got null back, stood still, waited out its cooldown and tried again forever. Any
@@ -2172,7 +2197,9 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
 // under the old iteration cap it simply FAILED beyond about 25 tiles. So a 34-tile hop was itself
 // unreachable: every long order failed its hop, failed the full search too, and gave up. Hops are
 // short now, which is both reliable and cheap, and anything past one hop is walked in stages.
-const MARCH_HOP=15;
+// b163: with the heap and typed arrays underneath, a 20-tile search costs the same 0.34ms as a
+// 14-tile one, so the hop can be longer again — a third fewer stages on a long march.
+const MARCH_HOP=22;
 function orderPath(e,gx,gy,goalId){if(e.pfCool&&elapsed<e.pfCool)return false;
   const stx=txFromW(e.x),stz=tzFromW(e.z);
   const far=Math.hypot(gx-stx,gy-stz);
@@ -2316,6 +2343,18 @@ function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes,meatNo
 function nearestDrop(e){let best=null,bd=1e9;for(const b of blds)if(b.owner===e.owner&&b.done&&BLD[b.type].drop){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}return best;}
 function chopReachable(n){ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy; if(inB(x,y)&&passable(x,y,0,'land'))return true; } return false; }   // only forest-EDGE trees can be worked
 function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
+// b163: a man who finished a seam used to set off across the whole map for another of the SAME
+// kind — four workers were found mining gold a hundred paces out while timber stood at the door,
+// and the town earned twelve gold in three minutes. He now takes the nearest work of any kind
+// unless more of what he was carrying is close to hand.
+function nextJob(e,prefer){
+  const same=prefer?nearestNode(e,prefer):null;
+  const dist=n=>n?Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty)):1e9;
+  if(same&&dist(same)<=60)return same;
+  let best=same,bd=dist(same);
+  for(const t of ['wood','metal','gold','food']){ if(t===prefer)continue;
+    const n=nearestNode(e,t); const d=dist(n); if(n&&d<bd){bd=d;best=n;} }
+  return best; }
 
 // ==================================================== UPDATE
 // b144: a real profiler for the sim, so army-scale slowdowns get fixed where they actually are.
@@ -2667,13 +2706,13 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       break;}
     case 'gather':{const n=e.gather;
       if(e.carry>=CARRY-0.01){e.cmd='return';e.path=null;break;}   // arms full — walk it home (AoE2 economy)
-      if(!n||n.amount<=0){if(e.carry>0.5){e.cmd='return';e.path=null;break;}const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<5.8){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);e.carryType=n.type;   // 5.8 = works from the forest-edge tile now trees block entry
+      if(!n||n.amount<=0){if(e.carry>0.5){e.cmd='return';e.path=null;break;}const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<7.6){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);e.carryType=n.type;   // b163: 7.6, not 5.8 — a man sent to the tile BESIDE a seam stands 5.66 away at its centre, and the crowd jostles him a pace or two further. He could not reach his work, kept arriving at nothing, and the stall watch blacklisted good veins and marched him across the map
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.4+(e.id%5)*0.12;playOnce(e,'attackA');}   // b93: visible chopping/mining swings
       const rate=(n.type==='wood'?3.1:n.type==='metal'?1.7:n.type==='gold'?1.4*(faction[e.owner]==='chinese'?1.25:1):2.6);
       const take=Math.min(rate*(e.gBoost||1)*dt,n.amount,CARRY-e.carry);n.amount-=take;e.carry+=take;
       if(n.type==='wood'&&!n._felled&&n.tim){ n._felled=true; fellTree(n); if(treeGrid)treeGrid[ti(n.tx,n.ty)]=0; }   // first strike fells it — then they work the fallen trunk
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.15+0.85*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
-      else if(n.tim&&!n._felled){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)fellTree(n);if(n.type==='wood'&&treeGrid)treeGrid[ti(n.tx,n.ty)]=0;}if(n.amount<=0){const n2=nearestNode(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived){
+      else if(n.tim&&!n._felled){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)fellTree(n);if(n.type==='wood'&&treeGrid)treeGrid[ti(n.tx,n.ty)]=0;}if(n.amount<=0){const n2=nextJob(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived){
       if(stalled(e,Math.hypot(e.x-nx,e.z-nz))){ n._skip=elapsed+30; clearStall(e);   // he keeps arriving and he is still not at the tree
         const n2=nearestNode(e,n.type);
         if(n2&&n2!==n)gatherOrder(e,n2);
@@ -2685,7 +2724,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
         if(e.pfFail>=3){ e.pfFail=0; e.gather=null; e.cmd='idle'; e.noWork=elapsed+9;   // can't get there — stand down so the 💤 button finds him
           if(e.owner==='player')flashMsg('💤 A worker can\'t reach his target through the forest — he stands ready for new orders'); } }
       else if(e.path)e.pfFail=0; }break;}
-    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
+    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}   // can't get the load home — stand down rather than shuffle
         else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
