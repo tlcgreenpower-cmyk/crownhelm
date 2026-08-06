@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b143</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b144</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -772,7 +772,7 @@ function genMap(){
     const grove=Math.max(0,Math.sin(x*0.11+7)*Math.sin(y*0.13+3)-0.55)*2.2;         // scattered woodland patches
     const plain=Math.max(0,Math.sin(x*0.07+1.7)*Math.sin(y*0.09+5.2)-0.5);          // deliberate open ground
     let fmul=0.3+2.8*corner+1.9*grove; if(plain>0)fmul*=0.12;
-    if(h<0.09*MM.forest*fmul)scatter(x,y);
+    if(h<0.09*MM.forest*fmul*FOREST_DENSITY)scatter(x,y);   // b144: half the woodland (owner request) — open country to march and build in
     else if(h>0.982&&e>=1.8)depositCluster(metalNodes,x,y,'metal',Math.round(1200*MM.depAmt),MM.dep);
     else if(h>0.9715&&h<=0.982&&e>=1.8)depositCluster(goldNodes,x,y,'gold',Math.round(800*MM.depAmt),MM.dep);
   }
@@ -792,7 +792,8 @@ const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','
 function depositCluster(arr,cx,cy,type,amt,n){ arr.push({tx:cx,ty:cy,amount:amt,type});
   for(let i=1;i<n;i++){ const x=cx+Math.round((hashN(cx+i*3,cy*2+i)-.5)*3.4),y=cy+Math.round((hashN(cx*2+i,cy+i*5)-.5)*3.4);
     if(inB(x,y)&&elev[ti(x,y)]>=1.7&&!arr.some(q=>q.tx===x&&q.ty===y))arr.push({tx:x,ty:y,amount:amt,type}); } }
-function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=6+CL*3;for(let i=0;i<Math.round((11+Math.floor(hashN(cx,cy)*7))*CL);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:220,type:'wood'});}}
+const FOREST_DENSITY=0.5;   // b144: owner asked for half the forest across the map
+function scatter(cx,cy){const CL=MAPS[curMapId].clump,spread=6+CL*3;for(let i=0;i<Math.round((11+Math.floor(hashN(cx,cy)*7))*CL*FOREST_DENSITY);i++){const x=cx+Math.round((hashN(cx+i,cy)-.5)*spread),y=cy+Math.round((hashN(cx,cy+i)-.5)*spread);if(inB(x,y)&&elev[ti(x,y)]>=1.6&&!woodNodes.some(n=>n.tx===x&&n.ty===y))woodNodes.push({tx:x,ty:y,amount:220,type:'wood'});}}
 function plateau(cx,cy,val,rad){for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const x=cx+dx,y=cy+dy;if(!inB(x,y))continue;const d=Math.hypot(dx,dy);if(d>rad+.5)continue;elev[ti(x,y)]=Math.max(elev[ti(x,y)],val-(d/(rad+1))*0.5);}}
 function minFootElev(tx,ty,w,h){let m=9;for(let y=ty;y<ty+h;y++)for(let x=tx;x<tx+w;x++)if(inB(x,y))m=Math.min(m,elev[ti(x,y)]);return m;}
 function heightAtWorld(x,z){ if(!hc)return 0; const gx=(x+HALF_W)/TILE,gz=(z+HALF_H)/TILE;
@@ -1513,7 +1514,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(type==='cannon'||type==='howitzer'){
     if(PIRATE_CANNON){ const c=PIRATE_CANNON.clone(true);
       const box=new THREE.Box3().setFromObject(c),len=Math.max(box.max.z-box.min.z,box.max.x-box.min.x)||1;
-      c.scale.setScalar((type==='howitzer'?2.6:3.2)/len); c.position.y=0.1; c.rotation.y=Math.PI;
+      c.scale.setScalar((type==='howitzer'?2.6:3.2)/len); c.position.y=0.1;   // b144: the gun now points where it shoots (it was mounted back to front)
       c.traverse(o=>{if(o.isMesh)o.castShadow=true;}); anim.add(c);
       const hbp=makeHealthBar();hbp.position.y=3.4;g.add(hbp);g.userData.hb=hbp;g.userData.noBob=true;return g; }
     const carriage=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,2.3),M.wood);carriage.position.y=.75;carriage.castShadow=true;anim.add(carriage);
@@ -1706,9 +1707,19 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     const hbw2=makeHealthBar();hbw2.scale.setScalar(1.2);hbw2.position.y=5.0;g.add(hbw2);g.userData.hb=hbw2;return g; }
   if(type==='gate'&&NEUTRAL_LIB&&NEUTRAL_LIB.wall_straight_gate){ const m=NEUTRAL_LIB.wall_straight_gate.clone(true);
     const box=new THREE.Box3().setFromObject(m); const len=Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);
-    const s=(wpx*1.06)/len; m.scale.setScalar(s); m.position.y=-box.min.y*s;
+    const s=(wpx*1.45)/len; m.scale.setScalar(s); m.position.y=-box.min.y*s;   // b144: a gatehouse should tower over the wall it breaks
     m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}}); g.add(m); g.userData.orient=true;
-    const hbg3=makeHealthBar();hbg3.scale.setScalar(1.2);hbg3.position.y=5.6;g.add(hbg3);g.userData.hb=hbg3;return g; }
+    // flanking turrets and a banner over the arch, so a gate reads as a gate at any zoom
+    const OM2=ownerMats(owner);
+    for(const sx of[-1,1]){
+      const tw=new THREE.Mesh(new THREE.CylinderGeometry(.86,.98,6.2,8),M.stone);tw.position.set(sx*wpx*.72,3.1,0);tw.castShadow=true;g.add(tw);
+      const cap=new THREE.Mesh(new THREE.CylinderGeometry(1.06,1.06,.5,8),M.stoneD);cap.position.set(sx*wpx*.72,6.4,0);g.add(cap);
+      for(let i=0;i<5;i++){const a=i/5*Math.PI*2;const cr=new THREE.Mesh(new THREE.BoxGeometry(.34,.62,.34),M.stone);
+        cr.position.set(sx*wpx*.72+Math.cos(a)*.82,6.9,Math.sin(a)*.82);g.add(cr);}
+      const bn=new THREE.Mesh(new THREE.PlaneGeometry(.9,1.5),new THREE.MeshStandardMaterial({color:OM2.A.color,roughness:.85,side:THREE.DoubleSide}));
+      bn.position.set(sx*wpx*.72,4.4,1.0);g.add(bn); }
+    const lintel=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.5,.7,1.5),M.stoneD);lintel.position.y=5.5;lintel.castShadow=true;g.add(lintel);
+    const hbg3=makeHealthBar();hbg3.scale.setScalar(1.5);hbg3.position.y=8.4;g.add(hbg3);g.userData.hb=hbg3;return g; }
   if(type==='wall'){const seg=new THREE.Mesh(new THREE.BoxGeometry(wpx*.98,3.2,hpx*.98),M.stone);seg.position.y=1.8;seg.castShadow=true;seg.receiveShadow=true;g.add(seg);
     for(let i=-1;i<=1;i++){const cr=new THREE.Mesh(new THREE.BoxGeometry(wpx*.26,.7,hpx*.98),M.stone);cr.position.set(i*wpx*.34,3.6,0);cr.castShadow=true;g.add(cr);}
     const hbw=makeHealthBar();hbw.scale.setScalar(1.2);hbw.position.y=4.8;g.add(hbw);g.userData.hb=hbw;return g;}
@@ -2000,9 +2011,17 @@ function commandMove(list,x,z,amove,fdir){for(const u of list)u.pfCool=0;const g
   if(ml.length>=8&&!ml.some(u=>u.mesh.userData.banner)){const bearer=ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk&&UNIT[u.type].dom==='land')||ml[0];giveBanner(bearer);}
   const slots=formSlots(ml.length,x,z,fdir,ml.reduce((m,u)=>Math.max(m,UNIT[u.type].r),0.9));
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
-    const sx=slots[i][0],sz=slots[i][1];
+    let sx=slots[i][0],sz=slots[i][1];
+    let stx=clamp(txFromW(sx),0,MAP_W-1),sty=clamp(tzFromW(sz),0,MAP_H-1);
+    const dom=UNIT[e.type].dom;
+    // b144: a place in the line that falls in the trees, the sea or a wall is no place at all.
+    // Shift it to the nearest ground he can actually stand on, or let him take the plain order.
+    if(!passable(stx,sty,0,dom,e.owner)){ let ok=null;
+      for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1],[2,0],[-2,0],[0,2],[0,-2]]){
+        const nx2=stx+dx,ny2=sty+dy; if(inB(nx2,ny2)&&passable(nx2,ny2,0,dom,e.owner)){ok=[nx2,ny2];break;} }
+      if(ok){ stx=ok[0]; sty=ok[1]; sx=wx(stx); sz=wz(sty); }
+      else { e.slot=null; if(!orderPath(e,gx,gy,0))e.slot=null; return; } }
     e.slot={x:sx,z:sz,dir:slots[i][2]};   // his exact place in the line — he dresses on it once he arrives
-    const stx=clamp(txFromW(sx),0,MAP_W-1),sty=clamp(tzFromW(sz),0,MAP_H-1);
     if(!orderPath(e,stx,sty,0)&&!orderPath(e,gx,gy,0))e.slot=null;});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
 function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=list.length+6;const workers0=list.filter(e=>e.type==='worker');
   if(workers0.length){ let bs=null,bd0=3.5;
@@ -2062,6 +2081,10 @@ function chopReachable(n){ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1
 function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
 
 // ==================================================== UPDATE
+// b144: a real profiler for the sim, so army-scale slowdowns get fixed where they actually are.
+// Off by default — one null check per phase. window.TF.profile(120) turns it on for N steps.
+let _prof=null,_animK=2,_animNear=900,_animFull=0;const ANIM_FULL_CAP=80;
+function _pt(k,t0){ if(!_prof)return 0; const n=performance.now(); _prof[k]=(_prof[k]||0)+(n-t0); return n; }
 // b140: THE HARVEST CHAIN. Grain is worth little until a Mill grinds it, flour is worth more
 // once a Bakery bakes it, and a town that eats only one crop eats badly. Surveyed once a second.
 let econT=0;
@@ -2107,9 +2130,16 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
       spawnPart(px,py,pz,'smoke'); if(dmg>0.55&&Math.random()<0.6)spawnPart(px,py,pz,'flame'); } }
   animFrame++;
   astarBudget=24;astarBudgetAI=24;
+  _animK=Math.max(2,Math.min(7,Math.ceil(ents.length/110)));   // b144: the bigger the host, the coarser the distant skinning
+  _animNear=camDist<28?2200:camDist<46?900:0;                  // and pulled back far enough, nobody needs 30 frames a second
+  _animFull=0;
+  let _t=_prof?performance.now():0;
   for(const e of ents)updateUnit(e,dt);
+  _t=_pt('units',_t);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
+  _t=_pt('separate',_t);
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
+  _t=_pt('heal',_t);
   for(const b of blds)if(b.done&&(b.type==='tower'||b.type==='castle'||b.type==='watch'||(b.gar&&b.gar.length))){b.cd-=dt;if(b.cd<=0){
     const isC=b.type==='castle',isW=b.type==='watch',isT=b.type==='tower';
     const rng=isC?30:isW?18:isT?TOWER_RANGE:20;
@@ -2120,7 +2150,9 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
     let tgt=null,bd=rng;for(const e of ents)if(isHostile(b.owner,e.owner)&&!e.inGar){const d=Math.hypot(b.cx-e.x,b.cz-e.z);if(d<bd){bd=d;tgt=e;}}
     if(tgt){b.cd=isC?0.6:isW?1.1:isT?((b.up||b.up2)?TOWER_CD*1.6:TOWER_CD):1.2;
       spawnProj(b.cx,heightAtWorld(b.cx,b.cz)+(isC?9:isW?5:isT?7:8),b.cz,tgt,dm,b.owner,(isC||(isT&&(b.up||b.up2)))?'ball':'arrow');}}}
+  _t=_pt('towers',_t);
   updateProjectiles(dt);updateParticles(dt);updateCorpses(dt);updateCitizens(dt);updateVillages(dt);advanceAge(dt);
+  _t=_pt('misc',_t);
   ents=ents.filter(e=>{if(e.hp<=0){for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
     const udd=e.mesh.userData;
     if(udd.mixer&&udd.deathA){ if(udd.walkA)udd.walkA.stop(); if(udd.idleA)udd.idleA.stop(); if(udd.oneA)udd.oneA.stop();
@@ -2128,7 +2160,11 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
       corpses.push({mesh:e.mesh,t:0,mixer:udd.mixer}); }
     else corpses.push({mesh:e.mesh,t:0});
     SFX.die();selected=selected.filter(id=>id!==e.id);for(const k in groups)groups[k]=groups[k].filter(id=>id!==e.id);return false;}return true;});
-  if(!paradeMode)for(const o of AI_REALMS)realmBrain(o,dt);atkPing.t+=dt;computeVision();if(!paradeMode)checkWin();}
+  _t=_pt('deaths',_t);
+  if(!paradeMode)for(const o of AI_REALMS)realmBrain(o,dt);
+  _t=_pt('ai',_t);
+  atkPing.t+=dt;computeVision();if(!paradeMode)checkWin();
+  _pt('vision',_t);}
 function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of Empire — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}
   if(t.rsch){t.rsch.t-=dt;if(t.rsch.t<=0){const k=t.rsch.k;t[k]=Math.min(3,(t[k]||0)+1);t.rsch=null;
     if(k==='armor'&&o==='player')bumpHp();
@@ -2173,9 +2209,11 @@ function updateRubble(dt){ for(const r of rubblePiles){ r.t+=dt; if(r.t>70)r.g.p
 function ungarrison(b){ if(!b.gar)return; for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
   const sp=spawnSpot(b,u.type); u.inGar=null; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
   b.gar=[]; SFX.cmd(); }
+const NOTABLE=new Set(['hall','castle','barracks','gunshop','range','stable','siege','tower','watch','market','church','armourer','dock']);
 function destroyBuilding(b){ if(b.gar&&b.gar.length){ for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
     u.inGar=null; u.cmd='idle'; u.hp=Math.max(1,Math.round(u.hp*0.5));   // the garrison scrambles clear, battered
     u.x=b.cx+(Math.random()-.5)*4; u.z=b.cz+(Math.random()-.5)*4; u.mesh.visible=true; placeMesh(u); } b.gar=[]; }
+  if(b.owner!=='player'&&NOTABLE.has(b.type))flashMsg('⚔ '+realmName(b.owner)+' — their '+BLD[b.type].name+' is destroyed!');   // b144: every enemy loss is reported
   removeBuildUI(b);if(Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<90)camShake=Math.min(1.6,camShake+1.0);const y=heightAtWorld(b.cx,b.cz)+3;for(let i=0;i<16;i++)spawnPart(b.cx,y,b.cz,'debris');
   stampScorch(b.cx,b.cz,Math.max(b.w,b.h)+1);spawnRubble(b);   // the land remembers the fire
   SFX.boom();removeBuilding(b);}
@@ -2233,6 +2271,18 @@ function separateUnits(){ const cell=3, grid=new Map();
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 const _toolV=new THREE.Vector3();
 function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
+  // b144: NOBODY LIVES IN THE TREES. Whatever put a man on ground he cannot stand on — a formation
+  // place in the woods, a shove from the crowd, an old save — he finds his way back out.
+  if(!e.inGar&&((animFrame+e.id)%24)===0){
+    const utx=txFromW(e.x),uty=tzFromW(e.z),dom=UNIT[e.type].dom;
+    if(!passable(utx,uty,0,dom,e.owner)){
+      e.slot=null; let out=null,od=1e9;
+      for(let r=1;r<=5&&!out;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+        if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue; const nx2=utx+dx,ny2=uty+dy;
+        if(inB(nx2,ny2)&&passable(nx2,ny2,0,dom,e.owner)){const d=dx*dx+dy*dy;if(d<od){od=d;out=[nx2,ny2];}} }
+      if(out){ if(!orderPath(e,out[0],out[1],0)){   // walled in on every side — he pushes out on foot
+          const ox=wx(out[0])-e.x,oz=wz(out[1])-e.z,od2=Math.hypot(ox,oz)||1,st=Math.min(od2,UNIT[e.type].speed*dt*8);
+          e.x+=ox/od2*st; e.z+=oz/od2*st; } } } }
   if(e._sc!==e.cmd){e._sc=e.cmd;clearStall(e);
     if(e.cmd!=='move'&&e.cmd!=='amove'&&e.cmd!=='idle')e.slot=null;}   // fresh orders, fresh patience — and he leaves the line
   if(e.flinch>0){ e.flinch-=dt; const kf=Math.max(0,e.flinch)/0.15;   // struck men visibly flinch
@@ -2356,9 +2406,16 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
   const anim=e.mesh.userData.anim;if(anim&&!e.mesh.userData.noBob){const bob=moving?Math.abs(Math.sin(e.walk*10))*0.28:0;anim.position.y=bob;anim.rotation.x=(e.atk>0?-0.5:moving?Math.sin(e.walk*10)*0.08:0);}
   const ud=e.mesh.userData;
   if(ud.mixer&&!e.mesh.visible){ /* imposter LOD: no skinning while hidden */ }
-  else if(ud.mixer){ const dcx=e.x-camTarget.x,dcz=e.z-camTarget.z,far=(dcx*dcx+dcz*dcz)>5200;
-    if(far){ ud.lodAcc=(ud.lodAcc||0)+dt; if(((e.id+animFrame)&3)===0){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} }
-    else { if(ud.lodAcc){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} ud.mixer.update(dt); }
+  else if(ud.mixer){ const dcx=e.x-camTarget.x,dcz=e.z-camTarget.z,d2a=dcx*dcx+dcz*dcz;
+    // b144: skinning IS the cost of a big army — 7ms of a 9ms step at 290 men. Men close to the
+    // eye animate every step; the rest are stepped round-robin at a rate that scales with the
+    // size of the host, catching up with the time they missed so nobody moon-walks.
+    let k=e._off?0:(d2a<_animNear?1:(d2a>5200?_animK+1:_animK));   // 0 = off screen, do not skin him at all
+    if(k===1){ if(_animFull<ANIM_FULL_CAP)_animFull++; else k=_animK; }   // a hard ceiling on full-rate skinning, however tight the crowd
+    if(k===0){ ud.lodAcc=(ud.lodAcc||0)+dt; }
+    else
+    if(k>1){ ud.lodAcc=(ud.lodAcc||0)+dt; if(((e.id+animFrame)%k)===0){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;if(_prof)_prof.mixN=(_prof.mixN||0)+1;} }
+    else { if(ud.lodAcc){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} ud.mixer.update(dt); if(_prof)_prof.mixN=(_prof.mixN||0)+1; }
     if((ud.oneT||0)>0){ ud.oneT-=dt;
       if(ud.oneT<=0){ if(ud.oneA)ud.oneA.fadeOut(0.15); ud.oneA=null;
         const back=ud.animMode==='walk'?ud.walkA:ud.idleA; if(back)back.reset().fadeIn(0.15).play(); } }
@@ -2687,8 +2744,11 @@ function updateGhost(){
       mm.position.set(wx(tx2),heightAtWorld(wx(tx2),wz(ty2))+1.6,wz(ty2));ghostLine.add(mm); }
     return; }
   if(ghostLine){scene.remove(ghostLine);ghostLine=null;}
-  if(!placing){if(ghost){scene.remove(ghost);ghost=null;}return;}const b=BLD[placing];const tx=hoverTile.tx,ty=hoverTile.ty,cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;
-  const ok=(placing==='dock'?canPlaceDock(tx,ty,b.w,b.h):placing==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h))&&(COST[placing].age||1)<=tech.player.age&&res.player.w>=(COST[placing].w||0)&&res.player.m>=(COST[placing].m||0);
+  if(!placing){if(ghost){scene.remove(ghost);ghost=null;}return;}const b=BLD[placing];const tx=hoverTile.tx,ty=hoverTile.ty;let cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;
+  // b144: a gate or tower dropped on your own wall REPLACES that stretch — so the shadow snaps
+  // into the line, takes its angle, and shows green instead of pretending the ground is taken
+  const onWall=(placing==='gate'||placing==='tower')&&inB(tx,ty)?blds.find(q=>q.id===buildGrid[ti(tx,ty)]&&q.type==='wall'&&q.owner==='player'&&q.done):null;
+  const ok=(onWall?true:(placing==='dock'?canPlaceDock(tx,ty,b.w,b.h):placing==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h)))&&(COST[placing].age||1)<=tech.player.age&&res.player.w>=(COST[placing].w||0)&&res.player.m>=(COST[placing].m||0);
   if(!ghost||ghost._type!==placing){ if(ghost)scene.remove(ghost);   // the real building as a see-through shadow at the cursor
     ghost=makeBldMesh(placing,'player'); ghost._type=placing;
     if(ghost.userData.hb)ghost.userData.hb.visible=false;
@@ -2696,14 +2756,21 @@ function updateGhost(){
     scene.add(ghost); }
   const gmat=ok?M.ghostOk:M.ghostNo;
   ghost.traverse(o=>{if(o.isMesh)o.material=gmat;});
+  if(onWall){ cx=onWall.mesh.position.x; cz=onWall.mesh.position.z;   // sit exactly where that stretch of wall stands
+    ghost.rotation.y=onWall.mesh.rotation.y; }
+  else if(ghost.rotation.y)ghost.rotation.y=0;
   let gy=heightAtWorld(cx,cz)+0.1; if(placing==='bridge')gy=waterY+0.1;
   ghost.position.set(cx,gy,cz);}
 function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverTile.ty;if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(res.player.w<(c.w||0)||res.player.m<(c.m||0)||res.player.f<(c.f||0)){flashMsg('Not enough resources');return;}
+  let inherit=null;
   if((type==='gate'||type==='tower')&&inB(tx,ty)){ const wid=buildGrid[ti(tx,ty)];
     const wb=blds.find(x=>x.id===wid&&x.type==='wall'&&x.owner==='player'&&x.done);
-    if(wb){removeBuilding(wb);} }
+    if(wb){ inherit={la:wb.la,lx:wb.lx,lz:wb.lz}; removeBuilding(wb); } }   // b144: step into the wall's exact place and angle
   const ok=type==='dock'?canPlaceDock(tx,ty,b.w,b.h):type==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h);if(!ok){flashMsg(type==='dock'?'Docks must touch water':type==='bridge'?'Bridges must stand ON water — lay them tile by tile across':'Can\'t build there');return;}
-  res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.f-=(c.f||0);res.player.g-=(c.g||0);const nb=addBuilding(type,tx,ty,'player',false);let crew=selUnits().filter(e=>e.type==='worker');
+  res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.f-=(c.f||0);res.player.g-=(c.g||0);const nb=addBuilding(type,tx,ty,'player',false);
+  if(inherit&&inherit.la!==undefined){ nb.la=inherit.la; nb.lx=inherit.lx; nb.lz=inherit.lz;
+    nb.mesh.position.set(nb.lx,heightAtWorld(nb.lx,nb.lz),nb.lz); orientWall(nb); }
+  let crew=selUnits().filter(e=>e.type==='worker');
   if(!crew.length){ crew=ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd!=='build')
       .sort((a,b2)=>Math.hypot(a.x-nb.cx,a.z-nb.cz)-Math.hypot(b2.x-nb.cx,b2.z-nb.cz)).slice(0,2);
     if(crew.length)flashMsg('Nearby workers head to the site'); }
@@ -2723,6 +2790,12 @@ const garHint=new THREE.Group(); garHint.visible=false; scene.add(garHint);
   ring.rotation.x=-Math.PI/2; ring.renderOrder=900; garHint.add(ring); garHint.userData.ring=ring;
   const glow=new THREE.Mesh(new THREE.RingGeometry(.2,2.6,24),new THREE.MeshBasicMaterial({color:0x9fd6ec,transparent:true,opacity:.16,depthTest:false,side:THREE.DoubleSide}));
   glow.rotation.x=-Math.PI/2; glow.renderOrder=899; garHint.add(glow); garHint.userData.glow=glow; }
+// b144: the instanced rank wears a MUTED coat — a real soldier is mostly dark cloth with the
+// realm's colour at the facings, so a full-strength coat made the far block look like a different army
+const _impCols={};
+function impColour(o){ const k=o+'_'+faction[o]; if(_impCols[k])return _impCols[k];
+  const c=new THREE.Color((FACTIONS[faction[o]]||FACTIONS.english).coat);
+  return _impCols[k]=c.lerp(new THREE.Color(0x333a42),0.56); }
 let garHintB=null;
 function updateGarHint(){
   let tgt=null;
@@ -2752,8 +2825,14 @@ function updateSlotMarks(ang){ const s=selUnits().filter(e=>UNIT[e.type].dom!=='
 function hideSlotMarks(){slotMarks.forEach(m=>m.visible=false);}
 function resize(){const s=document.getElementById('stage');vw=s.clientWidth;vh=s.clientHeight;renderer.setSize(vw,vh,false);camera.aspect=vw/vh;camera.updateProjectionMatrix();if(composer)composer.setSize(vw,vh);}
 window.addEventListener('resize',resize);
-const IMP_CAP=600;
-const impGeo=new THREE.CapsuleGeometry(.5,1.2,3,6); impGeo.translate(0,1.1,0);
+const IMP_CAP=600, FULL_BUDGET=150; let _lodScale=1;
+const _frustum=new THREE.Frustum(), _frM=new THREE.Matrix4(), _frS=new THREE.Sphere();
+// b144: the instanced rank reads as a man now — body, head and a shoulder line — still one draw call
+const impGeo=(()=>{ const body=new THREE.CapsuleGeometry(.42,1.0,3,6); body.translate(0,1.0,0);
+  if(!BGU)return body;
+  const head=new THREE.SphereGeometry(.34,6,5); head.translate(0,2.05,0);
+  const shld=new THREE.BoxGeometry(1.0,.30,.46); shld.translate(0,1.52,0);
+  const g=BGU.mergeGeometries([body,head,shld],false); return g||body; })();
 const impMat=new THREE.MeshStandardMaterial({roughness:.85});
 const impMesh=new THREE.InstancedMesh(impGeo,impMat,IMP_CAP);
 impMesh.castShadow=false; impMesh.count=0; impMesh.frustumCulled=false; scene.add(impMesh);
@@ -2766,19 +2845,28 @@ bImpMesh.count=0;bImpRoof.count=0;scene.add(bImpMesh);scene.add(bImpRoof);
 const _impQ=new THREE.Quaternion(),_impS=new THREE.Vector3(),_impP=new THREE.Vector3();
 function updateUnitLOD(){
   if(!elev||!visNow){impMesh.count=0;bImpMesh.count=0;bImpRoof.count=0;return;}   // render loop runs before Play — guard the map arrays
-  const LODD=Math.max(44,7200/Math.max(camDist,1)); const L2=LODD*LODD; let n=0;   // b124: swap to imposters much farther out — less pop when zooming
+  // b144: a host of 300 men was 300 skinned draw calls. The swap-out distance now breathes with
+  // the size of the army — the nearest ~150 keep their full models and the rest fall back to the
+  // instanced rank (one draw call for the lot). Small armies never notice; big ones stay playable.
+  const LODD=Math.max(44,7200/Math.max(camDist,1))*_lodScale; const L2=LODD*LODD; let n=0,nFull=0;
+  // b144: men the camera cannot see are not animated at all — they catch up when they come back into view
+  _frM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _frustum.setFromProjectionMatrix(_frM);
   const selSet=selected.length?new Set(selected):null;
   for(const e of ents){
     if(e.inGar){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // tucked away inside a garrison
     const inFog=e.owner!=='player'&&!tileVis(e.x,e.z);
     if(inFog){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // fogged troops show NOWHERE — not even as imposters
+    _frS.center.set(e.x,heightAtWorld(e.x,e.z)+1.4,e.z); _frS.radius=2.6;
+    e._off=!_frustum.intersectsSphere(_frS);
     const dx=e.x-camTarget.x,dz=e.z-camTarget.z;
     const far=(dx*dx+dz*dz)>L2 && n<IMP_CAP && !(selSet&&selSet.has(e.id));
     if(far){ if(e.mesh.visible)e.mesh.visible=false;
       _impM.makeTranslation(e.x,heightAtWorld(e.x,e.z),e.z); impMesh.setMatrixAt(n,_impM);
-      _impC.setHex((FACTIONS[faction[e.owner]]||FACTIONS.english).coat); impMesh.setColorAt(n,_impC); n++; }
-    else if(!e.mesh.visible)e.mesh.visible=true; }
+      _impC.copy(impColour(e.owner)); impMesh.setColorAt(n,_impC); n++; }
+    else { if(!e.mesh.visible)e.mesh.visible=true; nFull++; } }
   impMesh.count=n; impMesh.instanceMatrix.needsUpdate=true; if(impMesh.instanceColor)impMesh.instanceColor.needsUpdate=true;
+  if(nFull>FULL_BUDGET)_lodScale=Math.max(0.22,_lodScale*0.93);          // too many full models — pull the swap-out line in
+  else if(nFull<FULL_BUDGET*0.78)_lodScale=Math.min(1,_lodScale*1.05);   // room to spare — let it drift back out
   // buildings: same trick, bigger threshold — walls grey, roofs in the owner's coat colour
   const BL=LODD*6.5, B2=BL*BL; let m=0;
   for(const b of blds){ if(!b.done)continue;
@@ -3289,7 +3377,18 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
 
 // ==================================================== WIN / LOOP
 function ownerCss(o){return '#'+FACTIONS[faction[o]].coat.toString(16).padStart(6,'0');}
+const _fallen={};
 function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&&b.type==='hall');
+  // b144 (owner request): you are TOLD when a rival goes under, not left to work it out from the minimap
+  for(const o of AI_REALMS){ if(_fallen[o])continue;
+    const alive=blds.some(b=>b.owner===o&&(b.type==='hall'||b.type==='castle'));
+    if(!alive&&blds.some(b=>b.owner===o)){ _fallen[o]='keep';
+      SFX.boom(); flashMsg('🏳 The Keep of '+realmName(o)+' has fallen! Their realm is broken — mop up what is left'); }
+    else if(!alive&&!blds.some(b=>b.owner===o)&&!ents.some(e=>e.owner===o)){ _fallen[o]='gone';
+      SFX.age(); flashMsg('👑 '+realmName(o)+' is destroyed! Not a stone nor a soul remains'); } }
+  for(const o of AI_REALMS){ if(_fallen[o]==='gone')continue;
+    if(!blds.some(b=>b.owner===o)&&!ents.some(e=>e.owner===o)){ _fallen[o]='gone';
+      SFX.age(); flashMsg('👑 '+realmName(o)+' is destroyed! Not a stone nor a soul remains'); } }
   const others=AI_REALMS.some(o=>blds.some(b=>b.owner===o&&b.type==='hall'));
   if(!others&&!freePlay)endGame(true);else if(!ph)endGame(false);}
 function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom();
@@ -3359,6 +3458,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0){if(arr[i].mesh)arr[i].mesh.visible=false;else if(arr[i].tim)setTreeK(arr[i],0);}}});};
   restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);rebuildTreeGrid();
   (s.vil||[]).forEach((c,i)=>{if(c&&villages[i])claimVillageSilent(villages[i],c);});
+  _loadThin=true;   // b144: the world is regenerated with half the forest, so a saved town may find a sapling in the hall — cleared below
   if(s.explored&&s.explored.length===explored.length)explored=Uint8Array.from(s.explored,ch=>+ch);
   const HP_LEGACY={hall:1600,house:320,farm:260,storehouse:360,barracks:760,siege:820,gunshop:820,church:640,castle:3200,wall:1000,gate:900,mill:340,watch:440,market:400,statue:220,garden:160,dock:640,tower:560};
   for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);
@@ -3370,9 +3470,15 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
     if(se.j==='tend'){const f=blds.filter(q=>q.owner===e.owner&&q.done&&q.type==='farm').sort((q,r)=>Math.hypot(e.x-q.cx,e.z-q.cz)-Math.hypot(e.x-r.cx,e.z-r.cz))[0];
       if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}
     else if(se.j){const n=nearestNode(e,se.j);if(n)gatherOrder(e,n);}}
+  // b144: with the forest halved, a regrown tree may stand where your town already is — clear those tiles
+  if(_loadThin){ _loadThin=false; let cut=0;
+    for(const b of blds)for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++){
+      if(!inB(x,y))continue;
+      for(const n of woodNodes)if(n.tx===x&&n.ty===y&&n.amount>0){n.amount=0;if(n.mesh)n.mesh.visible=false;else if(n.tim)setTreeK(n,0);cut++;} }
+    if(cut)rebuildTreeGrid(); }
   camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camPitch=s.cam.pitch||0.92;camDist=s.cam.dist;
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
-let autosaveT=40;
+let autosaveT=40,_loadThin=false;
 window.addEventListener('beforeunload',()=>{try{saveGame(true);}catch(e){}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){try{saveGame(true);}catch(e){}}});
 let plSiteT=0;
@@ -3408,8 +3514,13 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,commandMove,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,commandMove,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
+  profile(n){ n=n||120; _prof={}; const t0=performance.now();
+    for(let i=0;i<n;i++)update(1/30);
+    const total=performance.now()-t0, out={steps:n,msPerStep:+(total/n).toFixed(2),units:ents.length};
+    for(const k in _prof)out[k]=+(_prof[k]/n).toFixed(2);
+    _prof=null; return out; },
   get farms(){return blds.filter(b=>b.type==='farm').map(b=>{let n=0;b.mesh.traverse(o=>{if(o.isMesh)n++;});return {owner:b.owner,crop:b.mesh.userData.crop,parts:n};});}};
 (()=>{ // b93 Map Builder — sizes, terrain painting, mirror symmetry, random scatter (AoE2-style)
   const SIZES=[['Small',96,64],['Medium',168,112],['Large',224,144],['Epic',256,176]];
