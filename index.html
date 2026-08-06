@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b115</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b116</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1601,7 +1601,7 @@ function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(b
 
 // ==================================================== POP / TECH
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=(b.up?12:8);else if(b.type==='castle')c+=12;}
-  c+=villages.filter(v=>v.claimed===o).length*6; return Math.min(c,130);}
+  c+=villages.filter(v=>v.claimed===o).length*6; return Math.min(c,200);}   // b116: ceiling raised 130→200 — cities got big
 function popUsed(o){let p=0;for(const e of ents)if(e.owner===o)p+=COST[e.type].pop;return p;}
 function countType(o,t){return ents.filter(e=>e.owner===o&&e.type===t).length;}
 function countBld(o,t){return blds.filter(b=>b.owner===o&&b.type===t).length;}
@@ -2576,7 +2576,8 @@ function trade(k,amt,gold){const r=res.player;if(amt<0&&r[k]<-amt){flashMsg('Not
 function flashMsg(t){const m=$('msg');m.textContent=t;m.style.opacity=1;clearTimeout(flashMsg._t);flashMsg._t=setTimeout(()=>m.style.opacity=0,2400);}
 function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').textContent=Math.floor(res.player.w);$('metal').textContent=Math.floor(res.player.m);$('gold').textContent=Math.floor(res.player.g);
   const pu=popUsed('player'),pc=popCap('player');$('pop').textContent=pu+'/'+pc;
-  $('pop').style.color=pu>=pc?'#ff8a6a':'';$('pop').title=pu>=pc?'Population full — build Houses!':'';
+  $('pop').style.color=pu>=pc?'#ff8a6a':'';
+  $('pop').title=pu>pc?'Over capacity — you LOST housing (raided Houses or a lost village). No one deserts, but no new training until you rebuild Houses.':pu>=pc?'Population full — build Houses!':'Population / capacity — Houses +8, Keep +15, Castles +12, sworn villages +6';
   const nIdle=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'&&e.cmd==='idle'?1:0),0);
   if(!$('forces').classList.contains('hidden')&&Math.random()<0.08)renderForces();
   $('idleN').textContent=nIdle;const ib=$('idleBtn');
