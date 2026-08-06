@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b120</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b121</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2708,12 +2708,15 @@ function updateMoveMarks(dt){for(const k of moveMarks){k.t+=dt;
 const mctx=mini.getContext('2d');
 const miniTerr=document.createElement('canvas');let miniTerrAt=-99;
 function drawMiniTerrain(){miniTerr.width=mini.width;miniTerr.height=mini.height;const c=miniTerr.getContext('2d'),w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;
-  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){if(!explored[ti(x,y)]){c.fillStyle='#060d14';}else{const e=elev[ti(x,y)];c.fillStyle=e<tideLevel?'#245478':(e>=2.7?'#4a6b3c':'#5c7d3a');}c.fillRect(x*sx,y*sy,sx+.5,sy+.5);}}
+  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){const e=elev[ti(x,y)];
+    if(!explored[ti(x,y)])c.fillStyle=e<tideLevel?'#0a1a26':'#0e1c15';   // b121: fogged land shows as a dark silhouette, not void
+    else c.fillStyle=e<tideLevel?'#245478':(e>=2.7?'#4a6b3c':'#5c7d3a');
+    c.fillRect(x*sx,y*sy,sx+.5,sy+.5);}}
 function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;}const w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;mctx.clearRect(0,0,w,h);
   if(performance.now()-miniTerrAt>900){miniTerrAt=performance.now();drawMiniTerrain();}
   mctx.drawImage(miniTerr,0,0);
   for(const b of blds){if(b.owner!=='player'&&!explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))])continue;mctx.fillStyle=ownerCss(b.owner);mctx.fillRect(b.tx*sx,b.ty*sy,Math.max(2,b.w*sx),Math.max(2,b.h*sy));}
-  for(const e of ents){const tx=txFromW(e.x),ty=tzFromW(e.z);if(e.owner!=='player'&&(!inB(tx,ty)||visNow[ti(tx,ty)]!==1))continue;mctx.fillStyle=e.owner==='player'?'#bfe4ff':ownerCss(e.owner);mctx.fillRect((e.x/TILE+MAP_W/2)*sx-1,(e.z/TILE+MAP_H/2)*sy-1,2,2);}
+  for(const e of ents){if(e.inGar)continue;const tx=txFromW(e.x),ty=tzFromW(e.z);if(e.owner!=='player'&&(!inB(tx,ty)||visNow[ti(tx,ty)]!==1))continue;mctx.fillStyle=e.owner==='player'?'#bfe4ff':ownerCss(e.owner);mctx.fillRect((e.x/TILE+MAP_W/2)*sx-1.5,(e.z/TILE+MAP_H/2)*sy-1.5,3,3);}
   for(const v of villages){ if(!explored[ti(v.tx,v.ty)])continue;
     mctx.fillStyle=v.claimed?ownerCss(v.claimed):'#f0f0e0'; mctx.beginPath();mctx.arc((v.tx+.5)*sx,(v.ty+.5)*sy,2.4,0,7);mctx.fill(); }
   if(atkPing.t<3){ const px=(atkPing.x/TILE+MAP_W/2)*sx, py=(atkPing.z/TILE+MAP_H/2)*sy;
