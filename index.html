@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b117</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b118</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1675,10 +1675,11 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
 function commandMove(list,x,z,amove,fdir){for(const u of list)u.pfCool=0;const gx=txFromW(x),gy=tzFromW(z);
-  // regiments sort into station: melee & cavalry front, muskets/archers centre, guns & healers rear
-  const rank=t=>{const U=UNIT[t];return U.siege?3:(U.heal||U.noAtk)?2:U.ranged?1:0;};
+  // b118: real-army order — melee line front, muskets centre, cavalry next, guns & healers rear,
+  // and every regiment stands TOGETHER (same types form contiguous blocks in the ranks)
+  const rank=t=>{const U=UNIT[t];return (U.siege||U.ramOnly)?4:(U.heal||U.noAtk)?3:U.cav?2:U.ranged?1:0;};
   astarBudget+=ml0Count(list);
-  const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type));
+  const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type)||q.type.localeCompare(r.type)||q.id-r.id);
   if(ml.length>=8&&!ml.some(u=>u.mesh.userData.banner)){const bearer=ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk&&UNIT[u.type].dom==='land')||ml[0];giveBanner(bearer);}
   const tiles=formTiles(ml.length,gx,gy,fdir);
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
@@ -1713,7 +1714,7 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
   const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){
     // a crew sent to one tree fans out across the grove — two men per tree, nearest first
     const arr2=node.type==='wood'?woodNodes:node.type==='gold'?goldNodes:node.type==='food'?meatNodes:metalNodes;
-    const near=arr2.filter(n2=>n2.amount>0&&Math.hypot(n2.tx-node.tx,n2.ty-node.ty)<10)
+    const near=arr2.filter(n2=>n2.amount>0&&Math.hypot(n2.tx-node.tx,n2.ty-node.ty)<10&&(node.type!=='wood'||chopReachable(n2)))
       .sort((a2,b2)=>Math.hypot(a2.tx-node.tx,a2.ty-node.ty)-Math.hypot(b2.tx-node.tx,b2.ty-node.ty));
     if(!near.length)near.push(node);
     const PER=2;
@@ -1733,12 +1734,13 @@ function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my&&!
 function bldAt(x,z,my){const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;if(!id)return null;const b=blds.find(b=>b.id===id);return(b&&b.owner!==my)?b:null;}
 function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes,meatNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
 function nearestDrop(e){let best=null,bd=1e9;for(const b of blds)if(b.owner===e.owner&&b.done&&BLD[b.type].drop){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}return best;}
-function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
+function chopReachable(n){ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy; if(inB(x,y)&&passable(x,y,0,'land'))return true; } return false; }   // only forest-EDGE trees can be worked
+function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
 
 // ==================================================== UPDATE
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
   for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*tenders*dt;}}   // b99: one farmhand sows each farm — no farmhand, no harvest
-  for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*dt;
+  for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*(b.up?1.5:1)*(b.up2?1.5:1)*dt;
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=0.8*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.5*dt;               // villages pay tribute
   for(const b of blds)updateBuilding(b,dt);
@@ -1884,7 +1886,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
         else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
           else{ let best=null,bd=48;   // b93: idle peasants find their own work — nearest resource within ~12 tiles
-            for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}
+            for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n.type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}
             if(best)gatherOrder(e,best); } } }
       break;
     case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
@@ -2519,15 +2521,21 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         house:['🏘','Attic','30🌲',{w:30},'+4 population room'],
         farm:['💧','Irrigation','40🌲',{w:40},'+50% harvest'],
         barracks:['⚙','Drill Yard','60🌲 40⛏️',{w:60,m:40},'Troops train 20% faster'],
+        mill:['⚙','Great Millstones','60🌲 40⛏️',{w:60,m:40},'+50% flour',2],
         gate:['🛡','Iron Gate','50⛏️',{m:50},'+50% gate strength']};
-      if(UPG[b.type]&&!b.up){ const upd=UPG[b.type];
-        techBtn(cmds,upd[0],upd[1],b.rschK?'upgrading… '+Math.ceil(b.rschT)+'s':upd[2]+' · 70s',!b.rschK&&can(upd[3]),()=>{
+      if(UPG[b.type]&&!b.up){ const upd=UPG[b.type],needA=upd[5]||1;
+        techBtn(cmds,upd[0],upd[1],b.rschK?'upgrading… '+Math.ceil(b.rschT)+'s':(tech.player.age<needA?'Age '+needA:upd[2]+' · 70s'),!b.rschK&&can(upd[3])&&tech.player.age>=needA,()=>{
           if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
+          if(tech.player.age<needA){flashMsg('Advance to Age '+needA+' first — at your Keep');return;}
           const cc=upd[3]; if(!can(cc)){flashMsg('Need '+shortOf(cc)+' more');return;}
           res.player.w-=(cc.w||0);res.player.m-=(cc.m||0);res.player.f-=(cc.f||0);res.player.g-=(cc.g||0);
           b.rschK='up'; b.rschT=70; b.rschTot=70;
           flashMsg('🔨 '+upd[1]+' underway — '+upd[4]+' (70s)');SFX.cmd();refreshUI(); }); }
       else if(UPG[b.type]&&b.up)info.innerHTML+='<br><span style="color:#7fd08a">✅ '+UPG[b.type][1]+'</span>';
+      if(b.type==='mill'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'🌬️','Windworks',b.rschK?'building… '+Math.ceil(b.rschT)+'s':'80🌲 60⛏️ · 70s',!b.rschK&&res.player.w>=80&&res.player.m>=60,()=>{
+        if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
+        res.player.w-=80;res.player.m-=60;b.rschK='up2';b.rschT=70;b.rschTot=70;flashMsg('🌬️ Windworks rising — the mill will grind double (70s)');SFX.cmd();refreshUI();});
+      else if(b.type==='mill'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">🌬️ Windworks</span>';
       if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount',b.rschK?'mounting… '+Math.ceil(b.rschT)+'s':'120⛏️ 60💰 · 100s',!b.rschK&&res.player.m>=120&&res.player.g>=60,()=>{
         if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
         res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=100;b.rschTot=100;flashMsg('💣 Hoisting the cannon — 100s');SFX.cmd();refreshUI();});
