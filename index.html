@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b142</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b143</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -82,7 +82,7 @@
     <canvas id="view"></canvas>
     <script>document.getElementById('stage').appendChild(document.getElementById('atkArrow'));</script>
     <canvas id="mini" width="200" height="134"></canvas>
-    <button id="demoBtn" title="Demolish tool — pick up the hammer, then click your buildings to tear them down (half the materials back). Right-click or Esc puts it away.">🔨</button>
+    <button id="demoBtn" title="Hammer — pick it up, then click your buildings to tear them down (half the materials back), your own men to stand them down and free their place in the muster, or trees, veins and gold to clear them (a quarter salvaged). Right-click or Esc puts it away.">🔨</button>
     <div id="forces" class="hidden" style="position:absolute;top:14px;right:14px;width:290px;max-height:70%;overflow:auto;background:rgba(8,20,30,.96);border:1px solid #2c5164;border-radius:10px;padding:12px 14px;z-index:9;font-size:13px;"></div>
     <div id="diplo" class="hidden" style="position:absolute;top:14px;right:14px;width:330px;background:rgba(8,20,30,.96);border:1px solid #2c5164;border-radius:10px;padding:12px 14px;z-index:9;font-size:13px;"></div>
     <div id="dragbox"></div>
@@ -1901,6 +1901,10 @@ function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(b
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=(b.up?12:8);else if(b.type==='castle')c+=12;else if(b.type==='garden')c+=2;}
   c+=villages.filter(v=>v.claimed===o).length*6; return Math.min(c,400);}   // b126: ceiling 400 (owner request) — grand armies welcome
 function popUsed(o){let p=0;for(const e of ents)if(e.owner===o)p+=COST[e.type].pop;return p;}
+// b143: men already ordered but not yet trained still need a bed. Without this every click
+// measured the SAME free space and a queue of ten could sail 20 past the cap.
+function popQueued(o){let p=0;for(const b of blds)if(b.owner===o&&b.queue)for(const q of b.queue)p+=(COST[q.type].pop||0);return p;}
+function popFree(o){return popCap(o)-popUsed(o)-popQueued(o);}
 function countType(o,t){return ents.filter(e=>e.owner===o&&e.type===t).length;}
 function countBld(o,t){return blds.filter(b=>b.owner===o&&b.type===t).length;}
 function hasBld(o,t){return blds.some(b=>b.owner===o&&b.type===t&&b.done);}
@@ -1956,16 +1960,24 @@ const FORMS={
   box:{ic:'\u25a6',name:'Box',slot:(i,n)=>{const cols=Math.max(1,Math.ceil(Math.sqrt(n)));return[(i%cols)-((cols-1)>>1),Math.floor(i/cols)];}},
   wedge:{ic:'\u25b2',name:'Wedge',slot:(i,n)=>{let r=0,s=0;while(s+r+1<=i){s+=r+1;r++;}return[(i-s)-r/2,r];}},
   column:{ic:'\u2551',name:'Column',slot:(i,n)=>[(i%2),Math.floor(i/2)]}};
-function formTiles(n,gx,gy,fdir){ // tile targets for n units — shared by orders and the drag preview
+// b143: formations are laid out in WORLD space, not on the tile grid. Rounding slots to
+// 4-unit tiles used to drop two men on one tile and the separation nudge did the rest —
+// which is why the ranks never came out straight however tight the spacing was set.
+function formSlots(n,x,z,fdir,rad){
   const F=FORMS[formation]||FORMS.ranks, out=[];
-  const fx=fdir===undefined?0:Math.cos(fdir), fz=fdir===undefined?0:Math.sin(fdir);
-  const sf=formSpread===1?0.7:1.5;   // tight = shoulder-to-shoulder (sub-tile), loose = open order
-  let rowsN=1; for(let i=0;i<n;i++)rowsN=Math.max(rowsN,F.slot(i,n)[1]*sf+1);
-  for(let i=0;i<n;i++){ const s=F.slot(i,n), c=s[0]*sf, rw=s[1]*sf; let ox,oy;
-    if(fdir===undefined){ ox=gx+Math.round(c); oy=gy+rw-(rowsN>>1); }
-    else { ox=gx+Math.round(c*-fz-rw*fx); oy=gy+Math.round(c*fx-rw*fz); }
-    out.push([ox,oy]); }
+  const sp=formSpread===1?1:1.75;               // tight ranks, or open order
+  const R=rad||1.05;                            // the widest man in the body sets the interval
+  const gapF=R*1.55*sp, gapR=R*1.85*sp;         // shoulder to shoulder, and rank to rank
+  const dir=fdir===undefined?Math.PI/2:fdir;
+  const fx=Math.cos(dir), fz=Math.sin(dir);     // facing; ranks stack BEHIND it
+  let rowsN=1; for(let i=0;i<n;i++)rowsN=Math.max(rowsN,F.slot(i,n)[1]+1);
+  for(let i=0;i<n;i++){ const s=F.slot(i,n);
+    const c=s[0]*gapF;                          // along the line
+    const r=(s[1]-(rowsN-1)/2)*gapR;            // depth, centred on the click
+    out.push([x+c*-fz-r*fx, z+c*fx-r*fz, dir]); }
   return out; }
+function formTiles(n,gx,gy,fdir){ // tile targets, derived from the world slots (A* still walks tiles)
+  return formSlots(n,wx(gx),wz(gy),fdir).map(s=>[clamp(txFromW(s[0]),0,MAP_W-1),clamp(tzFromW(s[1]),0,MAP_H-1)]); }
 function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[faction[e.owner]]||FACTIONS.english;
   const grp=new THREE.Group();
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,5.0,5),M.wood);pole.position.y=2.5;grp.add(pole);
@@ -1986,9 +1998,12 @@ function commandMove(list,x,z,amove,fdir){for(const u of list)u.pfCool=0;const g
   astarBudget+=ml0Count(list);
   const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type)||q.type.localeCompare(r.type)||q.id-r.id);
   if(ml.length>=8&&!ml.some(u=>u.mesh.userData.banner)){const bearer=ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk&&UNIT[u.type].dom==='land')||ml[0];giveBanner(bearer);}
-  const tiles=formTiles(ml.length,gx,gy,fdir);
+  const slots=formSlots(ml.length,x,z,fdir,ml.reduce((m,u)=>Math.max(m,UNIT[u.type].r),0.9));
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
-    if(!orderPath(e,tiles[i][0],tiles[i][1],0))orderPath(e,gx,gy,0);});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
+    const sx=slots[i][0],sz=slots[i][1];
+    e.slot={x:sx,z:sz,dir:slots[i][2]};   // his exact place in the line — he dresses on it once he arrives
+    const stx=clamp(txFromW(sx),0,MAP_W-1),sty=clamp(tzFromW(sz),0,MAP_H-1);
+    if(!orderPath(e,stx,sty,0)&&!orderPath(e,gx,gy,0))e.slot=null;});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
 function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=list.length+6;const workers0=list.filter(e=>e.type==='worker');
   if(workers0.length){ let bs=null,bd0=3.5;
     for(const s of sheep){const d=Math.hypot(x-s.x,z-s.z);if(d<bd0){bd0=d;bs=s;}}
@@ -2187,7 +2202,14 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;b.m
   if(b.mesh.userData.flag)b.mesh.userData.flag.rotation.y=Math.sin(elapsed*3+b.id)*0.3;
   if(b.mesh.userData.blades)b.mesh.userData.blades.rotation.z+=dt*1.4;
   if((b.type==='house'||b.type==='hall')&&Math.random()<dt*0.7&&(b.owner==='player'||tileVis(b.cx,b.cz)))spawnPart(b.cx,heightAtWorld(b.cx,b.cz)+(b.type==='hall'?9:5),b.cz,'smoke');
-  if(b.queue.length){b.queue[0].t-=dt;if(b.queue[0].t<=0){const type=b.queue.shift().type;const sp=spawnSpot(b,type);const u=spawnUnit(type,b.owner,txFromW(sp.x),tzFromW(sp.z));if(b.owner==='player')SFX.train();
+  if(b.queue.length){ if(b.queue[0].t>0)b.queue[0].t-=dt;
+    // b143: the last gate — a finished man still needs a bed. If the housing has gone
+    // (raided Houses, a lost village) he waits at the door instead of pushing you over cap.
+    if(b.queue[0].t<=0&&popUsed(b.owner)+(COST[b.queue[0].type].pop||0)>popCap(b.owner)){
+      b.qHold=true; b.queue[0].t=0;
+      if(b.owner==='player'&&!updateBuilding._hT){updateBuilding._hT=1;setTimeout(()=>updateBuilding._hT=0,6000);
+        flashMsg('🏠 Population full — the muster waits until you raise more Houses');} }
+    else if(b.queue[0].t<=0){b.qHold=false;const type=b.queue.shift().type;const sp=spawnSpot(b,type);const u=spawnUnit(type,b.owner,txFromW(sp.x),tzFromW(sp.z));if(b.owner==='player')SFX.train();
     u.x+=((u.id%5)-2)*0.6; u.z+=(((u.id*3)%5)-2)*0.6;
     if(b.rally){ const nd2=type==='worker'?nodeAt(b.rally.x,b.rally.z):null;
       if(nd2&&nd2.amount>0)gatherOrder(u,nd2);   // rally on a tree/vein = straight to work
@@ -2205,13 +2227,14 @@ function separateUnits(){ const cell=3, grid=new Map();
         const rr=(UNIT[e.type].r+UNIT[o.type].r)*0.95, ddx=o.x-e.x, ddz=o.z-e.z;
         if(Math.abs(ddx)>rr||Math.abs(ddz)>rr)continue; const d=Math.hypot(ddx,ddz);
         if(d>1e-4&&d<rr){ const push=Math.min(0.13,(rr-d)*0.4), nx=ddx/d, nz=ddz/d;   // capped nudge — no more mosh-pit jolts
-          const anch=u2=>u2.type==='worker'&&!u2.path&&(u2.cmd==='gather'||u2.cmd==='build'||u2.cmd==='tend'||u2.cmd==='hunt');
-          const fE=anch(e)?0.15:1, fO=anch(o)?0.15:1;   // men at work stand their ground
+          const anch=u2=>u2.formed||(u2.type==='worker'&&!u2.path&&(u2.cmd==='gather'||u2.cmd==='build'||u2.cmd==='tend'||u2.cmd==='hunt'));
+          const fE=anch(e)?0.06:1, fO=anch(o)?0.06:1;   // men at work — and men stood in their rank — hold their ground
           e.x-=nx*push*fE;e.z-=nz*push*fE;o.x+=nx*push*fO;o.z+=nz*push*fO; }
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 const _toolV=new THREE.Vector3();
 function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
-  if(e._sc!==e.cmd){e._sc=e.cmd;clearStall(e);}   // fresh orders, fresh patience
+  if(e._sc!==e.cmd){e._sc=e.cmd;clearStall(e);
+    if(e.cmd!=='move'&&e.cmd!=='amove'&&e.cmd!=='idle')e.slot=null;}   // fresh orders, fresh patience — and he leaves the line
   if(e.flinch>0){ e.flinch-=dt; const kf=Math.max(0,e.flinch)/0.15;   // struck men visibly flinch
     e.mesh.scale.y=1-Math.sin(kf*Math.PI)*0.14; if(e.flinch<=0)e.mesh.scale.y=1; }
   { const ud=e.mesh.userData;
@@ -2240,6 +2263,14 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;
       if((UNIT[e.type].cav||UNIT[e.type].siege)&&Math.random()<dt*1.8)spawnPart(e.x-Math.cos(e.dir)*0.8,heightAtWorld(e.x,e.z)+0.25,e.z-Math.sin(e.dir)*0.8,'chip');}}}   // hooves & wheels kick dust
   const arrived=!e.path||e.pi>=e.path.length;
+  // b143: DRESS THE RANKS. A* only ever gets a man to the right tile; the last stride onto his
+  // exact place in the line is walked straight, and then he faces the way the line faces.
+  if(e.slot&&arrived&&(e.cmd==='move'||e.cmd==='amove'||e.cmd==='idle')){
+    const sdx=e.slot.x-e.x,sdz=e.slot.z-e.z,sd=Math.hypot(sdx,sdz);
+    if(sd>0.12){ const st=Math.min(sd,UNIT[e.type].speed*dt*0.9);
+      e.x+=sdx/sd*st; e.z+=sdz/sd*st; e.walk+=dt; e.dir=Math.atan2(sdz,sdx); e.formed=false; }
+    else { e.x=e.slot.x; e.z=e.slot.z; e.dir=e.slot.dir; e.formed=true; }   // stood to, and holding
+  } else e.formed=false;
   switch(e.cmd){
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
     case 'amove':if(arrived)e.cmd='idle';autoAcq(e,false);break;
@@ -2565,7 +2596,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
     const n=nearestNode(e,realmWant(o));if(n)gatherOrder(e,n);}
   if(ai.t<1)return; ai.t=0;
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
-  const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);
+  const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o)+popQueued(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);   // b143: count the men already ordered
   if(workers<8&&used+1<=cap&&r.f>=50&&hall.queue.length===0){r.f-=50;hall.queue.push({type:'worker',t:6});return;}
   if(used>=cap-3&&cap<dif().cap&&r.w>=40){if(placeAI(o,'house'))return;}
   if(countBld(o,'farm')<1&&r.w>=55){if(placeAI(o,'farm'))return;}
@@ -2713,9 +2744,9 @@ const slotGeo=new THREE.ConeGeometry(0.5,1.5,4); slotGeo.rotateX(Math.PI/2);
 const slotMat=new THREE.MeshBasicMaterial({color:0x9fe8b0,transparent:true,opacity:0.85,depthTest:false});
 const slotMarks=[];
 function updateSlotMarks(ang){ const s=selUnits().filter(e=>UNIT[e.type].dom!=='water');
-  const tiles=rDrag&&s.length?formTiles(s.length,txFromW(rDrag.gx),tzFromW(rDrag.gz),ang):[];
-  while(slotMarks.length<tiles.length&&slotMarks.length<120){const m=new THREE.Mesh(slotGeo,slotMat);m.renderOrder=997;scene.add(m);slotMarks.push(m);}
-  slotMarks.forEach((m,i)=>{ if(i<tiles.length){ const wx0=(tiles[i][0]+0.5)*TILE-HALF_W,wz0=(tiles[i][1]+0.5)*TILE-HALF_H;
+  const sl=rDrag&&s.length?formSlots(s.length,rDrag.gx,rDrag.gz,ang,s.reduce((m,u)=>Math.max(m,UNIT[u.type].r),0.9)):[];   // b143: preview the exact places, not tile centres
+  while(slotMarks.length<sl.length&&slotMarks.length<120){const m=new THREE.Mesh(slotGeo,slotMat);m.renderOrder=997;scene.add(m);slotMarks.push(m);}
+  slotMarks.forEach((m,i)=>{ if(i<sl.length){ const wx0=sl[i][0],wz0=sl[i][1];
       m.visible=true;m.position.set(wx0,heightAtWorld(wx0,wz0)+0.9,wz0);m.rotation.y=Math.PI/2-ang; }
     else m.visible=false; }); }
 function hideSlotMarks(){slotMarks.forEach(m=>m.visible=false);}
@@ -2819,7 +2850,22 @@ canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio(
     else{orbitDrag={sx:p.x,sy:p.y,yaw:camYaw,pitch:camPitch};canvas.style.cursor='move';}   // hold the wheel & drag = look around
     return;}if(ev.button===0){if(demoMode){const b=pickBuilding(p.x,p.y);
     if(b){const cc=COST[b.type]||{};res.player.w+=Math.floor((cc.w||0)*0.5);res.player.m+=Math.floor((cc.m||0)*0.5);
-      if(selBuilding===b.id)selBuilding=null;destroyBuilding(b);flashMsg('🔨 '+BLD[b.type].name+' torn down — half the materials recovered');refreshUI();}
+      if(selBuilding===b.id)selBuilding=null;destroyBuilding(b);flashMsg('🔨 '+BLD[b.type].name+' torn down — half the materials recovered');refreshUI();return;}
+    // b143 (owner request): the hammer also stands men down and clears standing timber
+    const u=pickUnit(p.x,p.y);
+    if(u){ const nm=UNIT[u.type].name;
+      for(let i=0;i<8;i++)spawnPart(u.x,heightAtWorld(u.x,u.z)+1,u.z,'smoke');
+      u.hp=0; flashMsg('🔨 '+nm+' stood down — his place in the muster is free again'); SFX.cmd(); refreshUI(); return; }
+    const g2=raycastGround(p.x,p.y), nd=nodeAt(g2.x,g2.z);
+    if(nd&&nd.amount>0){ const back=Math.max(1,Math.round(nd.amount*0.25));
+      if(nd.type==='wood')res.player.w+=back; else if(nd.type==='gold')res.player.g+=back; else if(nd.type==='food')res.player.f+=back; else res.player.m+=back;
+      const nx=wx(nd.tx),nz=wz(nd.ty);
+      for(let i=0;i<8;i++)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,nd.type==='wood'?'chip':'spark');
+      nd.amount=0; if(nd.mesh)nd.mesh.visible=false; else if(nd.tim)fellTree(nd);
+      if(nd.type==='wood'&&treeGrid)treeGrid[ti(nd.tx,nd.ty)]=0;
+      for(const e of ents)if(e.gather===nd){e.gather=null;e.cmd='idle';}
+      flashMsg('🔨 Cleared — '+back+(nd.type==='wood'?' timber':nd.type==='gold'?' gold':nd.type==='food'?' food':' iron')+' salvaged'); SFX.cmd(); refreshUI(); return; }
+    flashMsg('🔨 Nothing there to pull down — click your buildings, your own men, or trees and veins');
     return;}if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
   else if(ev.button===2){if(demoMode){setDemo(false);return;}if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length){rDrag={gx:g.x,gz:g.z,moved:false};return;}else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};
       const nd=nodeAt(g.x,g.z);
@@ -2952,7 +2998,7 @@ const hammerCur=(()=>{try{const c=document.createElement('canvas');c.width=c.hei
 function setDemo(on){demoMode=on;const bt=document.getElementById('demoBtn');
   bt.style.borderColor=on?'#c9a44a':'#2c5164';bt.style.background=on?'#3a2c17':'#17303f';bt.style.color=on?'#f3e4be':'#dff0f9';
   canvas.style.cursor=on?hammerCur:'default';
-  if(on){placing=null;wallDrag=null;attackMove=false;updateGhost();flashMsg('🔨 Demolish tool — click your buildings to tear them down (half the materials back). Right-click or Esc puts the hammer away.');}
+  if(on){placing=null;wallDrag=null;attackMove=false;updateGhost();flashMsg('🔨 Hammer — click your buildings to tear them down (half the materials back), your own men to stand them down, or trees and veins to clear them (a quarter salvaged). Right-click or Esc puts it away.');}
   refreshUI();}
 document.getElementById('demoBtn').onclick=()=>{if(running&&!gameOver)setDemo(!demoMode);};
 // minimap click
@@ -3076,8 +3122,8 @@ function shortOf(c){const r=res.player,parts=[];
   if(c.m&&r.m<c.m)parts.push(Math.ceil(c.m-r.m)+'⛏️ metal');
   if(c.g&&r.g<c.g)parts.push(Math.ceil(c.g-r.g)+'💰 gold');
   return parts.join(' + ');}
-function trainBtn(cmds,b,type,ic,label,can,dis){const c=COST[type];const en=!dis&&can(c)&&popUsed('player')+c.pop<=popCap('player')&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.f?c.f+'🍖 ':''}${c.w?c.w+'🌲 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'💰 ':''}· 👥${c.pop}</small>`;
-  btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(dis){flashMsg('You already have a Hero');return;}if(!can(c)){flashMsg('Need '+shortOf(c)+' more for a '+label);return;}if(popUsed('player')+c.pop>popCap('player')){flashMsg('Need more Houses (pop cap)');return;}res.player.f-=(c.f||0);res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.g-=(c.g||0);b.queue.push({type,t:c.time*(b.up&&b.type==='barracks'?0.8:1)});SFX.cmd();refreshUI();};cmds.appendChild(btn);}
+function trainBtn(cmds,b,type,ic,label,can,dis){const c=COST[type];const en=!dis&&can(c)&&c.pop<=popFree('player')&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.f?c.f+'🍖 ':''}${c.w?c.w+'🌲 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'💰 ':''}· 👥${c.pop}</small>`;
+  btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(dis){flashMsg('You already have a Hero');return;}if(!can(c)){flashMsg('Need '+shortOf(c)+' more for a '+label);return;}if(c.pop>popFree('player')){flashMsg(popQueued('player')?'🏠 No room left once the men already ordered are raised — build Houses':'🏠 Need more Houses (population cap)');return;}res.player.f-=(c.f||0);res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.g-=(c.g||0);b.queue.push({type,t:c.time*(b.up&&b.type==='barracks'?0.8:1)});SFX.cmd();refreshUI();};cmds.appendChild(btn);}
 function buildBtn(cmds,type,ic,label,can){const c=COST[type];const en=can(c)&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.w?c.w+'🌲 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'💰':''}</small>`;btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance to Age '+(c.age)+' first — at your Keep');return;}if(!can(c)){flashMsg('Need '+shortOf(c)+' more for a '+label);return;}placing=type;updateGhost();refreshUI();};cmds.appendChild(btn);}
 // b142: weapon & armour research, shared by the Barracks and the Armourer.
 // An Armourer knocks 20% off armour and 30% off the time — that is what the building is FOR.
@@ -3107,9 +3153,12 @@ function marketBtn(cmds,label,cost,fn){const btn=document.createElement('div');b
 function trade(k,amt,gold){const r=res.player;if(amt<0&&r[k]<-amt){flashMsg('Not enough to sell');return;}if(gold<0&&r.g<-gold){flashMsg('Not enough gold');return;}r[k]+=amt;r.g+=gold;SFX.cmd();updateHUD();refreshUI();}
 function flashMsg(t){const m=$('msg');m.textContent=t;m.style.opacity=1;clearTimeout(flashMsg._t);flashMsg._t=setTimeout(()=>m.style.opacity=0,2400);}
 function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').textContent=Math.floor(res.player.w);$('metal').textContent=Math.floor(res.player.m);$('gold').textContent=Math.floor(res.player.g);
-  const pu=popUsed('player'),pc=popCap('player');$('pop').textContent=pu+'/'+pc;
-  $('pop').style.color=pu>=pc?'#ff8a6a':'';
-  $('pop').title=pu>pc?'Over capacity — you LOST housing (raided Houses or a lost village). No one deserts, but no new training until you rebuild Houses.':pu>=pc?'Population full — build Houses!':'Population / capacity — Houses +8, Keep +15, Castles +12, sworn villages +6';
+  const pu=popUsed('player'),pc=popCap('player'),pq=popQueued('player');
+  $('pop').textContent=pu+'/'+pc+(pq?' (+'+pq+')':'');   // b143: the men already ordered are shown, because they are already spoken for
+  $('pop').style.color=pu>pc?'#ff8a6a':(pu+pq>=pc?'#e8c25a':'');
+  $('pop').title=pu>pc?'Over capacity — you LOST housing (raided Houses or a lost village). No one deserts, and training waits until you rebuild Houses.'
+    :pq&&pu+pq>=pc?'Population '+pu+' of '+pc+', with '+pq+' more already ordered — that fills you. Build Houses before ordering again.'
+    :pu>=pc?'Population full — build Houses!':'Population / capacity — Houses +8, Keep +15, Castles +12, sworn villages +6'+(pq?'. (+'+pq+') is training now.':'');
   const wn=document.getElementById('wrkN'); if(wn)wn.textContent=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'?1:0),0);
   const nIdle=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'&&e.cmd==='idle'?1:0),0);
   if(!$('forces').classList.contains('hidden')&&Math.random()<0.08)renderForces();
@@ -3359,7 +3408,7 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,commandMove,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get farms(){return blds.filter(b=>b.type==='farm').map(b=>{let n=0;b.mesh.traverse(o=>{if(o.isMesh)n++;});return {owner:b.owner,crop:b.mesh.userData.crop,parts:n};});}};
 (()=>{ // b93 Map Builder — sizes, terrain painting, mirror symmetry, random scatter (AoE2-style)
