@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b134</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b135</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1634,9 +1634,15 @@ function makeBldMesh(type,owner){const b=BLD[type],g=new THREE.Group();const wpx
     const bandB=bandT.clone();bandB.position.y=.8;
     g.add(postL,postR,arch,crL,crR,door,bandT,bandB);
     const hbgt=makeHealthBar();hbgt.scale.setScalar(1.2);hbgt.position.y=5.6;g.add(hbgt);g.userData.hb=hbgt;return g;}
-  if(type==='bridge'){ const deck=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.04,.32,hpx*1.04),M.wood);deck.position.y=.16;deck.castShadow=true;deck.receiveShadow=true;g.add(deck);
-    for(const sx of[-1,1]){const rail=new THREE.Mesh(new THREE.BoxGeometry(.13,.42,hpx*1.02),M.trunk);rail.position.set(sx*wpx*.46,.5,0);rail.castShadow=true;g.add(rail);}
-    for(const sz of[-1,1])for(const sx of[-1,1]){const post=new THREE.Mesh(new THREE.CylinderGeometry(.11,.14,1.6,6),M.trunk);post.position.set(sx*wpx*.44,-.55,sz*hpx*.42);g.add(post);}
+  if(type==='bridge'){ const darkWood=new THREE.MeshStandardMaterial({color:0x6e4c2e,roughness:.95,flatShading:true});
+    for(let p2=0;p2<3;p2++){ const plank=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.04,.3,hpx*.31),p2===1?M.wood:darkWood);
+      plank.position.set(0,.15,(p2-1)*hpx*.34); plank.castShadow=true; plank.receiveShadow=true; g.add(plank); }
+    for(const sz of[-1,1]){ const beam=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.1,.18,.2),darkWood); beam.position.set(0,-.06,sz*hpx*.3); g.add(beam); }
+    for(const sx of[-1,1]){ const rail=new THREE.Mesh(new THREE.BoxGeometry(.14,.46,hpx*1.02),M.trunk); rail.position.set(sx*wpx*.46,.55,0); rail.castShadow=true; g.add(rail); }
+    for(const sz of[-1,1])for(const sx of[-1,1]){ const pier=new THREE.Mesh(new THREE.BoxGeometry(.5,2.4,.5),M.stone); pier.position.set(sx*wpx*.34,-1.05,sz*hpx*.3); g.add(pier); }
+    if(Math.random()<0.45){ const sx=Math.random()<0.5?-1:1;   // the odd torch post lights the crossing
+      const tp=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,1.3,5),M.trunk); tp.position.set(sx*wpx*.46,1.15,hpx*.35); g.add(tp);
+      const fl2=new THREE.Mesh(new THREE.SphereGeometry(.12,6,5),new THREE.MeshStandardMaterial({color:0xffb050,emissive:0xff9030,emissiveIntensity:1.2})); fl2.position.set(sx*wpx*.46,1.85,hpx*.35); g.add(fl2); }
     return g;}
   if(type==='stable'){ const barn=new THREE.Mesh(new THREE.BoxGeometry(wpx*.55,2.6,hpx*.8),M.wood);barn.position.set(-wpx*.2,1.3,0);barn.castShadow=true;g.add(barn);
     const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(wpx*.42,hpx*.5),1.6,4),M.thatch);roof.position.set(-wpx*.2,3.4,0);roof.rotation.y=Math.PI/4;roof.castShadow=true;g.add(roof);
@@ -2115,7 +2121,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();stampTownPath(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();stampTownPath(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
     case 'gar':{const b=e.garB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.garB=null;break;}
       const dg=Math.hypot(e.x-b.cx,e.z-b.cz);
       if(dg<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){ b.gar=b.gar||[];
