@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b118</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b119</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2496,7 +2496,10 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
     if(b.owner==='player'&&b.done){if(b.type==='hall'){trainBtn(cmds,b,'worker','⚒','Worker',can);const T=tech.player;
         if(T.age===1){const c={f:AGE2.f,w:AGE2.w};techBtn(cmds,'⏫','Advance to Age II',`${AGE2.f}🍖 ${AGE2.w}🌲`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;T.ageTimer=AGE2.time;T.ageTo=2;flashMsg('Advancing to the Age of the Drowned Coast…');refreshUI();});}
         else if(T.age===2){const c={f:AGE3.f,w:AGE3.w,m:AGE3.m};techBtn(cmds,'⏫','Advance to Age III',`${AGE3.f}🍖 ${AGE3.w}🌲 ${AGE3.m}⛏️`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;res.player.m-=c.m;T.ageTimer=AGE3.time;T.ageTo=3;flashMsg('Advancing to the Age of Empire…');refreshUI();});}
-        else info.innerHTML+='<br><span style="color:#e0c878">Age of Empire reached</span>';}
+        else info.innerHTML+='<br><span style="color:#e0c878">Age of Empire reached</span>';
+        if(T.ageTimer>0){const tot=T.ageTo===3?AGE3.time:AGE2.time;
+          info.innerHTML+='<br><span id="ageLine" style="color:#8fd4f0">⏫ Advancing to Age '+(T.ageTo||T.age+1)+' — '+Math.ceil(T.ageTimer)+'s</span>'
+            +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="ageBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#1c4d6d,#7fc4e8);width:'+Math.round((1-T.ageTimer/tot)*100)+'%"></div></div>';}}
       if(b.type==='barracks'){trainBtn(cmds,b,'spear','🛡','Pikeman',can);trainBtn(cmds,b,'archer','🏹','Skirmisher',can);trainBtn(cmds,b,'viking','⚔️','Viking Raider',can);if(tech.player.age>=2){trainBtn(cmds,b,'samurai','🗡️','Samurai',can);trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'dragoon','🐴','Dragoon',can);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const T=tech.player;
         for(const rk of ['weapon','armor']){ const D=RSCH[rk],tier=T[rk]||0,R=T.rsch;
           if(tier>=3){techBtn(cmds,D.ic,D.name+' MAX','forged',false,()=>{},true);continue;}
@@ -2597,7 +2600,10 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
   if(!$('forces').classList.contains('hidden')&&Math.random()<0.08)renderForces();
   $('idleN').textContent=nIdle;const ib=$('idleBtn');
   ib.style.borderColor=nIdle?'#c9a44a':'#2c5164';ib.style.color=nIdle?'#f3e4be':'#5f7f92';ib.style.opacity=nIdle?'1':'.6';
-  $('age').textContent=tech.player.ageTimer>0?'Advancing…':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
+  $('age').textContent=tech.player.ageTimer>0?'Advancing… '+Math.ceil(tech.player.ageTimer)+'s':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
+  if(tech.player.ageTimer>0){const T2=tech.player,tot2=T2.ageTo===3?AGE3.time:AGE2.time;
+    const al=document.getElementById('ageLine'); if(al)al.textContent='⏫ Advancing to Age '+(T2.ageTo||T2.age+1)+' — '+Math.ceil(T2.ageTimer)+'s';
+    const ab=document.getElementById('ageBar'); if(ab)ab.style.width=Math.round((1-T2.ageTimer/tot2)*100)+'%';}
   $('clock').textContent=Math.floor(elapsed/60)+':'+String(Math.floor(elapsed%60)).padStart(2,'0');
   const qe=document.getElementById('qline');
   if(qe&&selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)qe.innerHTML=qlineHTML(b);}
