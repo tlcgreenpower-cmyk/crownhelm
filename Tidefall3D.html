@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b159</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b160</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3739,11 +3739,20 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
 // ---- diplomacy panel ----
 function stanceLabel(o){const d=diplo[o];return d.stance==='war'?'<span style="color:#ff8a6a">AT WAR</span>':d.score>=60?'<span style="color:#9fe6b0">Friend</span>':d.score>=25?'<span style="color:#bfe4a0">Warm</span>':d.score>=-10?'Neutral':'<span style="color:#e0b070">Wary</span>';}
 function renderDiplo(){const p=$('diplo');if(p.classList.contains('hidden'))return;
-  let h='<b style="font-size:15px;">🕊 The Realms</b><div style="color:#7fa8bd;margin:2px 0 8px;">Gift gold to make friends — Friends (60+) send you trade caravans. Attack anyone to make enemies.</div>';
+  let h='<b style="font-size:15px;">🕊 The Realms</b><div style="color:#7fa8bd;margin:2px 0 8px;">Gift gold to make friends — Friends (60+) send you trade caravans. Attack anyone to make enemies. The realms also quarrel among themselves: a neighbour busy with its own war is a neighbour with its back turned.</div>';
   for(const o of AI_REALMS){const f=FACTIONS[faction[o]],d=diplo[o];const alive=blds.some(b=>b.owner===o&&b.type==='hall');
     h+=`<div style="border-top:1px solid #1d3a4a;padding:7px 0;">
       <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${ownerCss(o)};margin-right:6px;"></span>
       <b>${f.name}</b> — ${alive?stanceLabel(o):'<span style="color:#888">Fallen</span>'}${alive?' <span style="color:#7fa8bd">('+Math.round(d.score)+')</span>':''}<br>`;
+    // b160: the realms fight each other now, and none of it showed here. Word reaches you about
+    // realms you have actually found; a war against someone you have never met is only a rumour.
+    if(alive&&realmKnown(o)){
+      const wars=AI_REALMS.filter(t=>t!==o&&aiWars[warKey(o,t)]&&blds.some(b=>b.owner===t&&b.type==='hall'));
+      if(wars.length){ const named=wars.filter(t=>realmKnown(t)).map(t=>FACTIONS[faction[t]].name);
+        const unmet=wars.length-named.length, parts=named.slice();
+        if(unmet)parts.push(unmet+(unmet>1?' realms you have not met':' realm you have not met'));
+        h+=`<div style="color:#e0a878;font-size:12px;margin-top:3px">⚔ At war with ${parts.join(' and ')}</div>`; }
+      else if(diplo[o].stance!=='war')h+=`<div style="color:#6f93a8;font-size:12px;margin-top:3px">🕊 At peace with its neighbours</div>`; }
     if(alive){ h+=`<button class="btn" style="margin-top:5px;" onclick="window._gift('${o}')">🎁 Gift 100g</button> `;
       h+=d.stance==='war'?`<button class="btn" style="margin-top:5px;" onclick="window._peace('${o}')">🕊 Offer Peace (200g)</button>`:`<button class="btn" style="margin-top:5px;" onclick="window._war('${o}')">⚔ Declare War</button>`; }
     h+='</div>'; }
