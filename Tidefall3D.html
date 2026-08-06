@@ -26,7 +26,7 @@
   #demoBtn{position:absolute;right:10px;bottom:158px;z-index:5;width:64px;height:64px;font-size:34px;line-height:1;cursor:pointer;background:#17303f;border:2px solid #2c5164;color:#dff0f9;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.5);transition:transform .1s,border-color .12s;}
   #demoBtn:hover{transform:scale(1.08);border-color:#7fc4e8;}
   #botbar{display:flex;gap:12px;padding:6px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;min-height:72px;max-height:110px;align-items:flex-start;}
-  #selInfo{width:250px;font-size:12.5px;line-height:1.45;color:#9fc0d2;max-height:98px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
+  #selInfo{width:335px;font-size:12.5px;line-height:1.4;color:#9fc0d2;max-height:118px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
   #cmds{flex:1;display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;}
   .btn{min-width:94px;padding:7px 9px;background:#17303f;border:1px solid #2c5164;border-radius:8px;color:#dff0f9;font-size:12px;cursor:pointer;line-height:1.25;}
   .btn:hover{background:#1e435a;border-color:#4d86a3;} .btn small{display:block;color:#84acc0;font-size:10.5px;margin-top:2px;} .btn.disabled{opacity:.36;cursor:not-allowed;}
@@ -62,7 +62,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b113</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b114</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -428,8 +428,8 @@ const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,guns
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
-  weapon:{ic:'⚔',name:'Weapons',costs:[{m:80,f:80},{m:150,f:120},{m:220,f:180}],times:[35,55,75],age:[1,2,3]},
-  armor:{ic:'🛡',name:'Armor',costs:[{w:80,f:80},{w:150,f:120},{w:220,f:180}],times:[30,50,70],age:[1,2,3]}};
+  weapon:{ic:'⚔',name:'Weapons',costs:[{m:80,f:80},{m:150,f:120},{m:220,f:180}],times:[70,110,150],age:[1,2,3]},
+  armor:{ic:'🛡',name:'Armor',costs:[{w:80,f:80},{w:150,f:120},{w:220,f:180}],times:[60,100,140],age:[1,2,3]}};
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=2.6,MILL_FOOD=2.0,CARRY=12,MINE=6.5,AGE2={f:300,w:250,time:70},AGE3={f:600,w:400,m:200,time:100};
 const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu',sacred:'hoplite'};
 
@@ -2212,8 +2212,16 @@ function updateGhost(){
     return; }
   if(ghostLine){scene.remove(ghostLine);ghostLine=null;}
   if(!placing){if(ghost){scene.remove(ghost);ghost=null;}return;}const b=BLD[placing];const tx=hoverTile.tx,ty=hoverTile.ty,cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;
-  const ok=(placing==='dock'?canPlaceDock(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h))&&(COST[placing].age||1)<=tech.player.age&&res.player.w>=(COST[placing].w||0)&&res.player.m>=(COST[placing].m||0);
-  if(!ghost){ghost=new THREE.Mesh(new THREE.BoxGeometry(1,4,1),M.ghostOk);scene.add(ghost);}ghost.geometry.dispose();ghost.geometry=new THREE.BoxGeometry(b.w*TILE*.9,4,b.h*TILE*.9);ghost.material=ok?M.ghostOk:M.ghostNo;ghost.position.set(cx,heightAtWorld(cx,cz)+2,cz);}
+  const ok=(placing==='dock'?canPlaceDock(tx,ty,b.w,b.h):placing==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h))&&(COST[placing].age||1)<=tech.player.age&&res.player.w>=(COST[placing].w||0)&&res.player.m>=(COST[placing].m||0);
+  if(!ghost||ghost._type!==placing){ if(ghost)scene.remove(ghost);   // the real building as a see-through shadow at the cursor
+    ghost=makeBldMesh(placing,'player'); ghost._type=placing;
+    if(ghost.userData.hb)ghost.userData.hb.visible=false;
+    ghost.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;}});
+    scene.add(ghost); }
+  const gmat=ok?M.ghostOk:M.ghostNo;
+  ghost.traverse(o=>{if(o.isMesh)o.material=gmat;});
+  let gy=heightAtWorld(cx,cz)+0.1; if(placing==='bridge')gy=waterY+0.1;
+  ghost.position.set(cx,gy,cz);}
 function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverTile.ty;if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(res.player.w<(c.w||0)||res.player.m<(c.m||0)||res.player.f<(c.f||0)){flashMsg('Not enough resources');return;}
   if((type==='gate'||type==='tower')&&inB(tx,ty)){ const wid=buildGrid[ti(tx,ty)];
     const wb=blds.find(x=>x.id===wid&&x.type==='wall'&&x.owner==='player'&&x.done);
@@ -2446,7 +2454,7 @@ function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Id
   return s; }
 function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';const can=c=>res.player.w>=(c.w||0)&&res.player.m>=(c.m||0)&&res.player.f>=(c.f||0)&&res.player.g>=(c.g||0);
   if(placing){info.innerHTML=`<b>Placing ${BLD[placing].name}</b><br>Left-click to build. Hold Shift or Ctrl = place several. Esc cancels.`;return;}
-  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){info.innerHTML=`<b>${BLD[b.type].name}</b> <span style="color:#7fa8bd">(${b.owner})</span><br>HP ${Math.max(0,Math.round(b.hp))}/${b.maxHp}`+(b.done?'':`<br>Building… ${Math.round(b.progress*100)}%`)+(b.done&&TRAINERS.has(b.type)&&b.owner==='player'?'<br><span id="qline">'+qlineHTML(b)+'</span><br><span style="color:#6f93a8;font-size:11px">'+(b.rally?'🚩 Rally flag set — right-click ground to move it':'Right-click the ground to plant a rally flag')+'</span>':'');
+  if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){info.innerHTML=`<b>${BLD[b.type].name}</b> <span style="color:#7fa8bd">(${b.owner})</span> · HP ${Math.max(0,Math.round(b.hp))}/${b.maxHp}`+(b.done?'':` · <span style="color:#e0c878">building ${Math.round(b.progress*100)}%</span>`)+(b.done&&TRAINERS.has(b.type)&&b.owner==='player'?'<br><span id="qline">'+qlineHTML(b)+'</span><br><span style="color:#6f93a8;font-size:11px">'+(b.rally?'🚩 rally set — right-click ground moves it':'right-click ground = rally flag')+'</span>':'');
     if(b.owner==='player'&&b.done){if(b.type==='hall'){trainBtn(cmds,b,'worker','⚒','Worker',can);const T=tech.player;
         if(T.age===1){const c={f:AGE2.f,w:AGE2.w};techBtn(cmds,'⏫','Advance to Age II',`${AGE2.f}🍖 ${AGE2.w}🌲`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;T.ageTimer=AGE2.time;T.ageTo=2;flashMsg('Advancing to the Age of the Drowned Coast…');refreshUI();});}
         else if(T.age===2){const c={f:AGE3.f,w:AGE3.w,m:AGE3.m};techBtn(cmds,'⏫','Advance to Age III',`${AGE3.f}🍖 ${AGE3.w}🌲 ${AGE3.m}⛏️`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;res.player.m-=c.m;T.ageTimer=AGE3.time;T.ageTo=3;flashMsg('Advancing to the Age of Empire…');refreshUI();});}
@@ -2477,16 +2485,16 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         barracks:['⚙','Drill Yard','60🌲 40⛏️',{w:60,m:40},'Troops train 20% faster'],
         gate:['🛡','Iron Gate','50⛏️',{m:50},'+50% gate strength']};
       if(UPG[b.type]&&!b.up){ const upd=UPG[b.type];
-        techBtn(cmds,upd[0],upd[1],b.rschK?'upgrading… '+Math.ceil(b.rschT)+'s':upd[2]+' · 35s',!b.rschK&&can(upd[3]),()=>{
+        techBtn(cmds,upd[0],upd[1],b.rschK?'upgrading… '+Math.ceil(b.rschT)+'s':upd[2]+' · 70s',!b.rschK&&can(upd[3]),()=>{
           if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
           const cc=upd[3]; if(!can(cc)){flashMsg('Need '+shortOf(cc)+' more');return;}
           res.player.w-=(cc.w||0);res.player.m-=(cc.m||0);res.player.f-=(cc.f||0);res.player.g-=(cc.g||0);
-          b.rschK='up'; b.rschT=35; b.rschTot=35;
-          flashMsg('🔨 '+upd[1]+' underway — '+upd[4]+' (35s)');SFX.cmd();refreshUI(); }); }
+          b.rschK='up'; b.rschT=70; b.rschTot=70;
+          flashMsg('🔨 '+upd[1]+' underway — '+upd[4]+' (70s)');SFX.cmd();refreshUI(); }); }
       else if(UPG[b.type]&&b.up)info.innerHTML+='<br><span style="color:#7fd08a">✅ '+UPG[b.type][1]+'</span>';
-      if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount',b.rschK?'mounting… '+Math.ceil(b.rschT)+'s':'120⛏️ 60💰 · 50s',!b.rschK&&res.player.m>=120&&res.player.g>=60,()=>{
+      if(b.type==='tower'&&b.up&&!b.up2&&tech.player.age>=3)techBtn(cmds,'💣','Cannon Mount',b.rschK?'mounting… '+Math.ceil(b.rschT)+'s':'120⛏️ 60💰 · 100s',!b.rschK&&res.player.m>=120&&res.player.g>=60,()=>{
         if(b.rschK){flashMsg('The craftsmen are already at work here');return;}
-        res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=50;b.rschTot=50;flashMsg('💣 Hoisting the cannon — 50s');SFX.cmd();refreshUI();});
+        res.player.m-=120;res.player.g-=60;b.rschK='up2';b.rschT=100;b.rschTot=100;flashMsg('💣 Hoisting the cannon — 100s');SFX.cmd();refreshUI();});
       else if(b.type==='tower'&&b.up2)info.innerHTML+='<br><span style="color:#7fd08a">💣 Cannon Mount</span>';
       if(b.type==='farm'){const tn=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
         info.innerHTML+='<br>👨‍🌾 Farmhand: '+tn+'/1'+(tn?' — the field is sown':' <span style="color:#e0a878;font-size:11px">— no farmhand, no harvest! Right-click the farm with a worker</span>');}
