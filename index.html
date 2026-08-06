@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b160</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b161</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2612,9 +2612,13 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
   let arrived=!e.path||e.pi>=e.path.length;
   // b157: a man on a long march has only reached this stage's waypoint — send him on to the real
   // destination before anything decides he has arrived and stands him down.
-  if(arrived&&e.march&&!e.inGar){ const m=e.march;
+  // b161: ONLY while he is actually under a marching order. This continuation used to run whatever
+  // the man was doing, so a stop order — which halts him by clearing his path — left the march
+  // standing and he simply set off again. Stop now means stop.
+  if(arrived&&e.march&&!e.inGar&&(e.cmd==='move'||e.cmd==='amove'||e.cmd==='attackb'||e.cmd==='gar')){ const m=e.march;
     if(Math.hypot(m.gx-txFromW(e.x),m.gy-tzFromW(e.z))>2){ if(orderPath(e,m.gx,m.gy,m.id))arrived=false; }
     else e.march=null; }
+  else if(e.march&&e.cmd==='idle')e.march=null;
   // b143: DRESS THE RANKS. A* only ever gets a man to the right tile; the last stride onto his
   // exact place in the line is walked straight, and then he faces the way the line faces.
   if(e.slot&&arrived&&(e.cmd==='move'||e.cmd==='amove'||e.cmd==='idle')){
@@ -3462,7 +3466,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
       else if(selected.length||selBuilding){selected=[];selBuilding=null;refreshUI();}
       else if(running&&!gameOver)openGameMenu();}}}   // Esc with nothing to cancel = pause + game menu, like any standard game
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
-  if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
+  if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;e.march=null;e.slot=null;});flashMsg('\u{1F6D1} Halted — the men stand where they are');}
   if(k==='p')togglePause();
   if(k==='+'||k==='=')setSpeed(gameSpeed+1);
   if(k==='-'||k==='_')setSpeed(gameSpeed-1);
@@ -3548,6 +3552,14 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   for(const k in BLD_DESC)h+=card(BICON[k]||'🏠',BLD[k].name,cost(COST[k]),BLD_DESC[k]);
   h+='</div><div style="font:600 15px Georgia,serif;color:#c9a44a;margin:14px 0 8px">UNITS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
   for(const k in UNIT_DESC)h+=card(UNIT_IC[k]||'⚔',UNIT[k].name,cost(COST[k]),UNIT_DESC[k]);
+  h+='</div>';
+  // b161: the rival kingdoms behave like kingdoms now — worth telling the player plainly rather
+  // than leaving them to work it out from the wreckage.
+  h+='<div style="font:600 15px Georgia,serif;color:#c9a44a;margin:14px 0 8px">THE RIVAL REALMS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
+  h+=card('⚔','They quarrel among themselves','','Rival realms fall out with their nearest neighbours and make peace again, whether or not you are involved. Open the Realms panel to see who is fighting whom — but only for realms you have actually found. A neighbour busy with its own war is a neighbour with its back turned.');
+  h+=card('🏰','They defend what is theirs','','Strike a realm anywhere and its nearest soldiers turn round and come home, however far off they were, and no fresh attack leaves while its town is burning. Their towers are manned too — two to a tower — so an assault costs more than it used to.');
+  h+=card('🚩','They march properly','','An army crosses the map in stages rather than trying to plot the whole road at once, so a war declared on the far side of a large map will arrive. Your own regiments do the same: order them anywhere and they will get there.');
+  h+=card('🛑','Halting','Press X','X stops the selected men where they stand and forgets their orders entirely — including a long march that would otherwise carry on to the far side of the map.');
   h+='</div>';
   g.innerHTML=h; document.getElementById('guideClose').onclick=()=>g.classList.add('hidden'); }
 document.getElementById('guideBtn').onclick=()=>{ closeGameMenu(); buildGuide(); document.getElementById('guide').classList.remove('hidden'); };
