@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b135</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b136</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1330,6 +1330,12 @@ function makeSheep(kind){
     for(const sx of[-1,1]){const ant=new THREE.Mesh(new THREE.ConeGeometry(.05,.5,4),deerBelly);ant.position.set(sx*.12,1.72,.72);ant.rotation.z=sx*.5;g.add(ant);}
     for(const[lx,lz]of[[-.2,.42],[.2,.42],[-.2,-.42],[.2,-.42]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.08,.62,.08),deerHide);leg.position.set(lx,.32,lz);g.add(leg);}
     return g; }
+  if(kind==='rabbit'){ const g=new THREE.Group(); const fur=hashN(1,2)<0.5?woolMat:deerBelly;
+    const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.26,0),Math.random()<0.5?woolMat:deerBelly);body.scale.set(1,.85,1.25);body.position.y=.26;body.castShadow=true;g.add(body);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.15,6,5),woolMat);head.position.set(0,.4,.28);g.add(head);g.userData.head=head;
+    for(const sx of[-1,1]){const ear=new THREE.Mesh(new THREE.BoxGeometry(.06,.3,.04),deerBelly);ear.position.set(sx*.07,.62,.24);ear.rotation.x=-.2;g.add(ear);}
+    const tail=new THREE.Mesh(new THREE.SphereGeometry(.08,5,4),woolMat);tail.position.set(0,.3,-.32);g.add(tail);
+    return g; }
   if(kind==='boar'){ const g=new THREE.Group();
     const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,0),boarHide);body.scale.set(1.05,.85,1.35);body.position.y=.55;body.castShadow=true;g.add(body);
     const head=new THREE.Mesh(new THREE.BoxGeometry(.34,.34,.44),boarHide);head.position.set(0,.6,.68);g.add(head);g.userData.head=head;
@@ -1361,12 +1367,12 @@ function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
     if(hashN(x*4.7,y*5.3)>0.045)continue; const e=elev[ti(x,y)]; if(e<1.8||e>2.6)continue;
     let ok=true; for(const o of REALMS){const st=REALM_SITES[o];if(Math.hypot(x-st[0],y-st[1])<12)ok=false;}
     if(!ok)continue; flocks++;
-    const kr=hashN(x*9.1,y*8.3), kind=kr<0.45?'sheep':kr<0.8?'deer':'boar';
-    const n=kind==='boar'?2+Math.floor(hashN(y,x)*2):3+Math.floor(hashN(y,x)*3);
+    const kr=hashN(x*9.1,y*8.3), kind=kr<0.38?'sheep':kr<0.62?'deer':kr<0.8?'rabbit':'boar';
+    const n=kind==='boar'?2+Math.floor(hashN(y,x)*2):kind==='rabbit'?4+Math.floor(hashN(y,x)*3):3+Math.floor(hashN(y,x)*3);
     for(let i=0;i<n;i++){ const m=makeSheep(kind); scene.add(m);
       const sx=wx(x)+(Math.random()-.5)*6, sz=wz(y)+(Math.random()-.5)*6;
-      sheep.push({mesh:m,kind,meat:kind==='boar'?220:kind==='deer'?140:90,spd:kind==='deer'?2.6:kind==='boar'?1.4:1.7,
-        hp:kind==='boar'?3:2,hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }
+      sheep.push({mesh:m,kind,meat:kind==='boar'?220:kind==='deer'?140:kind==='rabbit'?45:90,spd:kind==='deer'?2.6:kind==='boar'?1.4:kind==='rabbit'?3.4:1.7,
+        hp:kind==='boar'?3:kind==='rabbit'?1:2,hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }
 function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   const d=Math.hypot(s.tx-s.x,s.tz-s.z);
   if(d<0.5){ s.graze=Math.max(0,s.graze-dt);
@@ -1386,7 +1392,8 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   else if(sud.mixer){ sud.mixer.update(dt); const want=d<0.5?'idle':'walk';
     if(want!==sud.mode&&sud.walkA&&sud.idleA){ const to=want==='walk'?sud.walkA:sud.idleA, from=want==='walk'?sud.idleA:sud.walkA;
       to.reset().fadeIn(0.2).play(); from.fadeOut(0.2); sud.mode=want; } }
-  s.mesh.position.set(s.x,heightAtWorld(s.x,s.z),s.z); } }
+  let hopY=0; if(s.kind==='rabbit'){ s.hopP=(s.hopP||0)+dt*9; const mvg2=Math.hypot(s.tx-s.x,s.tz-s.z)>=0.5; hopY=mvg2?Math.abs(Math.sin(s.hopP))*0.45:0; }
+  s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
 const UNIT_CHAR={hero:'GoldKnight',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
@@ -2069,7 +2076,8 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } }   // pin the tool to the swinging fist
   if(moving){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
-    if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;}}}
+    if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;
+      if((UNIT[e.type].cav||UNIT[e.type].siege)&&Math.random()<dt*1.8)spawnPart(e.x-Math.cos(e.dir)*0.8,heightAtWorld(e.x,e.z)+0.25,e.z-Math.sin(e.dir)*0.8,'chip');}}}   // hooves & wheels kick dust
   const arrived=!e.path||e.pi>=e.path.length;
   switch(e.cmd){
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
@@ -2099,7 +2107,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
             const meat=s.meat||90;
             const node={tx:txFromW(s.x),ty:tzFromW(s.z),amount:meat,type:'food',mesh:s.mesh};
             meatNodes.push(node); e.hunt=null;
-            if(e.owner==='player')flashMsg((s.kind==='boar'?'🐗 Boar down!':s.kind==='deer'?'🦌 Venison!':'🐑 Mutton!')+' '+meat+' food on the ground — workers butcher it');
+            if(e.owner==='player')flashMsg((s.kind==='boar'?'🐗 Boar down!':s.kind==='deer'?'🦌 Venison!':s.kind==='rabbit'?'🐇 Rabbit!':'🐑 Mutton!')+' '+meat+' food on the ground — workers butcher it');
             gatherOrder(e,node); }
           else { s.tx=clamp(s.x+(s.x-e.x)/Math.max(dh,.1)*12,-HALF_W,HALF_W); s.tz=clamp(s.z+(s.z-e.z)/Math.max(dh,.1)*12,-HALF_H,HALF_H); s.hx=s.tx; s.hz=s.tz; s.wait=3; } } }
       else if(arrived||Math.random()<dt*1.2)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
