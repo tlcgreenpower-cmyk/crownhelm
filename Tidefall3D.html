@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b138</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b139</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -319,6 +319,16 @@ function mergeSkinnedModel(root){ if(!BGU||!root)return root;
     for(const m of ms) m.parent.remove(m); }
   return root;
 }
+// b139: Box3.setFromObject asks a SkinnedMesh for its POSED box, and a freshly cloned skeleton
+// has stale bone matrices — the animal pack came back ~85x too big, so every horse got scaled
+// down to a speck and the cavalry rode thin air. Measure the bind-pose geometry instead.
+function modelBox(obj){ obj.updateMatrixWorld(true);
+  const box=new THREE.Box3(), b=new THREE.Box3();
+  obj.traverse(o=>{ if(!o.geometry||o.visible===false)return;
+    if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();
+    if(!o.geometry.boundingBox)return;
+    b.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(b); });
+  return box.isEmpty()?new THREE.Box3(new THREE.Vector3(-1,0,-1),new THREE.Vector3(1,2,1)):box; }
 let _mergeTally={charBefore:0,charAfter:0,bldBefore:0,bldAfter:0};
 const _countParts=(root,skinned)=>{let n=0;root.traverse(o=>{if(skinned?o.isSkinnedMesh:(o.isMesh&&!o.isSkinnedMesh))n++;});return n;};
 
@@ -1346,7 +1356,7 @@ function makeSheep(kind){
     return g; }
   if(CHAR_LIB&&CHAR_LIB.lib.SheepA){ const src=CHAR_LIB.lib.SheepA;
     const gg=new THREE.Group(); const ch=CHAR_LIB.clone(src.scene);
-    const box=new THREE.Box3().setFromObject(ch), hgt=box.max.y-box.min.y||1;
+    const box=modelBox(ch), hgt=box.max.y-box.min.y||1;
     ch.scale.setScalar(1.25/hgt); ch.position.y=-box.min.y*(1.25/hgt);
     ch.traverse(o=>{if(o.isMesh){o.castShadow=true;}}); gg.add(ch);
     const mixer=new THREE.AnimationMixer(ch);
@@ -1405,7 +1415,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(HORSE_OF[type]&&CHAR_LIB&&CHAR_LIB.lib[HORSE_OF[type]]&&CHAR_LIB.lib[RIDER_OF[type]]){
     const hsrc=CHAR_LIB.lib[HORSE_OF[type]];
     const horse=CHAR_LIB.clone(hsrc.scene);
-    const hbox=new THREE.Box3().setFromObject(horse), hlen=Math.max(hbox.max.z-hbox.min.z,hbox.max.x-hbox.min.x)||1;
+    const hbox=modelBox(horse), hlen=Math.max(hbox.max.z-hbox.min.z,hbox.max.x-hbox.min.x)||1;
     const hs=3.4/hlen; horse.scale.setScalar(hs); horse.position.y=-hbox.min.y*hs;
     horse.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';}); g.add(horse);
     const mixer=new THREE.AnimationMixer(horse);
@@ -1417,9 +1427,13 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     if(g.userData.idleA)g.userData.idleA.play();
     const rsrc=CHAR_LIB.lib[RIDER_OF[type]];
     const rider=CHAR_LIB.clone(rsrc.scene);
-    const rbox=new THREE.Box3().setFromObject(rider), rh=rbox.max.y-rbox.min.y||1;
+    const rbox=modelBox(rider), rh=rbox.max.y-rbox.min.y||1;
     rider.scale.setScalar(1.9/rh);
-    rider.position.set(0,(hbox.max.y*hs)*0.72,-0.1);
+    // seat him on the actual spine, not on a guess off the head-high bounding box
+    let saddleY=0; horse.updateMatrixWorld(true);
+    horse.traverse(o=>{ if(o.isBone&&/^(back|spine|torso)$/i.test(o.name)){ const bp=new THREE.Vector3(); o.getWorldPosition(bp); if(bp.y>saddleY)saddleY=bp.y; } });
+    if(saddleY<=0)saddleY=(hbox.max.y*hs)*0.62;
+    rider.position.set(0,saddleY+0.02,0.3);   // in the saddle, forward of the rump
     rider.traverse(o=>{if(o.isMesh)o.castShadow=false;});
     const rmix=new THREE.AnimationMixer(rider);
     const sit=rsrc.clips.find(c=>/sit/i.test(c.name))||rsrc.clips.find(c=>/idle/i.test(c.name));
@@ -1436,7 +1450,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     // the three holy orders share the Mage model — tint tells them apart (priest keeps the original look)
     const HOLY_TINT={monk:0xa8845c,cardinal:0xd95c4a};
     if(HOLY_TINT[type])ch.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(HOLY_TINT[type]);}});
-    const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
+    const box=modelBox(ch),hgt=box.max.y-box.min.y||2;
     ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
     if(type==='worker'){ let hand=null; ch.traverse(o=>{if(o.isBone&&o.name==='FistR')hand=o;}); g.userData.hand=hand;   // tools ride the real hand bone
@@ -1716,7 +1730,7 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     const railB=railA.clone();railB.position.z=hpx*.36;g.add(railB);
     const railC=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,hpx*.72),M.trunk);railC.position.set(wpx*.46,.85,0);g.add(railC);
     if(CHAR_LIB&&CHAR_LIB.lib.HorseA){ const h2=CHAR_LIB.clone(CHAR_LIB.lib.HorseA.scene);
-      const hb2=new THREE.Box3().setFromObject(h2),hl=Math.max(hb2.max.z-hb2.min.z,hb2.max.x-hb2.min.x)||1;
+      const hb2=modelBox(h2),hl=Math.max(hb2.max.z-hb2.min.z,hb2.max.x-hb2.min.x)||1;
       const hs2=3/hl; h2.scale.setScalar(hs2); h2.position.set(wpx*.26,-hb2.min.y*hs2,0); h2.rotation.y=1.2; g.add(h2); }
     return g;}
   if(type==='statue'){const ped=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.1,2.2),M.stone);ped.position.y=.55;ped.castShadow=true;g.add(ped);
@@ -1877,8 +1891,15 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
     if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
 function orderPath(e,gx,gy,goalId){if(e.pfCool&&elapsed<e.pfCool)return false;
   const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom,e.owner);
-  if(p){e.path=p;e.pi=0;e.pfCool=0;const n0=p[Math.min(1,p.length-1)];e.dir=Math.atan2(wz(n0[1])-e.z,wx(n0[0])-e.x);return true;}
+  if(p){e.path=p;e.pfCool=0;
+    // b139: don't send a man back to the middle of the tile he is already standing on — that is the on-the-spot shuffle
+    e.pi=(p.length>1&&Math.hypot(wx(p[0][0])-e.x,wz(p[0][1])-e.z)<1.2)?1:0;
+    const n0=p[Math.min(e.pi,p.length-1)];e.dir=Math.atan2(wz(n0[1])-e.z,wx(n0[0])-e.x);return true;}
   e.path=null;e.pfCool=elapsed+1.0+Math.random()*0.9;return false;}
+// b139: a man can "arrive" over and over and still be nowhere near his job (A* drops him at the nearest
+// reachable tile, which may be a long way off). Spot the ones treading water and re-task them.
+function stalled(e,d){ if(e._sd===undefined||d<e._sd-1.5){e._sd=d;e._sn=0;return false;} e._sn=(e._sn||0)+1; return e._sn>=5; }
+function clearStall(e){e._sd=undefined;e._sn=0;}
 
 // ==================================================== COMMANDS
 let formation='ranks',formSpread=1;   // 1 = shoulder-to-shoulder, 2 = open order
@@ -1968,7 +1989,7 @@ function pathToNode(e,n){ let bx=n.tx,by=n.ty,bd2=1e9;   // b124: walk to a SPEC
   for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy;
     if(inB(x,y)&&passable(x,y,0,'land')){ const ddx=wx(x)-e.x,ddz=wz(y)-e.z,d2=ddx*ddx+ddz*ddz; if(d2<bd2){bd2=d2;bx=x;by=y;} } }
   return orderPath(e,bx,by,0); }
-function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;
+function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;clearStall(e);
   e.gBoost=blds.some(b=>b.owner===e.owner&&b.type==='storehouse'&&b.done&&Math.hypot(b.cx-wx(node.tx),b.cz-wz(node.ty))<14)?1.15:1;
   pathToNode(e,node);}
 function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my&&!e.inGar){const d=Math.hypot(x-e.x,z-e.z);if(d<bd+UNIT[e.type].r){bd=d;best=e;}}return best;}
@@ -1976,7 +1997,7 @@ function bldAt(x,z,my){const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid
 function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes,meatNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
 function nearestDrop(e){let best=null,bd=1e9;for(const b of blds)if(b.owner===e.owner&&b.done&&BLD[b.type].drop){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}return best;}
 function chopReachable(n){ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy; if(inB(x,y)&&passable(x,y,0,'land'))return true; } return false; }   // only forest-EDGE trees can be worked
-function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
+function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
 
 // ==================================================== UPDATE
 function update(dt){elapsed+=dt;   // sea is static now — water is scenery and shipping lanes, not a threat
@@ -2108,6 +2129,7 @@ function separateUnits(){ const cell=3, grid=new Map();
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 const _toolV=new THREE.Vector3();
 function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.pi<e.path.length;
+  if(e._sc!==e.cmd){e._sc=e.cmd;clearStall(e);}   // fresh orders, fresh patience
   if(e.flinch>0){ e.flinch-=dt; const kf=Math.max(0,e.flinch)/0.15;   // struck men visibly flinch
     e.mesh.scale.y=1-Math.sin(kf*Math.PI)*0.14; if(e.flinch<=0)e.mesh.scale.y=1; }
   { const ud=e.mesh.userData;
@@ -2145,7 +2167,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
         else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
           else{ let best=null,bd=48;   // b93: idle peasants find their own work — nearest resource within ~12 tiles
-            for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n.type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}
+            for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(n.type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}
             if(best)gatherOrder(e,best); } } }
       break;
     case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
@@ -2178,15 +2200,25 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(n.type==='wood'&&!n._felled&&n.tim){ n._felled=true; fellTree(n); if(treeGrid)treeGrid[ti(n.tx,n.ty)]=0; }   // first strike fells it — then they work the fallen trunk
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.15+0.85*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
       else if(n.tim&&!n._felled){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)fellTree(n);if(n.type==='wood'&&treeGrid)treeGrid[ti(n.tx,n.ty)]=0;}if(n.amount<=0){const n2=nearestNode(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived){
+      if(stalled(e,Math.hypot(e.x-nx,e.z-nz))){ n._skip=elapsed+30; clearStall(e);   // he keeps arriving and he is still not at the tree
+        const n2=nearestNode(e,n.type);
+        if(n2&&n2!==n)gatherOrder(e,n2);
+        else{ e.gather=null;e.cmd='idle';e.noWork=elapsed+9;
+          if(e.owner==='player')flashMsg('\u{1F4A4} A worker can\'t get to that — he stands ready for new orders'); }
+        break; }
       const attempted=!e.pfCool||elapsed>=e.pfCool;   // only count REAL pathfind attempts, not cooldown skips
       if(!pathToNode(e,n)&&attempted){ e.pfFail=(e.pfFail||0)+1;
         if(e.pfFail>=3){ e.pfFail=0; e.gather=null; e.cmd='idle'; e.noWork=elapsed+9;   // can't get there — stand down so the 💤 button finds him
           if(e.owner==='player')flashMsg('💤 A worker can\'t reach his target through the forest — he stands ready for new orders'); } }
       else if(e.path)e.pfFail=0; }break;}
-    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
+    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
+      else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}   // can't get the load home — stand down rather than shuffle
+        else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
     case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();stampTownPath(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();stampTownPath(b);}}
+      else if(arrived){ if(stalled(e,Math.hypot(e.x-b.cx,e.z-b.cz))){clearStall(e);e.cmd='idle';e.build=null;e.noWork=elapsed+8;}   // can't reach the site — stop treading water
+        else orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id); } break;}
     case 'gar':{const b=e.garB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.garB=null;break;}
       const dg=Math.hypot(e.x-b.cx,e.z-b.cz);
       if(dg<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){ b.gar=b.gar||[];
@@ -2312,7 +2344,7 @@ function spawnCitizen(b){ if(citizens.length>=22)return;
   const sx1=b.cx+(Math.random()-.5)*10,sz1=b.cz+7+Math.random()*4;
   if(CHAR_LIB){ const src=CHAR_LIB.lib[CIT_CHARS[citizens.length%CIT_CHARS.length]];
     if(src){ const g=CHAR_LIB.clone(src.scene);
-      const box=new THREE.Box3().setFromObject(g),hgt=box.max.y-box.min.y||1.9;
+      const box=modelBox(g),hgt=box.max.y-box.min.y||1.9;
       g.scale.setScalar(1.9/hgt); g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
       const mixer=new THREE.AnimationMixer(g);
       const find=re=>src.clips.find(c=>re.test(c.name));
@@ -3153,7 +3185,7 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={addBuilding,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;}};return 'ok';},
+  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;}};return 'ok';},
   get farms(){return blds.filter(b=>b.type==='farm').map(b=>{let n=0;b.mesh.traverse(o=>{if(o.isMesh)n++;});return {owner:b.owner,crop:b.mesh.userData.crop,parts:n};});}};
 (()=>{ // b93 Map Builder — sizes, terrain painting, mirror symmetry, random scatter (AoE2-style)
   const SIZES=[['Small',96,64],['Medium',168,112],['Large',224,144],['Epic',256,176]];
