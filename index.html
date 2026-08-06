@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b156</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b157</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2162,8 +2162,29 @@ function findPath(sx,sy,gx,gy,goalId,dom,own){if(!inB(gx,gy))return null;
   while(open.length&&it++<ITMAX){let bi=0;for(let i=1;i<open.length;i++)if(open[i].f<open[bi].f)bi=i;const cur=open.splice(bi,1)[0],ck=key(cur.x,cur.y);
     if(cur.x===gx&&cur.y===gy){const p=[];let k=ck;while(k!==undefined){const cx=k%MAP_W;p.push([cx,(k-cx)/MAP_W]);k=came[k];}return p.reverse();}
     if(closed.has(ck))continue;closed.add(ck);for(const[dx,dy]of dirs){const nx=cur.x+dx,ny=cur.y+dy;if(!passable(nx,ny,goalId,dom,own))continue;if(dx&&dy){if(!passable(cur.x+dx,cur.y,goalId,dom,own)||!passable(cur.x,cur.y+dy,goalId,dom,own))continue;}const nk=key(nx,ny);if(closed.has(nk))continue;const ng=g[ck]+(dx&&dy?1.414:1);if(g[nk]===undefined||ng<g[nk]){came[nk]=ck;g[nk]=ng;open.push({x:nx,y:ny,f:ng+Math.hypot(gx-nx,gy-ny)});}}}return null;}
+// b157: THE LONG MARCH. A* is capped at a few thousand expansions, which is plenty across a town
+// but nowhere near enough to cross one of the big maps — so an army ordered onto a keep 160 tiles
+// away simply got null back, stood still, waited out its cooldown and tried again forever. Any
+// order beyond about 34 tiles is now walked in stages: aim at a waypoint along the line, and take
+// the next stage on arrival. Each hop is a cheap search that reliably succeeds.
+const MARCH_HOP=34;
 function orderPath(e,gx,gy,goalId){if(e.pfCool&&elapsed<e.pfCool)return false;
-  const p=findPath(txFromW(e.x),tzFromW(e.z),gx,gy,goalId||0,UNIT[e.type].dom,e.owner);
+  const stx=txFromW(e.x),stz=tzFromW(e.z);
+  const far=Math.hypot(gx-stx,gy-stz);
+  if(far>MARCH_HOP){
+    const t=MARCH_HOP/far; let wx2=Math.round(stx+(gx-stx)*t), wy2=Math.round(stz+(gy-stz)*t);
+    if(!passable(wx2,wy2,0,UNIT[e.type].dom,e.owner)){   // nudge the waypoint onto ground he can stand on
+      let best=null,bd=1e9;
+      for(let r=1;r<=6&&!best;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+        if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue; const nx2=wx2+dx,ny2=wy2+dy;
+        if(inB(nx2,ny2)&&passable(nx2,ny2,0,UNIT[e.type].dom,e.owner)){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[nx2,ny2];}} }
+      if(best){wx2=best[0];wy2=best[1];} }
+    const ph=findPath(stx,stz,wx2,wy2,0,UNIT[e.type].dom,e.owner);
+    if(ph){e.path=ph;e.pfCool=0;e.pi=(ph.length>1&&Math.hypot(wx(ph[0][0])-e.x,wz(ph[0][1])-e.z)<1.2)?1:0;
+      const n1=ph[Math.min(e.pi,ph.length-1)];e.dir=Math.atan2(wz(n1[1])-e.z,wx(n1[0])-e.x);
+      e.march={gx,gy,id:goalId||0}; return true;} }
+  e.march=null;
+  const p=findPath(stx,stz,gx,gy,goalId||0,UNIT[e.type].dom,e.owner);
   if(p){e.path=p;e.pfCool=0;
     // b139: don't send a man back to the middle of the tile he is already standing on — that is the on-the-spot shuffle
     e.pi=(p.length>1&&Math.hypot(wx(p[0][0])-e.x,wz(p[0][1])-e.z)<1.2)?1:0;
@@ -2584,7 +2605,12 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;
       if((UNIT[e.type].cav||UNIT[e.type].siege)&&Math.random()<dt*1.8)spawnPart(e.x-Math.cos(e.dir)*0.8,heightAtWorld(e.x,e.z)+0.25,e.z-Math.sin(e.dir)*0.8,'chip');}}}   // hooves & wheels kick dust
-  const arrived=!e.path||e.pi>=e.path.length;
+  let arrived=!e.path||e.pi>=e.path.length;
+  // b157: a man on a long march has only reached this stage's waypoint — send him on to the real
+  // destination before anything decides he has arrived and stands him down.
+  if(arrived&&e.march&&!e.inGar){ const m=e.march;
+    if(Math.hypot(m.gx-txFromW(e.x),m.gy-tzFromW(e.z))>2){ if(orderPath(e,m.gx,m.gy,m.id))arrived=false; }
+    else e.march=null; }
   // b143: DRESS THE RANKS. A* only ever gets a man to the right tile; the last stride onto his
   // exact place in the line is walked straight, and then he faces the way the line faces.
   if(e.slot&&arrived&&(e.cmd==='move'||e.cmd==='amove'||e.cmd==='idle')){
@@ -3008,6 +3034,21 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
   const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o)+popQueued(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);   // b143: count the men already ordered
   if(workers<8&&used+1<=cap&&r.f>=50&&hall.queue.length===0){r.f-=50;hall.queue.push({type:'worker',t:6});return;}
+  // b157: A REALM AT WAR RAISES SOLDIERS FIRST. The brain does one thing a second and works down a
+  // list with the barracks at the BOTTOM, so a realm with masons to spare never reached it — a war
+  // could be declared and answered by two men. At war, and short of the strength it needs for a
+  // wave, it musters before it builds, and its barracks may hold two in the queue rather than one.
+  const atWar=REALMS.some(t=>t!==o&&isHostile(o,t));
+  if(atWar&&barr.length){
+    const host=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk).length;
+    const wanted=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave));
+    if(host<wanted+4){
+      if(used+2>cap){ if(r.w>=40&&pendingBld(o,'house')<3&&placeAI(o,'house'))return; }   // no room? raise the roof first
+      else { const c=COST;
+        for(const b0 of barr){ if(b0.queue.length>=2)continue;
+          if(T.age>=2&&r.f>=c.knight.f&&r.m>=c.knight.m&&Math.random()<.35){r.f-=c.knight.f;r.m-=c.knight.m;b0.queue.push({type:'knight',t:c.knight.time});return;}
+          if(r.f>=c.spear.f&&r.w>=c.spear.w){r.f-=c.spear.f;r.w-=c.spear.w;b0.queue.push({type:'spear',t:c.spear.time});return;}
+          if(r.f>=c.archer.f&&r.w>=c.archer.w){r.f-=c.archer.f;r.w-=c.archer.w;b0.queue.push({type:'archer',t:c.archer.time});return;} } } } }
   // b155: a realm no longer starts another of a kind while one of that kind is still a hole in
   // the ground. Houses may have two on the go at once, being the engine of the town; everything
   // else waits. Without this a rich realm laid foundations forever, because a decision that reads
@@ -3082,6 +3123,13 @@ function aiDiplomacy(o,ai){
     if(realmKnown(o)||realmKnown(near))flashMsg('⚔ '+realmName(o)+' declare war on '+realmName(near)+'!'); } }
 function pickTargetFor(victim){const pb=blds.filter(b=>b.owner===victim),front=pb.filter(b=>b.type!=='hall');return front.length?front[Math.floor(Math.random()*front.length)]:pb.find(b=>b.type==='hall');}
 function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b=BLD[type];
+  // b157: FINISH WHAT YOU START. Per-kind limits stopped the foundation spam of b155, but a realm
+  // could still have thirteen different kinds on the go at once with eight masons to build them —
+  // every site crawling, no house ever finishing, the population cap frozen and therefore not one
+  // soldier raised. A realm now runs about one site per two workers, and refusing here lets the
+  // brain fall through to mustering instead of returning.
+  { let sites=0; for(const q of blds)if(q.owner===o&&!q.done)sites++;
+    if(sites>=Math.max(2,Math.min(5,Math.floor(countType(o,'worker')/2))))return false; }
   const BAND={market:[4,8],church:[4,8],storehouse:[4,9],house:[5,10],mill:[6,11],bakery:[5,10],armourer:[6,11],barracks:[6,11],gunshop:[6,11],siege:[7,12],farm:[8,15],castle:[8,13],watch:[11,16],tower:[11,16]};
   const band=BAND[type]||[5,12], margin=(type==='tower'||type==='watch')?0:1;
   for(let att=0;att<90;att++){ const rr=band[0]+Math.random()*(band[1]-band[0]), ang=Math.random()*Math.PI*2;
@@ -3902,7 +3950,8 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
-      get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+      get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
+      popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
