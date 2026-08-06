@@ -57,12 +57,13 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
+    <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b92</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b93</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
-    <div style="color:#9fc0d2;font-size:13px;">Pick a brush, then click & drag on the map. Land shape stays as the Heartlands isle — you paint what grows on it.</div>
+    <div style="color:#9fc0d2;font-size:13px;">Pick a brush, then click &amp; drag. Paint resources AND terrain — water, hills, plains. Mirror modes keep it fair; pick a size (Epic fits 8 realms); 🎲 Scatter seeds a wild land to edit.</div>
     <div id="bTools" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;"></div>
     <canvas id="bCanvas" width="768" height="512" style="border:2px solid #2c5164;border-radius:8px;cursor:crosshair;background:#3f7a35;max-width:92vw;"></canvas>
     <div style="display:flex;gap:10px;">
@@ -116,7 +117,7 @@
           <img src="assets/council.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
           <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(12,9,6,.05) 0%,rgba(12,9,6,.55) 100%);"></div>
         </div>
-        <p style="font-size:17px;line-height:1.55;color:#d9cba9;max-width:66ch;margin:0;">Roam a wide open country of hills, rivers, forests and coasts. Build your realm into a beautiful city — then deal with your three neighbouring kingdoms however you choose: trade gifts and keep the peace, or march your regiments to war and take their lands. Befriend them, or conquer every keep and rule the realm.</p>
+        <p style="font-size:17px;line-height:1.55;color:#d9cba9;max-width:66ch;margin:0;">Roam a wide open country of hills, rivers, forests and coasts. Build your realm into a beautiful city — then deal with your neighbouring kingdoms — up to seven of them — however you choose: trade gifts and keep the peace, or march your regiments to war and take their lands. Befriend them, or conquer every keep and rule the realm.</p>
         <div style="display:flex;flex-direction:column;gap:12px;">
           <button id="contBtn" style="display:none;text-align:left;cursor:pointer;font-family:'Cinzel',serif;font-weight:800;font-size:24px;letter-spacing:.06em;color:#1a1208;background:linear-gradient(180deg,#e6c780 0%,#c9a24a 60%,#a8813a 100%);border:1px solid #f0dca8;padding:18px 24px;box-shadow:0 10px 26px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45);transition:transform .12s,filter .12s;">Continue Your Kingdom</button>
           <button id="loadMenuBtn" class="aorSec" style="display:none;font-size:18px;letter-spacing:.05em;padding:14px 20px;"><span style="color:#c9a24a;">❖</span> Load a Saved Kingdom</button>
@@ -150,6 +151,15 @@
             <button class="dif" data-dif="normal" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Normal</button>
             <button class="dif" data-dif="hard" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Hard</button>
           </div>
+        </div>
+        <div style="padding-top:26px;"><div class="aorKick">Realms at war</div>
+          <div id="plpick" style="display:flex;gap:10px;">
+            <button class="plc" data-n="2" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">2<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">1 rival</span></button>
+            <button class="plc" data-n="4" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">4<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">3 rivals</span></button>
+            <button class="plc" data-n="6" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">6<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">5 rivals</span></button>
+            <button class="plc" data-n="8" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">8<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">7 rivals</span></button>
+          </div>
+          <div style="font-size:13px;color:#9d8a67;margin-top:8px;font-family:'EB Garamond',serif;">Big maps fit 8 realms best — corners fill first, then the coasts.</div>
         </div>
         <div style="padding-top:26px;"><div class="aorKick">Choose your regiment</div>
           <div id="facpick" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -299,11 +309,16 @@ const MAPS={
   custom:    {name:'My Map',w:96,h:64,forest:1,clump:1,dep:1,depAmt:1,rivers:1,lakes:0.16,custom:true,desc:'Your own design from the Map Builder'},
 };
 let curMapId=localStorage.getItem('tidefall_map')||'heartlands'; if(!MAPS[curMapId])curMapId='heartlands';
+// custom map remembers its chosen size (b93)
+try{const _cm=JSON.parse(localStorage.getItem('tidefall_custom_map'));if(_cm&&_cm.w>=64){MAPS.custom.w=_cm.w;MAPS.custom.h=_cm.h||Math.round(_cm.w*2/3);}}catch(e){}
 let MAP_W,MAP_H,WORLD_W,WORLD_H,HALF_W,HALF_H,REALM_SITES;
 function areaScale(){return (MAP_W*MAP_H)/(96*64);}
+// up to 8 realms: 4 corners then 4 edge midpoints (b93)
+function realmSitesFor(w,h){ return {player:[15,h-15],r1:[w-17,12],r2:[15,12],r3:[w-17,h-15],
+  r4:[w>>1,12],r5:[w>>1,h-15],r6:[15,h>>1],r7:[w-17,h>>1]}; }
 function setMap(id){ if(!MAPS[id])id='heartlands'; curMapId=id; const m=MAPS[id];
   MAP_W=m.w;MAP_H=m.h;WORLD_W=MAP_W*TILE;WORLD_H=MAP_H*TILE;HALF_W=WORLD_W/2;HALF_H=WORLD_H/2;
-  REALM_SITES={player:[15,MAP_H-15],r1:[MAP_W-17,12],r2:[15,12],r3:[MAP_W-17,MAP_H-15]}; }
+  REALM_SITES=realmSitesFor(MAP_W,MAP_H); }
 setMap(curMapId);
 const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:2,time:8,age:1}, archer:{f:35,w:45,pop:2,time:9,age:1},
@@ -327,9 +342,17 @@ const FACTIONS={
   chinese:{name:'Chinese Imperial Army',coat:0x1d9e63,trim:0xf2c14e,accent:0xf7e7c4,emo:'🐉',bonus:'Silk wealth (+25% gold income)'},
   sacred:{name:'Sacred Band of Thebes',coat:0xe86ab8,trim:0xf2c14e,accent:0xfff0f8,emo:'🏳️‍🌈',bonus:'Undefeated devotion (veterancy 50% faster)'},
 };
-const AI_REALMS=['r1','r2','r3'];
-const REALMS=['player',...AI_REALMS];
 let faction={player:'english',r1:'french',r2:'scottish',r3:'irish'};
+const DEFAULT_AI_FACS=['french','scottish','irish','chinese','sacred','english','french'];
+let AI_REALMS=['r1','r2','r3'];
+let REALMS=['player',...AI_REALMS];
+let playerCount=parseInt(localStorage.getItem('tidefall_players'))||4;
+if(!(playerCount>=2&&playerCount<=8))playerCount=4;
+function setRealmCount(n){ playerCount=Math.max(2,Math.min(8,n));
+  AI_REALMS=[]; for(let i=1;i<playerCount;i++)AI_REALMS.push('r'+i);
+  REALMS=['player',...AI_REALMS];
+  AI_REALMS.forEach((o,i)=>{ if(!faction[o])faction[o]=DEFAULT_AI_FACS[i]; }); }
+setRealmCount(playerCount);
 let diplo={};        // per AI realm: {score, stance:'neutral'|'ally'|'war'}
 let aiWars={};       // wars between AI realms (allies joining your fights): key "r1|r2" -> true
 const warKey=(a,b)=>[a,b].sort().join('|');
@@ -653,7 +676,13 @@ function genMap(){
     for(let x=0;x<MAP_W;x++)if(Math.abs(x-cx)<2.0)elev[ti(x,y)]=Math.min(elev[ti(x,y)],0.32+Math.abs(x-cx)*0.15);}
   if(MM.rivers>=2)for(let x=0;x<MAP_W;x++){const cy=MAP_H/2+Math.sin(x*0.15/wS)*8*hS+Math.sin(x*0.04/wS)*5*hS;   // second river, east-west
     for(let y=0;y<MAP_H;y++)if(Math.abs(y-cy)<2.0)elev[ti(x,y)]=Math.min(elev[ti(x,y)],0.32+Math.abs(y-cy)*0.15);}
-  // four realm homelands + neutral highlands
+  // b93: painted terrain from the Map Builder — plains flatten, hills rise, water drowns
+  const CUST=MM.custom?(()=>{try{return JSON.parse(localStorage.getItem('tidefall_custom_map'))}catch(e){return null}})():null;
+  if(CUST){ const app=(arr,fn)=>{for(const i of arr||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y))fn(x,y);}};
+    app(CUST.lo,(x,y)=>{elev[ti(x,y)]=2.0;});
+    app(CUST.hi,(x,y)=>{elev[ti(x,y)]=Math.max(elev[ti(x,y)],3.3);});
+    app(CUST.w2,(x,y)=>{elev[ti(x,y)]=0.3;}); }
+  // realm homelands + neutral highlands
   for(const o of REALMS){const st=REALM_SITES[o];plateau(st[0]+1,st[1]+1,3.4,4);}
   plateau(MAP_W>>1,MAP_H>>1,3.0,3);plateau(Math.round(MAP_W*0.35),Math.round(MAP_H*0.66),2.9,2);plateau(Math.round(MAP_W*0.65),Math.round(MAP_H*0.34),2.9,2);
   if(MM.hills)for(let i=0;i<12;i++)plateau(Math.round(8+hashN(i,61)*(MAP_W-16)),Math.round(8+hashN(67,i)*(MAP_H-16)),2.9+hashN(i,71)*0.6,2+Math.floor(hashN(73,i)*3));
@@ -661,7 +690,7 @@ function genMap(){
   for(let y=0;y<=MAP_H;y++)for(let x=0;x<=MAP_W;x++){let s=0,n=0;for(const[dx,dy]of[[-1,-1],[0,-1],[-1,0],[0,0]]){const cx=x+dx,cyy=y+dy;if(inB(cx,cyy)){s+=elev[ti(cx,cyy)];n++;}}hc[y*(MAP_W+1)+x]=(n?s/n:0)*HSCALE;}
   // procedural resources across the whole land
   woodNodes=[];metalNodes=[];goldNodes=[];
-  const CUSTOM=MM.custom?(()=>{try{return JSON.parse(localStorage.getItem('tidefall_custom_map'))}catch(e){return null}})():null;
+  const CUSTOM=CUST;
   if(CUSTOM){
     for(const i of CUSTOM.f||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)woodNodes.push({tx:x,ty:y,amount:650,type:'wood'});}
     for(const i of CUSTOM.m||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y)&&elev[ti(x,y)]>=1.6)metalNodes.push({tx:x,ty:y,amount:1200,type:'metal'});}
@@ -1546,8 +1575,11 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
     case 'amove':if(arrived)e.cmd='idle';autoAcq(e,false);break;
     case 'idle':autoAcq(e,true);
       if(e.type==='worker'&&Math.random()<dt*2){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
-        else if(Math.random()<0.5){const f=blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&ents.filter(u=>u.cmd==='tend'&&u.tendB===q).length<2);
-          if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}}
+        else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&ents.filter(u=>u.cmd==='tend'&&u.tendB===q).length<2):null;
+          if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
+          else{ let best=null,bd=48;   // b93: idle peasants find their own work — nearest resource within ~12 tiles
+            for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}
+            if(best)gatherOrder(e,best); } } }
       break;
     case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
@@ -1565,16 +1597,19 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       else if(arrived||Math.random()<dt*1.2)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
       break;}
     case 'gather':{const n=e.gather;if(!n||n.amount<=0){const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<3.4){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);e.carryType=n.type;
+      e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.4+(e.id%5)*0.12;playOnce(e,'attackA');}   // b93: visible chopping/mining swings
       const rate=(n.type==='wood'?2.0:n.type==='metal'?1.7:n.type==='gold'?1.4*(faction[e.owner]==='chinese'?1.25:1):2.6);
       const take=Math.min(rate*(e.gBoost||1)*dt,n.amount);n.amount-=take;
       if(n.type==='wood')res[e.owner].w+=take;else if(n.type==='gold')res[e.owner].g+=take;else if(n.type==='food')res[e.owner].f+=take;else res[e.owner].m+=take;
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.15+0.85*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
       else if(n.tim){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)setTreeK(n,0);}if(n.amount<=0){const n2=nearestNode(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,n.tx,n.ty,0);break;}
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<TILE*1.9){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nearestNode(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived)orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id);break;}
-    case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b.progress+=dt/16;b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
+    case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b.progress+=dt/16;
+      e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player')SFX.build();if(b.type==='house'||b.type==='garden')spawnCitizen(b);}}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id);break;}
     case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
       e.tendT=(e.tendT||0)-dt;
-      if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4;
+      if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
         const tx2=b.tx+Math.floor(Math.random()*b.w),ty2=b.ty+Math.floor(Math.random()*b.h);
         orderPath(e,tx2,ty2,b.id);
         if(Math.random()<0.8)spawnPart(e.x,heightAtWorld(e.x,e.z)+0.7,e.z,'chip'); }
@@ -2247,7 +2282,7 @@ function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom
     </div>
     <div style="display:flex;gap:12px;justify-content:center">
       ${win?'<button class="big" id="ruleBtn" style="background:#1c4d6d;border-color:#3a86b0">👑 Continue Ruling</button>':''}
-      <button class="big" id="againBtn">⚔ Play Again</button>
+      <button class="big" id="againBtn">🏰 Main Menu — new game</button>
     </div>`;
   $('againBtn').onclick=()=>location.reload();
   const rb=document.getElementById('ruleBtn');
@@ -2270,7 +2305,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
 function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key=key||'tidefall_save';
-  const s={v:1,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),name:name||undefined,fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
+  const s={v:1,players:REALMS.length,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),name:name||undefined,fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
@@ -2283,7 +2318,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   document.getElementById('slots').classList.add('hidden');
   let s; try{s=JSON.parse(raw);}catch(e){flashMsg('Save file corrupted');return;}
   $('overlay').classList.add('hidden'); initAudio(); resize();
-  faction={...s.faction}; difficulty=s.dif||difficulty; setMap(s.map||'heartlands'); paintMaps();
+  faction={...s.faction}; setRealmCount(s.players||4); difficulty=s.dif||difficulty; setMap(s.map||'heartlands'); paintMaps();
   newGame();   // rebuilds the identical deterministic world, then we restore the saved state over it
   for(const e of ents)scene.remove(e.mesh); ents=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
@@ -2336,53 +2371,96 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};}};
-(()=>{ const BW=96,BH=64,cell=8; let layout={f:[],m:[],g:[]}; let brush='f',bsize=2,painting=false;
-  try{const s=JSON.parse(localStorage.getItem('tidefall_custom_map'));if(s)layout={f:s.f||[],m:s.m||[],g:s.g||[]};}catch(e){}
-  const sets={f:new Set(layout.f),m:new Set(layout.m),g:new Set(layout.g)};
+(()=>{ // b93 Map Builder — sizes, terrain painting, mirror symmetry, random scatter (AoE2-style)
+  const SIZES=[['Small',96,64],['Medium',168,112],['Large',224,144],['Epic',256,176]];
+  const KEYS=['f','m','g','w2','hi','lo'];
+  let BW=96,BH=64,cell=8,szi=0,brush='f',bsize=2,mirror=0,painting=false;
+  let sets={}; for(const k of KEYS)sets[k]=new Set();
+  try{const s=JSON.parse(localStorage.getItem('tidefall_custom_map'));
+    if(s){ if(s.w>=64){BW=s.w;BH=s.h||Math.round(s.w*2/3);} for(const k of KEYS)sets[k]=new Set(s[k]||[]); } }catch(e){}
+  szi=SIZES.findIndex(z=>z[1]===BW); if(szi<0)szi=0;
   const bc=document.getElementById('bCanvas'),bx=bc.getContext('2d');
-  const BRUSHES=[['f','🌲 Forest','#2f8a3a'],['m','⛏ Iron','#8b9096'],['g','🪙 Gold','#d8b02a'],['e','🧽 Erase','#333']];
+  function fitCanvas(){ cell=Math.max(3,Math.floor(768/BW)); bc.width=BW*cell; bc.height=BH*cell; }
+  fitCanvas();
+  const BRUSHES=[['f','🌲 Forest'],['m','⛏ Iron'],['g','🪙 Gold'],['w2','🌊 Water'],['hi','⛰ Hills'],['lo','🌾 Plains'],['e','🧽 Erase']];
+  const MIRRORS=[[0,'Mirror off'],[1,'↔ Mirror'],[2,'↕ Mirror'],[3,'✚ 4-way']];
   const tools=document.getElementById('bTools');
-  const sizes=[1,2,3];
+  const sizes=[1,2,3,5];
+  const btn=(label,on,fn)=>{ const b=document.createElement('button'); b.className='big';
+    b.style.cssText='padding:6px 12px;font-size:14px;background:'+(on?'#1c4d6d':'#17303f')+';border:2px solid '+(on?'#7fc4e8':'#2c5164');
+    b.textContent=label; b.onclick=fn; tools.appendChild(b); };
   function toolbar(){ tools.innerHTML='';
-    for(const[k,label,col]of BRUSHES){ const b=document.createElement('button'); b.className='big';
-      b.style.cssText='padding:6px 14px;font-size:14px;background:'+(brush===k?'#1c4d6d':'#17303f')+';border:2px solid '+(brush===k?'#7fc4e8':'#2c5164');
-      b.textContent=label; b.onclick=()=>{brush=k;toolbar();}; tools.appendChild(b); }
-    for(const s of sizes){ const b=document.createElement('button'); b.className='big';
-      b.style.cssText='padding:6px 12px;font-size:14px;background:'+(bsize===s?'#1c4d6d':'#17303f')+';border:2px solid '+(bsize===s?'#7fc4e8':'#2c5164');
-      b.textContent='●'.repeat(s); b.onclick=()=>{bsize=s;toolbar();}; tools.appendChild(b); } }
+    for(const[k,label]of BRUSHES)btn(label,brush===k,()=>{brush=k;toolbar();});
+    for(const s of sizes)btn('●'.repeat(Math.min(s,4)),bsize===s,()=>{bsize=s;toolbar();});
+    for(const[mv,label]of MIRRORS)btn(label,mirror===mv,()=>{mirror=mv;toolbar();});
+    for(let i=0;i<SIZES.length;i++)btn(SIZES[i][0]+' '+SIZES[i][1]+'×'+SIZES[i][2],szi===i,()=>{resizeMap(i);});
+    btn('🎲 Scatter',false,()=>{scatterFill();draw();}); }
+  function resizeMap(i){ if(i===szi)return; const nw=SIZES[i][1],nh=SIZES[i][2];
+    for(const k of KEYS){ const ns=new Set();
+      for(const idx of sets[k]){ const x=idx%BW,y=(idx-x)/BW;
+        ns.add(Math.round(x*(nw-1)/(BW-1))+Math.round(y*(nh-1)/(BH-1))*nw); }
+      sets[k]=ns; }
+    szi=i;BW=nw;BH=nh;fitCanvas();toolbar();draw(); }
+  function sitesNow(){ const rs=realmSitesFor(BW,BH);
+    return ['player',...Array.from({length:playerCount-1},(_,i)=>'r'+(i+1))].map(o=>rs[o]); }
   function draw(){ bx.fillStyle='#3f7a35'; bx.fillRect(0,0,bc.width,bc.height);
     bx.fillStyle='rgba(90,140,200,.55)'; bx.fillRect(0,0,bc.width,10); bx.fillRect(0,bc.height-10,bc.width,10);
     bx.fillRect(0,0,10,bc.height); bx.fillRect(bc.width-10,0,10,bc.height);   // coast hint
     const dot=(set,col)=>{ bx.fillStyle=col; for(const i of set){ const x=i%BW,y=(i-x)/BW; bx.fillRect(x*cell,y*cell,cell,cell); } };
+    dot(sets.lo,'#7fa848'); dot(sets.hi,'#8a7a52'); dot(sets.w2,'#3a6a9a');
     dot(sets.f,'#2f8a3a'); dot(sets.m,'#8b9096'); dot(sets.g,'#d8b02a');
-    bx.fillStyle='rgba(255,255,255,.65)'; bx.font='10px sans-serif';
-    bx.fillText('YOU',15*cell-8,(BH-15)*cell); bx.fillText('AI',(BW-17)*cell,12*cell); bx.fillText('AI',15*cell-4,12*cell); bx.fillText('AI',(BW-17)*cell,(BH-15)*cell); }
+    const ss=sitesNow(); bx.font='bold 11px sans-serif';
+    ss.forEach((s,i)=>{ bx.fillStyle=i===0?'#ffe37f':'rgba(255,255,255,.85)';
+      bx.beginPath();bx.arc(s[0]*cell,s[1]*cell,5,0,7);bx.fill();
+      bx.fillText(i===0?'YOU':'AI',s[0]*cell-8,s[1]*cell-9); }); }
+  function stamp(tx,ty){ for(let dy=-bsize+1;dy<bsize;dy++)for(let dx=-bsize+1;dx<bsize;dx++){ const x=tx+dx,y=ty+dy;
+      if(x<2||y<2||x>=BW-2||y>=BH-2)continue; const i=x+y*BW;
+      for(const k of KEYS)sets[k].delete(i);
+      if(brush!=='e')sets[brush].add(i); } }
   function paint(ev){ const r=bc.getBoundingClientRect(); const px=(ev.clientX-r.left)*(bc.width/r.width),py=(ev.clientY-r.top)*(bc.height/r.height);
     const tx=Math.floor(px/cell),ty=Math.floor(py/cell);
-    for(let dy=-bsize+1;dy<bsize;dy++)for(let dx=-bsize+1;dx<bsize;dx++){ const x=tx+dx,y=ty+dy;
-      if(x<2||y<2||x>=BW-2||y>=BH-2)continue; const i=x+y*BW;
-      if(brush==='e'){sets.f.delete(i);sets.m.delete(i);sets.g.delete(i);}
-      else{sets.f.delete(i);sets.m.delete(i);sets.g.delete(i);sets[brush].add(i);} }
+    stamp(tx,ty);
+    if(mirror===1||mirror===3)stamp(BW-1-tx,ty);
+    if(mirror===2||mirror===3)stamp(tx,BH-1-ty);
+    if(mirror===3)stamp(BW-1-tx,BH-1-ty);
     draw(); }
+  function scatterFill(){ for(const k of KEYS)sets[k].clear();
+    for(let y=4;y<BH-4;y+=3)for(let x=4;x<BW-4;x+=3){ const h=hashN(x*3.1,y*7.3);
+      const cornX=Math.min(x,BW-x)/BW, cornY=Math.min(y,BH-y)/BH;
+      const corner=Math.max(0,1-(cornX+cornY)*3.0);
+      const grove=Math.max(0,Math.sin(x*0.11+7)*Math.sin(y*0.13+3)-0.55)*2.2;
+      const plain=Math.max(0,Math.sin(x*0.07+1.7)*Math.sin(y*0.09+5.2)-0.5);
+      let fmul=0.3+2.8*corner+1.9*grove; if(plain>0)fmul*=0.12;
+      if(h<0.09*fmul){ for(let i=0;i<9;i++){ const rx=x+Math.round((hashN(x+i,y)-.5)*7),ry=y+Math.round((hashN(x,y+i)-.5)*7);
+          if(rx>=2&&ry>=2&&rx<BW-2&&ry<BH-2)sets.f.add(rx+ry*BW); } }
+      else if(h>0.982)sets.m.add(x+y*BW);
+      else if(h>0.9715)sets.g.add(x+y*BW); }
+    const rs=realmSitesFor(BW,BH);   // keep every start site clear
+    for(const o in rs){ const sx=rs[o][0],sy=rs[o][1];
+      for(const k of KEYS)for(const i of [...sets[k]]){ const x=i%BW,y=(i-x)/BW; if(Math.hypot(x-sx,y-sy)<8)sets[k].delete(i); } } }
   bc.addEventListener('mousedown',ev=>{painting=true;paint(ev);});
   bc.addEventListener('mousemove',ev=>{if(painting)paint(ev);});
   window.addEventListener('mouseup',()=>painting=false);
   document.getElementById('builderBtn').onclick=()=>{ document.getElementById('builder').style.display='flex'; toolbar(); draw(); };
   document.getElementById('bBack').onclick=()=>{ document.getElementById('builder').style.display='none'; };
-  document.getElementById('bClear').onclick=()=>{ sets.f.clear();sets.m.clear();sets.g.clear(); draw(); };
-  document.getElementById('bSave').onclick=()=>{ localStorage.setItem('tidefall_custom_map',JSON.stringify({f:[...sets.f],m:[...sets.m],g:[...sets.g]}));
+  document.getElementById('bClear').onclick=()=>{ for(const k of KEYS)sets[k].clear(); draw(); };
+  document.getElementById('bSave').onclick=()=>{ const out={w:BW,h:BH};
+    for(const k of KEYS)out[k]=[...sets[k]];
+    localStorage.setItem('tidefall_custom_map',JSON.stringify(out));
+    MAPS.custom.w=BW;MAPS.custom.h=BH; if(curMapId==='custom')setMap('custom');
     addCustomMapBtn(); document.getElementById('builder').style.display='none';
-    flashMsg('🛠 Map saved — pick “My Map” as the battleground and choose a regiment!'); };
+    flashMsg('🛠 Map saved — '+SIZES[szi][0]+' '+BW+'×'+BH+' — pick “My Map” and march!'); };
 })();
 function addCustomMapBtn(){ const mp=document.getElementById('mappick');
-  if(document.querySelector('#mappick [data-map=custom]'))return;
   if(!localStorage.getItem('tidefall_custom_map'))return;
-  const m=MAPS.custom; const b=document.createElement('button');
-  b.className='mapbtn'; b.dataset.map='custom';
-  b.style.cssText='text-align:left;cursor:pointer;padding:13px 15px;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);color:#e8dcc0;transition:border-color .12s;';
-  b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+'</div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>';
-  b.onclick=()=>{setMap('custom');localStorage.setItem('tidefall_map','custom');paintMaps();};
-  mp.appendChild(b); }
+  const m=MAPS.custom;
+  let b=document.querySelector('#mappick [data-map=custom]');
+  if(!b){ b=document.createElement('button');
+    b.className='mapbtn'; b.dataset.map='custom';
+    b.style.cssText='text-align:left;cursor:pointer;padding:13px 15px;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);color:#e8dcc0;transition:border-color .12s;';
+    b.onclick=()=>{setMap('custom');localStorage.setItem('tidefall_map','custom');paintMaps();};
+    mp.appendChild(b); }
+  b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+' <span style="color:#a68b52;font-size:12px;">'+m.w+'×'+m.h+'</span></div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>'; }
 addCustomMapBtn();
 document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('tidefall_fac')||'english');
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
@@ -2395,7 +2473,7 @@ document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('hear
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
   for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}
-  faction.r1=others[0];faction.r2=others[1];faction.r3=others[2];
+  AI_REALMS.forEach((o,i)=>faction[o]=others[i%others.length]);
   $('overlay').classList.add('hidden');initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
 var selFac='english';
 function paintMaps(){document.querySelectorAll('#mappick .mapbtn').forEach(b=>{const on=b.dataset.map===curMapId;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';b.style.opacity='1';});if(typeof updateStartSummary==='function')updateStartSummary();}
@@ -2403,7 +2481,7 @@ function paintMaps(){document.querySelectorAll('#mappick .mapbtn').forEach(b=>{c
   for(const id in MAPS){ if(MAPS[id].custom)continue; const m=MAPS[id]; const b=document.createElement('button');
     b.className='mapbtn'; b.dataset.map=id;
     b.style.cssText='text-align:left;cursor:pointer;padding:13px 15px;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);color:#e8dcc0;transition:border-color .12s;';
-    b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+(id==='heartlands'?'':' <span style="color:#a68b52;font-size:12px;">3× land</span>')+'</div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>';
+    b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+' <span style="color:#a68b52;font-size:12px;">'+m.w+'×'+m.h+'</span></div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>';
     b.onclick=()=>{setMap(id);localStorage.setItem('tidefall_map',id);paintMaps();};
     mp.appendChild(b); }
   paintMaps(); }
@@ -2411,6 +2489,9 @@ function paintDiff(){const tints={easy:'rgba(93,122,62,0.35)',normal:'rgba(201,1
   document.querySelectorAll('#diffpick .dif').forEach(b=>{const on=b.dataset.dif===difficulty;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?tints[b.dataset.dif]:'rgba(28,23,15,0.85)';b.style.opacity='1';});if(typeof updateStartSummary==='function')updateStartSummary();}
 document.querySelectorAll('#diffpick .dif').forEach(b=>b.onclick=()=>{difficulty=b.dataset.dif;localStorage.setItem('tidefall_diff',difficulty);paintDiff();});
 paintDiff();
+function paintPlayers(){document.querySelectorAll('#plpick .plc').forEach(b=>{const on=+b.dataset.n===playerCount;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';});if(typeof updateStartSummary==='function')updateStartSummary();}
+document.querySelectorAll('#plpick .plc').forEach(b=>b.onclick=()=>{setRealmCount(+b.dataset.n);localStorage.setItem('tidefall_players',playerCount);paintPlayers();});
+paintPlayers();
 // starting fresh with a real kingdom in the autosave? make sure it's wanted
 selFac=localStorage.getItem('tidefall_fac')||'english';
 function paintFacs(){document.querySelectorAll('#overlay .fac').forEach(b=>{const on=b.dataset.fac===selFac;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';});if(typeof updateStartSummary==='function')updateStartSummary();}
@@ -2418,7 +2499,7 @@ function updateStartSummary(){const el=document.getElementById('startSummary');i
   const mn=(MAPS[curMapId]&&MAPS[curMapId].name)||'Heartlands';
   const dn=difficulty.charAt(0).toUpperCase()+difficulty.slice(1);
   const fn=(FACTIONS[selFac]&&FACTIONS[selFac].name)||'English Red Coats';
-  el.textContent=mn+' · '+dn+' · '+fn;}
+  el.textContent=mn+' · '+dn+' · '+playerCount+' realms · '+fn;}
 document.querySelectorAll('#overlay .fac').forEach(b=>b.onclick=()=>{selFac=b.dataset.fac;localStorage.setItem('tidefall_fac',selFac);paintFacs();});
 document.getElementById('marchBtn').onclick=()=>{
   try{ const raw=localStorage.getItem('tidefall_save'); if(raw){ const m=(JSON.parse(raw).meta)||{};
@@ -2459,6 +2540,7 @@ function openSlots(){ renderSlots(); document.getElementById('slots').classList.
 document.getElementById('slotsClose').onclick=()=>document.getElementById('slots').classList.add('hidden');
 document.getElementById('loadMenuBtn').onclick=openSlots;
 document.getElementById('saveBtn').onclick=()=>{saveGame(true);openSlots();};
+document.getElementById('menuBtn').onclick=()=>{ if(running&&!gameOver&&!paradeMode){ if(!window.confirm('Return to the main menu?\nYour kingdom is saved to the Autosave slot first.'))return; saveGame(true); } location.reload(); };
 const _cont=document.getElementById('contBtn');
 if(localStorage.getItem('tidefall_save'))_cont.style.display='';
 if(SLOT_KEYS.some(([k])=>localStorage.getItem(k)))document.getElementById('loadMenuBtn').style.display='';
