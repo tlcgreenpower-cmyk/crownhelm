@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b144</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b145</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -329,6 +329,29 @@ function modelBox(obj){ obj.updateMatrixWorld(true);
     if(!o.geometry.boundingBox)return;
     b.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(b); });
   return box.isEmpty()?new THREE.Box3(new THREE.Vector3(-1,0,-1),new THREE.Vector3(1,2,1)):box; }
+// b145 (owner request): take the builders' hard hats off. The worker model is one merged skinned
+// mesh — the hat is not a node any more, it is a band of vertices wearing its own baked colour
+// (a dull yellow, 0x5d510c, sitting above the face). We find that band, pull it down onto the
+// skull and recolour it, so it reads as a peasant's hair instead of a site helmet. Done once to
+// the template at load, so every worker ever cloned inherits it, and the rig — and the hand bone
+// the axes hang from — is untouched.
+function deHardHat(root){ if(!root)return;
+  root.traverse(o=>{ if(!o.isSkinnedMesh)return;
+    const g=o.geometry,col=g.attributes.color,pos=g.attributes.position; if(!col||!pos)return;
+    const idx=[]; let minY=1e9,maxY=-1e9,sx=0,sz=0;
+    for(let i=0;i<pos.count;i++){
+      const r=col.getX(i)*255,gg=col.getY(i)*255,b=col.getZ(i)*255;
+      if(Math.abs(r-93)<14&&Math.abs(gg-81)<14&&Math.abs(b-12)<16){        // 0x5d510c — the helmet
+        idx.push(i); const y=pos.getY(i); if(y<minY)minY=y; if(y>maxY)maxY=y; sx+=pos.getX(i); sz+=pos.getZ(i); } }
+    if(idx.length<20)return;
+    const cx=sx/idx.length, cz=sz/idx.length;
+    for(const i of idx){
+      pos.setX(i,cx+(pos.getX(i)-cx)*0.60);                                // brim pulled in to the skull
+      pos.setZ(i,cz+(pos.getZ(i)-cz)*0.60);
+      pos.setY(i,minY+(pos.getY(i)-minY)*0.52);                            // crown flattened onto the head
+      col.setXYZ(i,0x3b/255,0x25/255,0x14/255); }                          // and it is hair now, not plastic
+    pos.needsUpdate=true; col.needsUpdate=true; g.computeVertexNormals();
+    g.computeBoundingBox(); g.computeBoundingSphere(); }); }
 let _mergeTally={charBefore:0,charAfter:0,bldBefore:0,bldAfter:0};
 const _countParts=(root,skinned)=>{let n=0;root.traverse(o=>{if(skinned?o.isSkinnedMesh:(o.isMesh&&!o.isSkinnedMesh))n++;});return n;};
 
@@ -644,6 +667,7 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
     mergeSkinnedModel(lib[k].scene);
     _mergeTally.charAfter+=_countParts(lib[k].scene,true); }
   console.log('b92 mesh-merge (characters): '+_mergeTally.charBefore+' skinned parts -> '+_mergeTally.charAfter);
+  for(const k of ['WorkerM','WorkerF'])if(lib[k])deHardHat(lib[k].scene);   // b145: peasants, not site foremen
   if(Object.keys(lib).length) CHAR_LIB={lib,clone:SK.clone};
   window._CHARLIB=CHAR_LIB;   // debug handle for the TF perf gate
   refreshUnitModels();
@@ -1320,7 +1344,7 @@ function updateLeaves(dt,now){ if(!leafMesh)return;
     leafMesh.setMatrixAt(i,_lm4); }
   leafMesh.instanceMatrix.needsUpdate=true; }
 function updateAmbient(dt,now){ tickClutter(dt); updateLeaves(dt,now);
-  for(const f of _campfirePos){ if(Math.random()<dt*2.2&&Math.hypot(f[0]-camTarget.x,f[1]-camTarget.z)<110){
+  for(const f of _campfirePos){ if(!f)continue; if(Math.random()<dt*2.2&&Math.hypot(f[0]-camTarget.x,f[1]-camTarget.z)<110){
     spawnPart(f[0]+(Math.random()-.5)*.3,f[2]+.45,f[1]+(Math.random()-.5)*.3,'flame');
     if(Math.random()<0.25)spawnPart(f[0],f[2]+.8,f[1],'smoke'); } }
   _fishT-=dt; if(_fishT<=0){ _fishT=2.5+Math.random()*3.5;   // somewhere near, a fish breaks the surface
