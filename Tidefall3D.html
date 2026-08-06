@@ -52,6 +52,7 @@
     <div class="res" title="Metal — mine grey rocks">⛏️ <span id="metal">0</span></div>
     <div class="res" title="Gold — gold veins, Markets & village tribute">💰 <span id="gold">0</span></div>
     <div class="res" title="Population / cap — Houses +8, Halls +15, Castles +12">👥 <span id="pop">0/0</span></div>
+    <div class="res" title="Your workers — the hands of the kingdom">⚒ <span id="wrkN">0</span></div>
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
     <button id="gmenuBtn" title="Game menu — sound, graphics, saves & more (pauses the game)" style="cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:4px 16px;font-size:13px;font-weight:600;">☰ Menu</button>
@@ -62,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b123</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b124</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -412,6 +413,7 @@ const UNIT={
   viking:{hp:130,speed:14,range:2.4,dmg:14,cd:.8,r:1.05,vis:8,dom:'land',color:0x8a6b4a,name:'Viking Raider'},
   samurai:{hp:210,speed:13.5,range:2.6,dmg:26,cd:.8,r:1.1,vis:9,dom:'land',color:0xb03a3a,name:'Samurai'},
 };
+for(const k in UNIT)UNIT[k].speed=Math.round(UNIT[k].speed*0.7*10)/10;   // b124: the whole world walks 30% slower (owner request) — battles and marches read better
 const BLD={
   hall:{w:3,h:3,hp:2400,name:'Keep',vis:11,drop:true}, house:{w:2,h:2,hp:900,name:'House',vis:6},
   farm:{w:2,h:2,hp:480,name:'Farm',vis:5}, storehouse:{w:2,h:2,hp:1000,name:'Storehouse',vis:6,drop:true},
@@ -987,11 +989,17 @@ function updateFallingTrees(dt){ if(!fallingTrees.length)return;
     const tilt=Math.min(1.5,2.4*f.t*f.t);   // accelerating topple
     if(!f.boom&&tilt>=1.5){ f.boom=true; SFX.hit();
       for(let i=0;i<5;i++)spawnPart(n.px+Math.sin(f.ry)*3,n.py+0.5,n.pz+Math.cos(f.ry)*3,'chip'); }
-    const k=f.t>1.6?Math.max(0.0001,1-(f.t-1.6)*1.2):1;   // then the fallen trunk melts away
+    let k=1;   // the felled trunk LIES on the ground until every log is harvested
+    if(n.amount<=0){ f.fadeT=(f.fadeT||0)+dt; k=Math.max(0.0001,1-f.fadeT*0.4); }   // then sinks away slowly...
     _tq2.setFromEuler(_te.set(tilt,f.ry,n.rz,'YXZ'));
     _tm4a.compose(_tvA.set(n.px,n.py,n.pz),_tq2,_tvB.setScalar(n.ts*k));
     for(const pt of n.tim){_tm4b.multiplyMatrices(_tm4a,pt.l);pt.im.setMatrixAt(pt.i,_tm4b);pt.im.instanceMatrix.needsUpdate=true;} }
-  fallingTrees=fallingTrees.filter(f=>{ if(f.t>=2.5){setTreeK(f.n,0);return false;} return true; }); }
+  fallingTrees=fallingTrees.filter(f=>{ if(f.fadeT&&f.fadeT>=2.4){setTreeK(f.n,0);addChopStump(f.n.px,f.n.pz);return false;} return true; }); }
+let chopStumps=null,chopStumpN=0;
+function addChopStump(x,z){ // ...leaving a stump forever — the forest remembers the axe
+  if(!chopStumps){ chopStumps=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.3,.42,7),new THREE.MeshStandardMaterial({color:0x6b4b2e,roughness:.95}),800); chopStumps.count=0; scene.add(chopStumps); }
+  if(chopStumpN>=800)return; _tm4a.makeTranslation(x,heightAtWorld(x,z)+.18,z);
+  chopStumps.setMatrixAt(chopStumpN,_tm4a); chopStumpN++; chopStumps.count=chopStumpN; chopStumps.instanceMatrix.needsUpdate=true; }
 function buildTreesInstanced(){
   const L=LEAF_MATS.length,P=PINE_MATS.length,plans=[],counts={};
   const lm=(x,y,z,ex,ey,ez,sx,sy,sz)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(ex,ey,ez)),new THREE.Vector3(sx,sy,sz));
@@ -1138,9 +1146,17 @@ function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGr
   const fruit=new THREE.InstancedMesh(new THREE.SphereGeometry(.13,5,4),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.7}),240);
   const CLOTH_COLS=[0xf0ece2,0xe8c25a,0xbe4a3a,0x5a8fc7,0x7ba05b];
   const FRUIT_COLS=[0xd8452a,0xe8a03a,0xe8d24a,0x8a3a2a];
-  let pi3=0,li3=0,ci3=0,bi3=0,fi3=0;
+  const pileLog=new THREE.InstancedMesh(new THREE.CylinderGeometry(.17,.19,2.3,6),new THREE.MeshStandardMaterial({color:0x7a5433,roughness:.95,flatShading:true}),300);
+  let pi3=0,li3=0,ci3=0,bi3=0,fi3=0,pl3=0;
   const col2=new THREE.Color();
   for(const b of blds){ if(!b.done)continue;
+    if(b.type==='storehouse'&&pl3<294){ const ry2=hashN(b.id,199)*3.14, ex2=b.w*TILE*.5+1.4;
+      const bx2=b.cx+ex2, bz2=b.cz+(hashN(203,b.id)-.5)*b.h*TILE*.6, by2=heightAtWorld(bx2,bz2);
+      const rows=[[3,.2],[2,.52],[1,.84]];   // a proper stacked woodpile
+      for(const[cnt,yy]of rows)for(let k=0;k<cnt;k++){
+        v3.set(bx2+Math.cos(ry2+1.57)*((k-(cnt-1)/2)*.42),by2+yy,bz2+Math.sin(ry2+1.57)*((k-(cnt-1)/2)*.42));
+        q0.setFromEuler(eul.set(0,ry2,Math.PI/2)); s3.set(1,1,1); m4.compose(v3,q0,s3);
+        pileLog.setMatrixAt(pl3,m4); pl3++; } }
     if(b.type==='house'&&(b.id%5)<2&&pi3<238){ const ry=hashN(b.id,77)*3.14;
       const side=(b.id%4), ex=b.w*TILE*.5+1.3, ez=b.h*TILE*.5+1.3;
       const bx=b.cx+(side===0?0:side===1?ex:side===2?0:-ex), bz=b.cz+(side===0?ez:side===1?0:side===2?-ez:0);
@@ -1158,9 +1174,9 @@ function refreshClutter(){ if(clutterGroup)scene.remove(clutterGroup); clutterGr
         m4.makeTranslation(bx,by+.15,bz); basket.setMatrixAt(bi3,m4); bi3++;
         for(let f=0;f<2&&fi3<240;f++){ m4.makeTranslation(bx+(hashN(b.id,f+k*7)-.5)*.25,by+.34,bz+(hashN(f,b.id)-.5)*.25);
           fruit.setMatrixAt(fi3,m4); col2.setHex(FRUIT_COLS[(b.id+f+k)%FRUIT_COLS.length]); fruit.setColorAt(fi3,col2); fi3++; } } } }
-  lPole.count=pi3;lLine.count=li3;lCloth.count=ci3;basket.count=bi3;fruit.count=fi3;
+  lPole.count=pi3;lLine.count=li3;lCloth.count=ci3;basket.count=bi3;fruit.count=fi3;pileLog.count=pl3;
   barrel.count=bi;crate.count=ci;sack.count=ki;scPole.count=si;scArm.count=si;scHead.count=si;
-  for(const m of [barrel,crate,sack,scPole,scArm,scHead,lPole,lLine,lCloth,basket,fruit]){ m.castShadow=false; m.instanceMatrix.needsUpdate=true; if(m.instanceColor)m.instanceColor.needsUpdate=true; clutterGroup.add(m); } }
+  for(const m of [barrel,crate,sack,scPole,scArm,scHead,lPole,lLine,lCloth,basket,fruit,pileLog]){ m.castShadow=false; m.instanceMatrix.needsUpdate=true; if(m.instanceColor)m.instanceColor.needsUpdate=true; clutterGroup.add(m); } }
 function tickClutter(dt){ _clutT-=dt; if(_clutT>0)return; _clutT=2;
   const sig=blds.reduce((s,b)=>b.done?s+b.id:s,0)+':'+blds.length;
   if(sig!==_clutSig){ _clutSig=sig; refreshClutter(); } }
@@ -1691,7 +1707,7 @@ function ml0Count(l){return l.length;}
 function commandMove(list,x,z,amove,fdir){for(const u of list)u.pfCool=0;const gx=txFromW(x),gy=tzFromW(z);
   // b118: real-army order — melee line front, muskets centre, cavalry next, guns & healers rear,
   // and every regiment stands TOGETHER (same types form contiguous blocks in the ranks)
-  const rank=t=>{const U=UNIT[t];return (U.siege||U.ramOnly)?4:(U.heal||U.noAtk)?3:U.cav?2:U.ranged?1:0;};
+  const rank=t=>{const U=UNIT[t];return (U.heal||U.noAtk)?5:(U.siege||U.ramOnly)?4:U.cav?2:U.ranged?1:0;};   // healers ALWAYS at the very back (owner rule)
   astarBudget+=ml0Count(list);
   const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type)||q.type.localeCompare(r.type)||q.id-r.id);
   if(ml.length>=8&&!ml.some(u=>u.mesh.userData.banner)){const bearer=ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk&&UNIT[u.type].dom==='land')||ml[0];giveBanner(bearer);}
@@ -1741,9 +1757,13 @@ function attackOrder(e,t){if(UNIT[e.type].noAtk||UNIT[e.type].ramOnly){e.cmd='mo
   e.cmd='attack';e.target=t;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);}
 function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostile('player',b.owner))declareWar(b.owner,'player');
   e.cmd='attackb';e.target=b;e.gather=null;e.build=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
+function pathToNode(e,n){ let bx=n.tx,by=n.ty,bd2=1e9;   // b124: walk to a SPECIFIC open tile beside the node — no more unreachable-tree limbo
+  for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy;
+    if(inB(x,y)&&passable(x,y,0,'land')){ const ddx=wx(x)-e.x,ddz=wz(y)-e.z,d2=ddx*ddx+ddz*ddz; if(d2<bd2){bd2=d2;bx=x;by=y;} } }
+  return orderPath(e,bx,by,0); }
 function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;
   e.gBoost=blds.some(b=>b.owner===e.owner&&b.type==='storehouse'&&b.done&&Math.hypot(b.cx-wx(node.tx),b.cz-wz(node.ty))<14)?1.15:1;
-  orderPath(e,node.tx,node.ty,0);}
+  pathToNode(e,node);}
 function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my&&!e.inGar){const d=Math.hypot(x-e.x,z-e.z);if(d<bd+UNIT[e.type].r){bd=d;best=e;}}return best;}
 function bldAt(x,z,my){const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;if(!id)return null;const b=blds.find(b=>b.id===id);return(b&&b.owner!==my)?b:null;}
 function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes,meatNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
@@ -1930,12 +1950,13 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;const moving=e.path&&e.p
       if(e.carry>=CARRY-0.01){e.cmd='return';e.path=null;break;}   // arms full — walk it home (AoE2 economy)
       if(!n||n.amount<=0){if(e.carry>0.5){e.cmd='return';e.path=null;break;}const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<5.8){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);e.carryType=n.type;   // 5.8 = works from the forest-edge tile now trees block entry
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.4+(e.id%5)*0.12;playOnce(e,'attackA');}   // b93: visible chopping/mining swings
-      const rate=(n.type==='wood'?2.6:n.type==='metal'?1.7:n.type==='gold'?1.4*(faction[e.owner]==='chinese'?1.25:1):2.6);
+      const rate=(n.type==='wood'?3.1:n.type==='metal'?1.7:n.type==='gold'?1.4*(faction[e.owner]==='chinese'?1.25:1):2.6);
       const take=Math.min(rate*(e.gBoost||1)*dt,n.amount,CARRY-e.carry);n.amount-=take;e.carry+=take;
+      if(n.type==='wood'&&!n._felled&&n.tim){ n._felled=true; fellTree(n); if(treeGrid)treeGrid[ti(n.tx,n.ty)]=0; }   // first strike fells it — then they work the fallen trunk
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.15+0.85*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
-      else if(n.tim){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)fellTree(n);if(n.type==='wood'&&treeGrid)treeGrid[ti(n.tx,n.ty)]=0;}if(n.amount<=0){const n2=nearestNode(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived){
+      else if(n.tim&&!n._felled){ if(n.a0===undefined)n.a0=n.amount+take; setTreeK(n,0.2+0.8*Math.max(0,n.amount/n.a0)); }if(Math.random()<dt*3)spawnPart(nx,heightAtWorld(nx,nz)+1,nz,n.type==='wood'?'chip':'spark');if(n.amount<=0){if(n.mesh)n.mesh.visible=false;else if(n.tim)fellTree(n);if(n.type==='wood'&&treeGrid)treeGrid[ti(n.tx,n.ty)]=0;}if(n.amount<=0){const n2=nearestNode(e,n.type);if(n2)gatherOrder(e,n2);else e.cmd='idle';}}else if(arrived){
       const attempted=!e.pfCool||elapsed>=e.pfCool;   // only count REAL pathfind attempts, not cooldown skips
-      if(!orderPath(e,n.tx,n.ty,0)&&attempted){ e.pfFail=(e.pfFail||0)+1;
+      if(!pathToNode(e,n)&&attempted){ e.pfFail=(e.pfFail||0)+1;
         if(e.pfFail>=3){ e.pfFail=0; e.gather=null; e.cmd='idle'; e.noWork=elapsed+9;   // can't get there — stand down so the 💤 button finds him
           if(e.owner==='player')flashMsg('💤 A worker can\'t reach his target through the forest — he stands ready for new orders'); } }
       else if(e.path)e.pfFail=0; }break;}
@@ -2323,7 +2344,7 @@ bImpMesh.count=0;bImpRoof.count=0;scene.add(bImpMesh);scene.add(bImpRoof);
 const _impQ=new THREE.Quaternion(),_impS=new THREE.Vector3(),_impP=new THREE.Vector3();
 function updateUnitLOD(){
   if(!elev||!visNow){impMesh.count=0;bImpMesh.count=0;bImpRoof.count=0;return;}   // render loop runs before Play — guard the map arrays
-  const LODD=Math.max(26,4600/Math.max(camDist,1)); const L2=LODD*LODD; let n=0;
+  const LODD=Math.max(44,7200/Math.max(camDist,1)); const L2=LODD*LODD; let n=0;   // b124: swap to imposters much farther out — less pop when zooming
   const selSet=selected.length?new Set(selected):null;
   for(const e of ents){
     if(e.inGar){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // tucked away inside a garrison
@@ -2613,6 +2634,7 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
   const pu=popUsed('player'),pc=popCap('player');$('pop').textContent=pu+'/'+pc;
   $('pop').style.color=pu>=pc?'#ff8a6a':'';
   $('pop').title=pu>pc?'Over capacity — you LOST housing (raided Houses or a lost village). No one deserts, but no new training until you rebuild Houses.':pu>=pc?'Population full — build Houses!':'Population / capacity — Houses +8, Keep +15, Castles +12, sworn villages +6';
+  const wn=document.getElementById('wrkN'); if(wn)wn.textContent=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'?1:0),0);
   const nIdle=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'&&e.cmd==='idle'?1:0),0);
   if(!$('forces').classList.contains('hidden')&&Math.random()<0.08)renderForces();
   $('idleN').textContent=nIdle;const ib=$('idleBtn');
@@ -2775,6 +2797,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   for(const n of meatNodes)if(n.mesh)scene.remove(n.mesh); meatNodes=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};if(demoMode)setDemo(false);updateGhost();
   for(const r of rubblePiles)scene.remove(r.g); rubblePiles=[]; fallingTrees=[];
+  if(chopStumps){scene.remove(chopStumps);chopStumps=null;chopStumpN=0;}
   initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
