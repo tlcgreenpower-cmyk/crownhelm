@@ -60,7 +60,7 @@
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b99</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b100</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1124,8 +1124,11 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
     const src=CHAR_LIB.lib[ckey];
     const ch=CHAR_LIB.clone(src.scene);
+    // the three holy orders share the Mage model — tint tells them apart (priest keeps the original look)
+    const HOLY_TINT={monk:0xa8845c,cardinal:0xd95c4a};
+    if(HOLY_TINT[type])ch.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(HOLY_TINT[type]);}});
     const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
-    ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:2.4)/hgt);
+    ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
     if(type==='worker'){ const gun=new THREE.Group();   // hunting musket — shown only while on the hunt
       const stock=new THREE.Mesh(new THREE.BoxGeometry(.09,.11,.7),M.wood);stock.position.z=-.25;gun.add(stock);
