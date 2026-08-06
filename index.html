@@ -60,7 +60,7 @@
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b97</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b98</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -315,7 +315,7 @@ const MAPS={
 };
 let curMapId=localStorage.getItem('tidefall_map')||'heartlands'; if(!MAPS[curMapId])curMapId='heartlands';
 // custom map remembers its chosen size (b93)
-try{const _cm=JSON.parse(localStorage.getItem('tidefall_custom_map'));if(_cm&&_cm.w>=64){MAPS.custom.w=_cm.w;MAPS.custom.h=_cm.h||Math.round(_cm.w*2/3);}}catch(e){}
+try{const _cm=JSON.parse(localStorage.getItem('tidefall_custom_map'));if(_cm&&_cm.w>=64){MAPS.custom.w=_cm.w;MAPS.custom.h=_cm.h||Math.round(_cm.w*2/3);if(_cm.name)MAPS.custom.name=_cm.name;}}catch(e){}
 let MAP_W,MAP_H,WORLD_W,WORLD_H,HALF_W,HALF_H,REALM_SITES;
 function areaScale(){return (MAP_W*MAP_H)/(96*64);}
 // up to 8 realms: 4 corners then 4 edge midpoints (b93)
@@ -2564,7 +2564,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
   bc.addEventListener('mousedown',ev=>{painting=true;paint(ev);});
   bc.addEventListener('mousemove',ev=>{if(painting)paint(ev);});
   window.addEventListener('mouseup',()=>painting=false);
-  document.getElementById('builderBtn').onclick=()=>{ document.getElementById('builder').style.display='flex'; toolbar(); draw(); };
+  document.getElementById('builderBtn').onclick=()=>{ location.href='MapBuilder.html'; };   // b98: the Mapwright-style editor took over; old overlay kept dormant as a fallback
   document.getElementById('bBack').onclick=()=>{ document.getElementById('builder').style.display='none'; };
   document.getElementById('bClear').onclick=()=>{ for(const k of KEYS)sets[k].clear(); draw(); };
   document.getElementById('bSave').onclick=()=>{ const out={w:BW,h:BH};
