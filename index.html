@@ -21,7 +21,7 @@
   #dragbox{position:absolute;border:1.5px solid #8fe6a8;background:rgba(120,220,150,.12);display:none;pointer-events:none;z-index:3;}
   #mini{position:absolute;right:10px;bottom:10px;border:1px solid #2c5164;background:#04101a;z-index:4;cursor:pointer;}
   #botbar{display:flex;gap:12px;padding:8px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;min-height:104px;}
-  #selInfo{width:250px;font-size:13px;line-height:1.5;color:#9fc0d2;} #selInfo b{color:#e8f4fb;}
+  #selInfo{width:250px;font-size:13px;line-height:1.5;color:#9fc0d2;max-height:132px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
   #cmds{flex:1;display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;}
   .btn{min-width:94px;padding:7px 9px;background:#17303f;border:1px solid #2c5164;border-radius:8px;color:#dff0f9;font-size:12px;cursor:pointer;line-height:1.25;}
   .btn:hover{background:#1e435a;border-color:#4d86a3;} .btn small{display:block;color:#84acc0;font-size:10.5px;margin-top:2px;} .btn.disabled{opacity:.36;cursor:not-allowed;}
@@ -50,6 +50,7 @@
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
     <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤 <span id="idleN">0</span></button>
+    <button id="demoBtn" title="Demolish tool — pick up the hammer, then click your buildings to tear them down (half the materials back). Right-click or Esc puts it away." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔨</button>
     <button id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚙ Medium</button>
     <button id="muteBtn">🔊 Sound</button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
@@ -59,7 +60,7 @@
     <button id="saveBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💾 Save</button>
     <button id="menuBtn" title="Back to the main menu — your kingdom is autosaved first" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🏰 Menu</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b93</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b94</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -131,7 +132,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;padding-bottom:26px;border-bottom:1px solid #33291a;">
           <div><div class="aorKick">Controls</div><ul class="aorList">
             <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
-            <li><b>WASD / arrows / edges</b> pan · <b>Q / E</b> rotate · <b>wheel</b> zoom</li>
+            <li><b>WASD / arrows / edges</b> pan · <b>Q / E</b> rotate · <b>wheel</b> zoom · <b>Alt+drag</b> free look</li>
             <li><b>F</b> attack-move · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
             <li>Double-click a unit = select all of its kind on screen</li>
           </ul></div>
@@ -142,33 +143,32 @@
             <li><b>Advance the Age</b> to unlock Knights, Cannon &amp; your champion</li>
           </ul></div>
         </div>
-        <div style="padding-top:26px;"><div class="aorKick">Battleground</div>
-          <div id="mappick" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
-        </div>
-        <div style="padding-top:26px;"><div class="aorKick">Difficulty</div>
-          <div id="diffpick" style="display:flex;gap:10px;">
-            <button class="dif" data-dif="easy" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Easy</button>
-            <button class="dif" data-dif="normal" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Normal</button>
-            <button class="dif" data-dif="hard" style="flex:1;cursor:pointer;padding:12px 10px;font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">Hard</button>
-          </div>
-        </div>
-        <div style="padding-top:26px;"><div class="aorKick">Realms at war</div>
-          <div id="plpick" style="display:flex;gap:10px;">
-            <button class="plc" data-n="2" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">2<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">1 rival</span></button>
-            <button class="plc" data-n="4" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">4<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">3 rivals</span></button>
-            <button class="plc" data-n="6" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">6<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">5 rivals</span></button>
-            <button class="plc" data-n="8" style="flex:1;cursor:pointer;padding:10px 8px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.05em;color:#e8dcc0;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);">8<br><span style="font-family:'EB Garamond',serif;font-size:12px;color:#9d8a67;">7 rivals</span></button>
-          </div>
-          <div style="font-size:13px;color:#9d8a67;margin-top:8px;font-family:'EB Garamond',serif;">Big maps fit 8 realms best — corners fill first, then the coasts.</div>
-        </div>
-        <div style="padding-top:26px;"><div class="aorKick">Choose your regiment</div>
-          <div id="facpick" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <button class="fac" data-fac="scottish" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#2a2f3a;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Scottish Black Watch</button>
-            <button class="fac" data-fac="english" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#8e2b22;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>English Red Coats</button>
-            <button class="fac" data-fac="irish" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#3d6b3a;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Irish Green Coats</button>
-            <button class="fac" data-fac="french" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#2f4a8c;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>French Blue Coats</button>
-            <button class="fac" data-fac="chinese" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#1d9e63;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Chinese Imperial Army</button>
-            <button class="fac" data-fac="sacred" style="display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;padding:12px 14px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;color:#f1e4c4;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);"><span style="width:16px;height:20px;flex:none;background:#e86ab8;clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%);box-shadow:0 0 0 1px rgba(0,0,0,.5);"></span>Sacred Band of Thebes</button>
+        <div style="padding-top:26px;"><div class="aorKick">Muster your campaign</div>
+          <div style="border:1px solid #3b2f1d;background:rgba(28,23,15,.85);padding:20px 22px;display:flex;flex-direction:column;gap:13px;box-shadow:inset 0 0 40px rgba(0,0,0,.3);">
+            <label class="setRow"><span class="setLbl">Battleground</span><select id="mapSel" class="setSel"></select></label>
+            <label class="setRow"><span class="setLbl">Difficulty</span>
+              <select id="diffSel" class="setSel">
+                <option value="easy">Easy — a gentle reign</option>
+                <option value="normal">Normal — a fair fight</option>
+                <option value="hard">Hard — wolves at every border</option>
+              </select></label>
+            <label class="setRow"><span class="setLbl">Realms at war</span>
+              <select id="plSel" class="setSel">
+                <option value="2">2 realms — 1 rival</option>
+                <option value="4">4 realms — 3 rivals</option>
+                <option value="6">6 realms — 5 rivals</option>
+                <option value="8">8 realms — 7 rivals</option>
+              </select></label>
+            <label class="setRow"><span class="setLbl">Your regiment</span>
+              <select id="facSel" class="setSel">
+                <option value="scottish">Scottish Black Watch</option>
+                <option value="english">English Red Coats</option>
+                <option value="irish">Irish Green Coats</option>
+                <option value="french">French Blue Coats</option>
+                <option value="chinese">Chinese Imperial Army</option>
+                <option value="sacred">Sacred Band of Thebes</option>
+              </select></label>
+            <div id="setupBlurb" style="font-size:14px;color:#9d8a67;font-family:'EB Garamond',serif;font-style:italic;min-height:18px;"></div>
           </div>
         </div>
         <div style="margin-top:30px;padding-top:20px;border-top:1px solid #33291a;display:flex;align-items:center;justify-content:space-between;gap:16px;">
@@ -200,6 +200,11 @@
 #marchBtn:hover{filter:brightness(1.15);}
 #contBtn:hover{filter:brightness(1.08);transform:translateY(-2px);}
 .mapbtn,.dif,.fac{border-radius:0!important;}
+.setRow{display:flex;align-items:center;gap:14px;}
+.setLbl{font-family:'Cinzel',serif;font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#c9a24a;flex:0 0 150px;}
+.setSel{flex:1;cursor:pointer;background:#15110c;color:#f1e4c4;border:1px solid #3b2f1d;padding:11px 12px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.03em;outline:none;border-radius:0;}
+.setSel:hover,.setSel:focus{border-color:#c9a24a;}
+.setSel option{background:#15110c;color:#f1e4c4;}
 </style>
 <script type="importmap">
 { "imports": {
@@ -412,7 +417,7 @@ function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
   for(const o of AI_REALMS){ realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:30+Math.random()*50,warCheck:120+Math.random()*120};
     diplo[o]={score:10,stance:'neutral'}; } }
 initRealms();
-let selected=[],selBuilding=null,placing=null,groups={},attackMove=false,buildCat=null;
+let selected=[],selBuilding=null,placing=null,groups={},attackMove=false,buildCat=null,demoMode=false;
 let running=false,gameOver=false,tideLevel=SEA,elapsed=0,waterY=SEA*HSCALE;
 let audioOn=true,actx=null;
 const ti=(tx,ty)=>ty*MAP_W+tx,inB=(tx,ty)=>tx>=0&&ty>=0&&tx<MAP_W&&ty<MAP_H;
@@ -545,7 +550,7 @@ try{
   const {OutputPass}=await import('three/addons/postprocessing/OutputPass.js');
   const {SMAAPass}=await import('three/addons/postprocessing/SMAAPass.js');
   const {ShaderPass}=await import('three/addons/postprocessing/ShaderPass.js');
-  composer=new EffectComposer(renderer);
+  composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(1280,640,{type:THREE.HalfFloatType,samples:4}));   // 4x MSAA — kills the jaggies the composer path used to skip
   composer.addPass(new RenderPass(scene,camera));
   // ambient occlusion — soft contact shadows that ground everything (skipped gracefully if unsupported)
   try{ const {SAOPass}=await import('three/addons/postprocessing/SAOPass.js');
@@ -849,15 +854,20 @@ function makeCottage(seed){ const h=new THREE.Group();
   const door=new THREE.Mesh(new THREE.BoxGeometry(.55,.85,.08),cotBeam);door.position.set(0,.45,1.12);h.add(door);
   h.scale.setScalar(.85+hashN(seed,77)*0.3);return h; }
 function addVillage(v){ const g=new THREE.Group();const cx0=wx(v.tx),cz0=wz(v.ty);const vy=heightAtWorld(cx0,cz0);
-  // dirt village green
-  if(NEUTRAL_LIB&&NEUTRAL_LIB.dirt){const d=NEUTRAL_LIB.dirt.clone(true);const box=new THREE.Box3().setFromObject(d);
-    const s=15/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);d.scale.setScalar(s);d.position.y=-box.min.y*s-.15;
-    d.traverse(o=>{if(o.isMesh)o.receiveShadow=true;});g.add(d);}
-  // ring of timbered cottages
+  // dirt village green — painted into the ground so it hugs the land (no more raised brown disc)
+  stampDirt(cx0,cz0,5);
+  // ring of timbered cottages, each nudged a little so the circle feels grown not drawn
   const n=4+Math.floor(hashN(v.tx,v.ty)*2);
   for(let i=0;i<n;i++){const a=i/n*Math.PI*2+hashN(i,v.tx)*.5;const r=4.6+hashN(v.ty,i)*1.4;
     const hut=makeCottage(v.tx*7+i);hut.position.set(Math.cos(a)*r,heightAtWorld(cx0+Math.cos(a)*r,cz0+Math.sin(a)*r)-vy,Math.sin(a)*r);
-    hut.rotation.y=-a+Math.PI/2;g.add(hut);}
+    hut.rotation.y=-a+Math.PI/2+(hashN(i*3,v.ty)-.5)*.55;g.add(hut);}
+  // shade trees by the lanes
+  const vtree=(dx,dz,s)=>{const tg=new THREE.Group();
+    const t=new THREE.Mesh(new THREE.CylinderGeometry(.14,.26,1.5,6),M.trunk);t.position.y=.75;tg.add(t);
+    const b=new THREE.Mesh(new THREE.IcosahedronGeometry(1.1,1),LEAF_MATS[Math.abs(v.tx+Math.round(dx*7))%LEAF_MATS.length]);
+    b.position.y=2.2;b.scale.y=.85;b.rotation.y=dx;tg.add(b);
+    tg.scale.setScalar(s);tg.position.set(dx,heightAtWorld(cx0+dx,cz0+dz)-vy,dz);g.add(tg);};
+  vtree(5.8,-4.9,1.05);vtree(-6.3,3.6,.9);vtree(-3.2,-6.6,.8);
   // village well
   const wellW=new THREE.Mesh(new THREE.CylinderGeometry(.8,.9,.8,10),cotStone);wellW.position.y=.4;wellW.castShadow=true;g.add(wellW);
   for(const px of[-.7,.7]){const post=new THREE.Mesh(new THREE.BoxGeometry(.12,1.5,.12),M.wood);post.position.set(px,1.1,0);g.add(post);}
@@ -866,10 +876,12 @@ function addVillage(v){ const g=new THREE.Group();const cx0=wx(v.tx),cz0=wz(v.ty
   if(NEUTRAL_LIB&&NEUTRAL_LIB.grain){const gr=NEUTRAL_LIB.grain.clone(true);const box=new THREE.Box3().setFromObject(gr);
     const s=6/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);gr.scale.setScalar(s);
     gr.position.set(7.5,-box.min.y*s+heightAtWorld(cx0+7.5,cz0+2)-vy,2);gr.traverse(o=>{if(o.isMesh)o.receiveShadow=true;});g.add(gr);}
-  if(NEUTRAL_LIB&&NEUTRAL_LIB.fence_wood_straight){for(let i=0;i<5;i++){const f=NEUTRAL_LIB.fence_wood_straight.clone(true);
-    const box=new THREE.Box3().setFromObject(f);const s=3.4/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);
-    const a=i/5*Math.PI*2+.35;f.scale.setScalar(s);
-    f.position.set(Math.cos(a)*8.2,-box.min.y*s+heightAtWorld(cx0+Math.cos(a)*8.2,cz0+Math.sin(a)*8.2)-vy,Math.sin(a)*8.2);
+  if(NEUTRAL_LIB&&NEUTRAL_LIB.fence_wood_straight){const NF=14;for(let i=0;i<NF;i++){
+    if(i===0||i===Math.floor(NF/2))continue;   // two open lanes into the village
+    const f=NEUTRAL_LIB.fence_wood_straight.clone(true);
+    const box=new THREE.Box3().setFromObject(f);const s=3.9/Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);
+    const a=i/NF*Math.PI*2+.35;f.scale.setScalar(s);
+    f.position.set(Math.cos(a)*8.4,-box.min.y*s+heightAtWorld(cx0+Math.cos(a)*8.4,cz0+Math.sin(a)*8.4)-vy,Math.sin(a)*8.4);
     f.rotation.y=-a+Math.PI/2;f.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.add(f);}}
   // village banner
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,4.6,5),M.trunk);pole.position.set(0,2.9,0);g.add(pole);
@@ -906,7 +918,7 @@ function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),
     const mA=LEAF_MATS[Math.floor(h1*LEAF_MATS.length)%LEAF_MATS.length];
     const mB=LEAF_MATS[Math.floor(h2*LEAF_MATS.length)%LEAF_MATS.length];
     const t=new THREE.Mesh(new THREE.CylinderGeometry(.20,.38,2.0,7),M.trunk);t.position.y=1.0;t.castShadow=false;g.add(t);
-    const blob=(x,y,z,s,m)=>{const b=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),m);b.position.set(x,y,z);b.scale.y=.82;b.rotation.set(h1*3,h2*3,h3*3);b.castShadow=false;g.add(b);};
+    const blob=(x,y,z,s,m)=>{const b=new THREE.Mesh(new THREE.IcosahedronGeometry(s,1),m);b.position.set(x,y,z);b.scale.y=.82;b.rotation.set(h1*3,h2*3,h3*3);b.castShadow=false;g.add(b);};
     blob(0,3.0,0,1.55,mA);
     blob(.95,2.5,.35,1.0,mB);
     blob(-.85,2.6,-.3,.95,mB);
@@ -914,8 +926,8 @@ function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),
   } else { // pine: soft-proportioned twin cones
     const m=PINE_MATS[Math.floor(h1*PINE_MATS.length)%PINE_MATS.length];
     const t=new THREE.Mesh(new THREE.CylinderGeometry(.16,.28,1.4,6),M.trunk);t.position.y=.7;t.castShadow=false;g.add(t);
-    const c1=new THREE.Mesh(new THREE.ConeGeometry(1.25,2.9,8),m);c1.position.y=2.6;c1.castShadow=false;g.add(c1);
-    const c2=new THREE.Mesh(new THREE.ConeGeometry(.85,2.0,8),m);c2.position.y=4.1;c2.castShadow=false;g.add(c2);
+    const c1=new THREE.Mesh(new THREE.ConeGeometry(1.25,2.9,12),m);c1.position.y=2.6;c1.castShadow=false;g.add(c1);
+    const c2=new THREE.Mesh(new THREE.ConeGeometry(.85,2.0,12),m);c2.position.y=4.1;c2.castShadow=false;g.add(c2);
   }
   const yy=heightAtWorld(wx(n.tx),wz(n.ty));g.position.set(wx(n.tx),yy,wz(n.ty));
   g.rotation.y=h1*6;g.rotation.z=(h2-.5)*.08;g.scale.setScalar(0.85+h2*0.7);decorGroup.add(g);return g;}
@@ -937,7 +949,7 @@ function buildTreesInstanced(){
     const px=wx(n.tx),pz=wz(n.ty),py=heightAtWorld(px,pz);
     plans.push({n,parts,px,py,pz,ry:h1*6,rz:(h2-.5)*.08,ts:0.85+h2*0.7});
     for(const pp of parts)counts[pp[0]]=(counts[pp[0]]||0)+1; }
-  const geos={tb:new THREE.CylinderGeometry(.20,.38,2.0,7),tp:new THREE.CylinderGeometry(.16,.28,1.4,6),b:new THREE.IcosahedronGeometry(1,0),c1:new THREE.ConeGeometry(1.25,2.9,8),c2:new THREE.ConeGeometry(.85,2.0,8)};
+  const geos={tb:new THREE.CylinderGeometry(.20,.38,2.0,7),tp:new THREE.CylinderGeometry(.16,.28,1.4,6),b:new THREE.IcosahedronGeometry(1,1),c1:new THREE.ConeGeometry(1.25,2.9,12),c2:new THREE.ConeGeometry(.85,2.0,12)};
   const ims={},idx={};
   for(const key in counts){ let geo,mat;
     if(key==='tb'){geo=geos.tb;mat=M.trunk;} else if(key==='tp'){geo=geos.tp;mat=M.trunk;}
@@ -1059,7 +1071,6 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   const HORSE_OF={knight:'HorseW',dragoon:'HorseA',wolfrider:'HorseA',cuirassier:'HorseW'};
   const RIDER_OF={knight:'KnightM',dragoon:'Soldier',wolfrider:'Viking',cuirassier:'GoldKnight'};
   if(HORSE_OF[type]&&CHAR_LIB&&CHAR_LIB.lib[HORSE_OF[type]]&&CHAR_LIB.lib[RIDER_OF[type]]){
-    const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.88,u.r*.98,.08,14),tm);ring.position.y=.04;ring.castShadow=true;g.add(ring);
     const hsrc=CHAR_LIB.lib[HORSE_OF[type]];
     const horse=CHAR_LIB.clone(hsrc.scene);
     const hbox=new THREE.Box3().setFromObject(horse), hlen=Math.max(hbox.max.z-hbox.min.z,hbox.max.x-hbox.min.x)||1;
@@ -1089,7 +1100,6 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   let ckey=UNIT_CHAR[type]; if(type==='worker'&&CHAR_LIB&&CHAR_LIB.lib.WorkerM)ckey=Math.random()<0.5?'WorkerM':'WorkerF';
   if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
     const src=CHAR_LIB.lib[ckey];
-    const ring=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.88,u.r*.98,.08,14),tm);ring.position.y=.04;ring.castShadow=true;g.add(ring);
     const ch=CHAR_LIB.clone(src.scene);
     const box=new THREE.Box3().setFromObject(ch),hgt=box.max.y-box.min.y||2;
     ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:2.4)/hgt);
@@ -1115,7 +1125,6 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
   if(u.coat&&!unitMat[coatKey])unitMat[coatKey]=new THREE.MeshStandardMaterial({color:fac.coat,roughness:.55,flatShading:true});
   const bodyMat=u.coat?unitMat[coatKey]:unitMat[type];const trimMat=new THREE.MeshStandardMaterial({color:fac.trim,roughness:.5,metalness:.3});
-  const base=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.66,u.r*.74,.08,14),tm);base.position.y=.04;base.castShadow=true;g.add(base);
   const anim=new THREE.Group();g.add(anim);g.userData.anim=anim;
   if(type==='warboat'){
     if(PIRATE_SHIP_L||PIRATE_SHIP){ const s=(PIRATE_SHIP_L||PIRATE_SHIP).clone(true);
@@ -1489,7 +1498,9 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
       flashMsg('\u{1F468}\u200D\u{1F33E} Workers tend the farm \u2014 richer harvest!');SFX.cmd();return; } }
   const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));spawnMoveMark(eu.x,eu.z,0xff4632);flashMsg('⚔ Attack! Your men charge the '+(UNIT[eu.type].name));SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
-  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
+  const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){workers.forEach(e=>gatherOrder(e,node));
+    spawnNodeFlash(wx(node.tx),wz(node.ty),node.type==='wood'?0x7fd08a:node.type==='gold'?0xf3d55a:node.type==='food'?0xff9a6a:0xc4d2dc);
+    const o=list.filter(e=>e.type!=='worker');if(o.length)commandMove(o,x,z);SFX.cmd();return;}
   commandMove(list,x,z,false);}
 function attackOrder(e,t){if(UNIT[e.type].noAtk||UNIT[e.type].ramOnly){e.cmd='move';e.target=null;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);return;}if(e.type==='worker'&&t.owner===e.owner)return;
   if(e.owner==='player'&&t.owner!=='player'&&!isHostile('player',t.owner))declareWar(t.owner,'player');
@@ -1933,7 +1944,7 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
 let camYaw=0,camPitch=0.92,camDist=80,camTarget=new THREE.Vector3(0,0,0),camShake=0;
 const keys={};let hoverTile={tx:0,ty:0},hoverWorld=new THREE.Vector3();const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2();
 let mouseSX=0,mouseSY=0,dragStartSX=0,dragStartSY=0,dragging=false,vw=1280,vh=640;
-let rDrag=null,panDrag=null;   // right-drag aims; middle-drag pans
+let rDrag=null,panDrag=null,orbitDrag=null;   // right-drag aims; middle-drag pans; alt-drag orbits (yaw+pitch)
 const aimArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),8,0x8fe6a8,3.2,2.0);
 aimArrow.visible=false; aimArrow.line.material.depthTest=false; aimArrow.cone.material.depthTest=false; scene.add(aimArrow);
 // one little arrow per soldier, showing his exact spot and facing in the chosen formation
@@ -1997,7 +2008,7 @@ function updateUnitLOD(){
 function updateCamera(dt){const sp=48*dt*(camDist/80),m=18;const fwd=[-Math.sin(camYaw),-Math.cos(camYaw)],rgt=[Math.cos(camYaw),-Math.sin(camYaw)];let fx=0,fz=0;
   if(keys['arrowup']||keys['w']){fx+=fwd[0];fz+=fwd[1];}if(keys['arrowdown']||keys['s']){fx-=fwd[0];fz-=fwd[1];}
   if(keys['arrowleft']||keys['a']){fx-=rgt[0];fz-=rgt[1];}if(keys['arrowright']||keys['d']){fx+=rgt[0];fz+=rgt[1];}
-  if(mouseIn&&running&&!panDrag){ const M=26;   // edge scroll — pointer at the borders pans the map
+  if(mouseIn&&running&&!panDrag&&!orbitDrag){ const M=26;   // edge scroll — pointer at the borders pans the map
     if(mouseSX<M){fx-=rgt[0];fz-=rgt[1];} else if(mouseSX>vw-M){fx+=rgt[0];fz+=rgt[1];}
     if(mouseSY<M){fx+=fwd[0];fz+=fwd[1];} else if(mouseSY>vh-M){fx-=fwd[0];fz-=fwd[1];} }
   camTarget.x=clamp(camTarget.x+fx*sp,-HALF_W,HALF_W);camTarget.z=clamp(camTarget.z+fz*sp,-HALF_H,HALF_H);
@@ -2020,6 +2031,8 @@ function pickUnit(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromC
 function pickBuilding(sx,sy){ndc.x=(sx/vw)*2-1;ndc.y=-(sy/vh)*2+1;raycaster.setFromCamera(ndc,camera);const meshes=blds.filter(b=>b.owner==='player').map(b=>b.mesh);const h=raycaster.intersectObjects(meshes,true);if(h.length){let o=h[0].object;while(o.parent&&!blds.some(b=>b.mesh===o))o=o.parent;return blds.find(b=>b.mesh===o)||null;}return null;}
 function localXY(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(vw/r.width),y:(ev.clientY-r.top)*(vh/r.height)};}
 canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY=p.y;
+  if(orbitDrag){ camYaw=orbitDrag.yaw+(p.x-orbitDrag.sx)*0.008;
+    camPitch=clamp(orbitDrag.pitch+(p.y-orbitDrag.sy)*0.006,0.18,1.5); }
   if(panDrag){ const f=camDist/620, dxp=p.x-panDrag.sx, dyp=p.y-panDrag.sy;
     const fwd=[-Math.sin(camYaw),-Math.cos(camYaw)], rgt=[Math.cos(camYaw),-Math.sin(camYaw)];
     camTarget.x=clamp(panDrag.cx-(dxp*rgt[0]+dyp*fwd[0])*f,-HALF_W,HALF_W);
@@ -2036,9 +2049,13 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
       aimArrow.setDirection(new THREE.Vector3(dx/d,0,dz/d));
       aimArrow.setLength(Math.max(5,d),3.2,2.0);
       updateSlotMarks(Math.atan2(dz,dx)); } }});
-canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.button===1){ev.preventDefault();panDrag={sx:p.x,sy:p.y,cx:camTarget.x,cz:camTarget.z};canvas.style.cursor='grabbing';return;}if(ev.button===0){if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
-  else if(ev.button===2){if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length){rDrag={gx:g.x,gz:g.z,moved:false};return;}else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('🚩 Rally flag planted — new recruits will march there');SFX.cmd();refreshUI();}}}});
+canvas.addEventListener('mousedown',ev=>{if(!running||gameOver)return;initAudio();const p=localXY(ev);if(ev.altKey&&(ev.button===0||ev.button===1)){ev.preventDefault();orbitDrag={sx:p.x,sy:p.y,yaw:camYaw,pitch:camPitch};canvas.style.cursor='move';return;}if(ev.button===1){ev.preventDefault();panDrag={sx:p.x,sy:p.y,cx:camTarget.x,cz:camTarget.z};canvas.style.cursor='grabbing';return;}if(ev.button===0){if(demoMode){const b=pickBuilding(p.x,p.y);
+    if(b){const cc=COST[b.type]||{};res.player.w+=Math.floor((cc.w||0)*0.5);res.player.m+=Math.floor((cc.m||0)*0.5);
+      if(selBuilding===b.id)selBuilding=null;destroyBuilding(b);flashMsg('🔨 '+BLD[b.type].name+' torn down — half the materials recovered');refreshUI();}
+    return;}if(placing==='wall'){wallDrag={tx:hoverTile.tx,ty:hoverTile.ty};return;}if(placing){tryPlace(placing);return;}if(attackMove){const g=raycastGround(p.x,p.y);const s=selUnits();if(s.length)commandMove(s,g.x,g.z,true);attackMove=false;canvas.style.cursor='default';return;}dragging=true;dragStartSX=p.x;dragStartSY=p.y;}
+  else if(ev.button===2){if(demoMode){setDemo(false);return;}if(placing){placing=null;updateGhost();return;}if(attackMove){attackMove=false;canvas.style.cursor='default';return;}const g=raycastGround(p.x,p.y),s=selUnits();if(s.length){rDrag={gx:g.x,gz:g.z,moved:false};return;}else if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b&&b.owner==='player'&&b.done){b.rally={x:g.x,z:g.z};flashMsg('🚩 Rally flag planted — new recruits will march there');SFX.cmd();refreshUI();}}}});
 window.addEventListener('mouseup',ev=>{
+  if(orbitDrag&&(ev.button===0||ev.button===1)){orbitDrag=null;canvas.style.cursor='default';return;}
   if(ev.button===1&&panDrag){panDrag=null;canvas.style.cursor='default';return;}
   if(ev.button===2&&rDrag){ const rd=rDrag; rDrag=null; aimArrow.visible=false; hideSlotMarks();
     const s=selUnits();
@@ -2060,9 +2077,10 @@ canvas.addEventListener('mouseleave',()=>mouseIn=false);
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
 window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT'||ev.target.tagName==='TEXTAREA'))return;const k=ev.key.toLowerCase();keys[k]=true;if(k==='shift')keys['shift']=true;
-  if(k==='escape'){const busy=placing||attackMove||dragging||wallDrag;placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();
+  if(k==='escape'){const busy=placing||attackMove||dragging||wallDrag||demoMode;if(demoMode)setDemo(false);placing=null;attackMove=false;dragging=false;wallDrag=null;document.getElementById('dragbox').style.display='none';canvas.style.cursor='default';updateGhost();refreshUI();
     if(!busy){const pans=['forces','diplo','slots'].map(id=>$(id)).filter(el=>el&&!el.classList.contains('hidden'));
       if(pans.length)pans.forEach(el=>el.classList.add('hidden'));
+      else if(selected.length||selBuilding){selected=[];selBuilding=null;refreshUI();}
       else if(running&&!gameOver)togglePause();}}
   if(k==='f'&&selUnits().length){attackMove=true;canvas.style.cursor='crosshair';}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;});}
@@ -2086,6 +2104,14 @@ function selectIdle(){const iw=idleWorkers();
   const e=iw[idleCycle%iw.length];idleCycle++;camTarget.set(e.x,0,e.z);
   SFX.select();refreshUI();flashMsg('💤 '+iw.length+' lazy worker'+(iw.length>1?'s':'')+' rounded up — right-click a resource to put them to work');}
 document.getElementById('idleBtn').onclick=()=>{if(running)selectIdle();};
+// ---- demolish hammer: a roaming tool instead of a per-building button ----
+const hammerCur=(()=>{try{const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d');x.font='26px serif';x.textBaseline='top';x.fillText('🔨',2,2);return 'url('+c.toDataURL()+') 5 24, crosshair';}catch(e){return 'crosshair';}})();
+function setDemo(on){demoMode=on;const bt=document.getElementById('demoBtn');
+  bt.style.borderColor=on?'#c9a44a':'#2c5164';bt.style.background=on?'#3a2c17':'#17303f';bt.style.color=on?'#f3e4be':'#dff0f9';
+  canvas.style.cursor=on?hammerCur:'default';
+  if(on){placing=null;wallDrag=null;attackMove=false;updateGhost();flashMsg('🔨 Demolish tool — click your buildings to tear them down (half the materials back). Right-click or Esc puts the hammer away.');}
+  refreshUI();}
+document.getElementById('demoBtn').onclick=()=>{if(running&&!gameOver)setDemo(!demoMode);};
 // minimap click
 const mini=document.getElementById('mini');
 mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();const mx=(ev.clientX-r.left)/r.width,my=(ev.clientY-r.top)/r.height;camTarget.set(mx*WORLD_W-HALF_W,0,my*WORLD_H-HALF_H);});
@@ -2114,9 +2140,6 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
       if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);}
       if(b.type==='dock'){trainBtn(cmds,b,'warboat','⛵','Warboat',can);if(tech.player.age>=2)trainBtn(cmds,b,'privateer','🏴‍☠️','Privateer',can);}
-      if(b.owner==='player'){ techBtn(cmds,'🗑','Demolish','+50% back',true,()=>{
-        const cc=COST[b.type]||{}; res.player.w+=Math.floor((cc.w||0)*0.5); res.player.m+=Math.floor((cc.m||0)*0.5);
-        destroyBuilding(b); selBuilding=null; flashMsg('🗑 '+BLD[b.type].name+' demolished — half the materials recovered'); refreshUI(); }); }
       const UPG={tower:['🪨','Boulder Thrower','80🪵 60⛏️',{w:80,m:60},'Hurls splash boulders (2× damage)'],
         wall:['🧱','Fortify','40⛏️',{m:40},'+50% wall strength'],
         house:['🏘','Attic','30🪵',{w:30},'+4 population room'],
@@ -2130,7 +2153,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
           flashMsg('✅ '+upd[1]+' — '+upd[4]);SFX.build();refreshUI(); }); }
       else if(UPG[b.type]&&b.up)info.innerHTML+='<br><span style="color:#7fd08a">✅ '+UPG[b.type][1]+'</span>';
       if(b.type==='market'){marketBtn(cmds,'💰 Sell Wood','−100🪵 +50🪙',()=>trade('w',-100,50));marketBtn(cmds,'💰 Sell Food','−100🍖 +50🪙',()=>trade('f',-100,50));marketBtn(cmds,'💰 Sell Metal','−100⛏️ +65🪙',()=>trade('m',-100,65));marketBtn(cmds,'🛒 Buy Wood','−70🪙 +100🪵',()=>trade('w',100,-70));marketBtn(cmds,'🛒 Buy Metal','−80🪙 +100⛏️',()=>trade('m',100,-80));marketBtn(cmds,'🛒 Buy Food','−70🪙 +100🍖',()=>trade('f',100,-70));}}}return;}
-  const sel=selUnits();if(sel.length){const counts={};sel.forEach(e=>counts[e.type]=(counts[e.type]||0)+1);info.innerHTML=`<b>Selected (${sel.length}):</b><br>`+Object.entries(counts).map(([t,n])=>`${n} × ${UNIT[t].name}`).join('<br>');
+  const sel=selUnits();if(sel.length){const counts={};sel.forEach(e=>counts[e.type]=(counts[e.type]||0)+1);info.innerHTML=`<b>Selected (${sel.length})</b> <span style="color:#6f93a6;font-size:11px">(Esc clears)</span><br>`+Object.entries(counts).map(([t,n])=>`<span style="white-space:nowrap">${n}×${UNIT_IC[t]||''}${UNIT[t].name}</span>`).join(' · ');
     if(sel.some(e=>e.type!=='worker')){ const fr=document.createElement('div');fr.style.cssText='display:flex;gap:4px;margin-top:6px;flex-wrap:wrap';
       for(const k in FORMS){ const fb=document.createElement('button');fb.textContent=FORMS[k].ic+' '+FORMS[k].name;
         fb.title='Formation — right-click-drag the ground to place & aim it (T cycles)';
@@ -2239,8 +2262,13 @@ function updateRings(){let need=0;
 let moveMarks=[];
 function spawnMoveMark(x,z,col){const m=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.95,depthTest:false}));
   m.scale.setScalar(1.2);m.position.set(x,heightAtWorld(x,z)+.15,z);m.renderOrder=997;scene.add(m);moveMarks.push({m,t:0});}
-function updateMoveMarks(dt){for(const k of moveMarks){k.t+=dt;k.m.scale.setScalar(1.2+k.t*5);k.m.material.opacity=.95*(1-k.t/.55);}
-  moveMarks=moveMarks.filter(k=>{if(k.t>=.55){scene.remove(k.m);k.m.material.dispose();return false;}return true;});}
+// chosen resource node: a ring that blinks 3 times so the pick is unmistakable
+function spawnNodeFlash(x,z,col){const m=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.95,depthTest:false}));
+  m.scale.setScalar(3.4);m.position.set(x,heightAtWorld(x,z)+.2,z);m.renderOrder=998;scene.add(m);moveMarks.push({m,t:0,flash:true});}
+function updateMoveMarks(dt){for(const k of moveMarks){k.t+=dt;
+  if(k.flash){k.m.material.opacity=Math.floor(k.t/0.25)%2===0?0.95:0.08;k.m.scale.setScalar(3.4+Math.sin(k.t*7)*0.2);}
+  else{k.m.scale.setScalar(1.2+k.t*5);k.m.material.opacity=.95*(1-k.t/.55);}}
+  moveMarks=moveMarks.filter(k=>{if(k.t>=(k.flash?1.5:.55)){scene.remove(k.m);k.m.material.dispose();return false;}return true;});}
 const mctx=mini.getContext('2d');
 const miniTerr=document.createElement('canvas');let miniTerrAt=-99;
 function drawMiniTerrain(){miniTerr.width=mini.width;miniTerr.height=mini.height;const c=miniTerr.getContext('2d'),w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;
@@ -2291,14 +2319,14 @@ function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom
 function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H; sc.updateProjectionMatrix(); }
 function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   for(const n of meatNodes)if(n.mesh)scene.remove(n.mesh); meatNodes=[];
-  ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};updateGhost();
+  ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};if(demoMode)setDemo(false);updateGhost();
   initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
     addBuilding('hall',hx,hy,o,true);
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
     spawnUnit('spear',o,hx+3,hy+3); spawnUnit('infantry',o,hx-2,hy+3); }
-  const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);camYaw=0;camDist=80;
+  const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);camYaw=0;camPitch=0.92;camDist=80;
   for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
@@ -2311,14 +2339,16 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
     blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
     ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
-    cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,dist:camDist}};
+    cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,pitch:camPitch,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
   catch(err){flashMsg('Save failed: '+err.message);} }
 function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if(!raw){flashMsg('No saved kingdom');return;}
   document.getElementById('slots').classList.add('hidden');
   let s; try{s=JSON.parse(raw);}catch(e){flashMsg('Save file corrupted');return;}
   $('overlay').classList.add('hidden'); initAudio(); resize();
-  faction={...s.faction}; setRealmCount(s.players||4); difficulty=s.dif||difficulty; setMap(s.map||'heartlands'); paintMaps();
+  faction={...s.faction}; setRealmCount(s.players||4); difficulty=s.dif||difficulty; setMap(s.map||'heartlands');
+  { const ms=document.getElementById('mapSel'),ps=document.getElementById('plSel'),ds=document.getElementById('diffSel');
+    if(ms)ms.value=curMapId; if(ps)ps.value=String(playerCount); if(ds)ds.value=difficulty; }
   newGame();   // rebuilds the identical deterministic world, then we restore the saved state over it
   for(const e of ents)scene.remove(e.mesh); ents=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
@@ -2334,7 +2364,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
     if(se.j==='tend'){const f=blds.filter(q=>q.owner===e.owner&&q.done&&q.type==='farm').sort((q,r)=>Math.hypot(e.x-q.cx,e.z-q.cz)-Math.hypot(e.x-r.cx,e.z-r.cz))[0];
       if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}
     else if(se.j){const n=nearestNode(e,se.j);if(n)gatherOrder(e,n);}}
-  camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camDist=s.cam.dist;
+  camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camPitch=s.cam.pitch||0.92;camDist=s.cam.dist;
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
 let autosaveT=40;
 window.addEventListener('beforeunload',()=>{try{saveGame(true);}catch(e){}});
@@ -2451,17 +2481,13 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     addCustomMapBtn(); document.getElementById('builder').style.display='none';
     flashMsg('🛠 Map saved — '+SIZES[szi][0]+' '+BW+'×'+BH+' — pick “My Map” and march!'); };
 })();
-function addCustomMapBtn(){ const mp=document.getElementById('mappick');
-  if(!localStorage.getItem('tidefall_custom_map'))return;
+function addCustomMapBtn(){ const sel=document.getElementById('mapSel');
+  if(!sel||!localStorage.getItem('tidefall_custom_map'))return;
   const m=MAPS.custom;
-  let b=document.querySelector('#mappick [data-map=custom]');
-  if(!b){ b=document.createElement('button');
-    b.className='mapbtn'; b.dataset.map='custom';
-    b.style.cssText='text-align:left;cursor:pointer;padding:13px 15px;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);color:#e8dcc0;transition:border-color .12s;';
-    b.onclick=()=>{setMap('custom');localStorage.setItem('tidefall_map','custom');paintMaps();};
-    mp.appendChild(b); }
-  b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+' <span style="color:#a68b52;font-size:12px;">'+m.w+'×'+m.h+'</span></div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>'; }
-addCustomMapBtn();
+  let o=sel.querySelector('option[value=custom]');
+  if(!o){ o=document.createElement('option'); o.value='custom'; sel.appendChild(o); }
+  o.textContent=m.name+' ('+m.w+'×'+m.h+') — '+m.desc;
+  if(curMapId==='custom')sel.value='custom'; }
 document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('tidefall_fac')||'english');
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
   const tx0=ph.tx+(ph.w>>1), ty0=ph.ty+ph.h+3; let col=0,row=0;
@@ -2476,36 +2502,32 @@ function start(fac){faction.player=fac||'english';
   AI_REALMS.forEach((o,i)=>faction[o]=others[i%others.length]);
   $('overlay').classList.add('hidden');initAudio();resize();newGame();flashMsg(FACTIONS[faction.player].name+' — '+FACTIONS[faction.player].bonus);}
 var selFac='english';
-function paintMaps(){document.querySelectorAll('#mappick .mapbtn').forEach(b=>{const on=b.dataset.map===curMapId;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';b.style.opacity='1';});if(typeof updateStartSummary==='function')updateStartSummary();}
-{ const mp=document.getElementById('mappick');
-  for(const id in MAPS){ if(MAPS[id].custom)continue; const m=MAPS[id]; const b=document.createElement('button');
-    b.className='mapbtn'; b.dataset.map=id;
-    b.style.cssText='text-align:left;cursor:pointer;padding:13px 15px;border:1px solid #3b2f1d;background:rgba(28,23,15,.85);color:#e8dcc0;transition:border-color .12s;';
-    b.innerHTML='<div style="font-family:\'Cinzel\',serif;font-weight:600;font-size:15px;letter-spacing:.03em;">'+m.name+' <span style="color:#a68b52;font-size:12px;">'+m.w+'×'+m.h+'</span></div><div style="font-size:14px;color:#9d8a67;margin-top:3px;font-family:\'EB Garamond\',serif;">'+m.desc+'</div>';
-    b.onclick=()=>{setMap(id);localStorage.setItem('tidefall_map',id);paintMaps();};
-    mp.appendChild(b); }
-  paintMaps(); }
-function paintDiff(){const tints={easy:'rgba(93,122,62,0.35)',normal:'rgba(201,162,74,0.18)',hard:'rgba(124,43,35,0.45)'};
-  document.querySelectorAll('#diffpick .dif').forEach(b=>{const on=b.dataset.dif===difficulty;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?tints[b.dataset.dif]:'rgba(28,23,15,0.85)';b.style.opacity='1';});if(typeof updateStartSummary==='function')updateStartSummary();}
-document.querySelectorAll('#diffpick .dif').forEach(b=>b.onclick=()=>{difficulty=b.dataset.dif;localStorage.setItem('tidefall_diff',difficulty);paintDiff();});
-paintDiff();
-function paintPlayers(){document.querySelectorAll('#plpick .plc').forEach(b=>{const on=+b.dataset.n===playerCount;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';});if(typeof updateStartSummary==='function')updateStartSummary();}
-document.querySelectorAll('#plpick .plc').forEach(b=>b.onclick=()=>{setRealmCount(+b.dataset.n);localStorage.setItem('tidefall_players',playerCount);paintPlayers();});
-paintPlayers();
-// starting fresh with a real kingdom in the autosave? make sure it's wanted
-selFac=localStorage.getItem('tidefall_fac')||'english';
-function paintFacs(){document.querySelectorAll('#overlay .fac').forEach(b=>{const on=b.dataset.fac===selFac;b.style.borderColor=on?'#c9a24a':'#3b2f1d';b.style.background=on?'rgba(201,162,74,0.14)':'rgba(28,23,15,0.85)';});if(typeof updateStartSummary==='function')updateStartSummary();}
 function updateStartSummary(){const el=document.getElementById('startSummary');if(!el)return;
   const mn=(MAPS[curMapId]&&MAPS[curMapId].name)||'Heartlands';
   const dn=difficulty.charAt(0).toUpperCase()+difficulty.slice(1);
   const fn=(FACTIONS[selFac]&&FACTIONS[selFac].name)||'English Red Coats';
   el.textContent=mn+' · '+dn+' · '+playerCount+' realms · '+fn;}
-document.querySelectorAll('#overlay .fac').forEach(b=>b.onclick=()=>{selFac=b.dataset.fac;localStorage.setItem('tidefall_fac',selFac);paintFacs();});
+function updateSetupBlurb(){const bl=document.getElementById('setupBlurb');if(!bl)return;
+  const f=FACTIONS[selFac];
+  bl.textContent=(f?f.emo+' '+f.bonus+'. ':'')+(playerCount===8?'Big maps fit 8 realms best — corners fill first, then the coasts.':'');}
+{ const mapSel=document.getElementById('mapSel'),diffSel=document.getElementById('diffSel'),plSel=document.getElementById('plSel'),facSel=document.getElementById('facSel');
+  for(const id in MAPS){ if(MAPS[id].custom)continue; const m=MAPS[id];
+    const o=document.createElement('option'); o.value=id; o.textContent=m.name+' ('+m.w+'×'+m.h+') — '+m.desc; mapSel.appendChild(o); }
+  addCustomMapBtn();
+  mapSel.value=curMapId; if(mapSel.value!==curMapId){setMap('heartlands');mapSel.value='heartlands';}
+  mapSel.onchange=()=>{setMap(mapSel.value);localStorage.setItem('tidefall_map',mapSel.value);updateStartSummary();};
+  diffSel.value=difficulty;
+  diffSel.onchange=()=>{difficulty=diffSel.value;localStorage.setItem('tidefall_diff',difficulty);updateStartSummary();};
+  plSel.value=String(playerCount);
+  plSel.onchange=()=>{setRealmCount(+plSel.value);localStorage.setItem('tidefall_players',playerCount);updateSetupBlurb();updateStartSummary();};
+  selFac=localStorage.getItem('tidefall_fac')||'english'; if(!FACTIONS[selFac])selFac='english';
+  facSel.value=selFac;
+  facSel.onchange=()=>{selFac=facSel.value;localStorage.setItem('tidefall_fac',selFac);updateSetupBlurb();updateStartSummary();};
+  updateSetupBlurb();updateStartSummary(); }
 document.getElementById('marchBtn').onclick=()=>{
   try{ const raw=localStorage.getItem('tidefall_save'); if(raw){ const m=(JSON.parse(raw).meta)||{};
     if((m.t||0)>180&&!window.confirm('You already have a kingdom in progress ('+slotDesc(JSON.parse(raw))+').\nStarting a new campaign overwrites the Autosave.\nKingdoms in Slots 1-3 are safe. Start anyway?'))return; } }catch(e){}
   start(selFac); };
-paintFacs();
 {const mb=document.getElementById('menuBuild');if(mb)mb.textContent='BUILD '+document.getElementById('ver').textContent;}
 // ---- save slots panel ----
 const SLOT_KEYS=[['tidefall_save','⏱ Autosave'],['tidefall_slot1','🏰 Slot 1'],['tidefall_slot2','🏰 Slot 2'],['tidefall_slot3','🏰 Slot 3']];
