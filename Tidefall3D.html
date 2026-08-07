@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b195</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b196</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -985,9 +985,34 @@ const _tc1=new THREE.Color(),_tc2=new THREE.Color();
 // b169: hoisted out of terrainColor. It was rebuilt from scratch on every call — and that function
 // runs once per pixel of a 700,000-pixel ground texture, so this alone was millions of throwaway
 // arrays every time a world was built.
-const TERR_STOPS=[[0.0,0xbfa878],[1.05,0xd6c088],[1.45,0x7cb84c],[2.0,0x58ab3b],[2.6,0x479c33],[3.1,0x64a34a],[3.6,0x8fae74]];
+// b196: the grass stops used to run 0x7cb84c / 0x58ab3b / 0x479c33 / 0x64a34a, which measure 0.59 to
+// 0.67 saturation before SAT_LIFT pushed them further. Photographed at a fighting camera the ground
+// was 85.6% of the frame at 0.72 saturation — a single flat electric green. These are the same hues
+// pulled back to 0.40-0.51, which is where stylised RTS ground actually sits; the tonal interest is
+// put back by the meadow break-up below rather than by shouting the colour.
+const TERR_STOPS=[[0.0,0xbfa878],[1.05,0xd6c088],[1.45,0x88b460],[2.0,0x6faa58],[2.6,0x5f9b4c],[3.1,0x76a262],[3.6,0x8fae74]];
 const TERR_STOPC=TERR_STOPS.map(s=>new THREE.Color(s[1]));   // the same colours, converted to working space ONCE
 const TC_SWAMP=new THREE.Color(0x5e6b42), TC_WETSAND=new THREE.Color(0x94794f);
+const TC_DRY=new THREE.Color(0xaaa468), TC_LUSH=new THREE.Color(0x346836);
+// Both meadow fields are low frequency by construction — 48 and 13 world units — so evaluating them
+// per texel cost 195ms of a 563ms ground bake for detail that is not in the signal. Measured on a
+// 2-unit grid and bilerped instead: 6.5 samples across the finer of the two wavelengths, 21 times
+// fewer noise calls, same picture. b169 spent real effort getting the load down; this keeps it there.
+let _mdG=null,_mdC=0,_mdR=0,_mdFor=-1;const MD_S=2;
+function meadowGrid(){_mdC=Math.ceil(WORLD_W/MD_S)+3;_mdR=Math.ceil(WORLD_H/MD_S)+3;
+  _mdG=new Float32Array(_mdC*_mdR);
+  for(let j=0;j<_mdR;j++)for(let i=0;i<_mdC;i++){
+    const vx=-HALF_W+(i-1)*MD_S, vz=-HALF_H+(j-1)*MD_S;
+    const m=noise2(vx*0.021+400,vz*0.021+400), m2=noise2(vx*0.075+900,vz*0.075+900);
+    _mdG[j*_mdC+i]=clamp((m-0.435)*1.9+(m2-0.485)*0.8,-1,1);}
+  _mdFor=WORLD_W*8192+WORLD_H;}
+function meadowAt(vx,vz){ if(!_mdG||_mdFor!==WORLD_W*8192+WORLD_H)meadowGrid();
+  let fx=(vx+HALF_W)/MD_S+1, fz=(vz+HALF_H)/MD_S+1;
+  if(fx<0)fx=0;else if(fx>_mdC-1.001)fx=_mdC-1.001;
+  if(fz<0)fz=0;else if(fz>_mdR-1.001)fz=_mdR-1.001;
+  const i=fx|0,j=fz|0,tx=fx-i,tz=fz-j,o=j*_mdC+i;
+  const a=_mdG[o]+(_mdG[o+1]-_mdG[o])*tx, b=_mdG[o+_mdC]+(_mdG[o+_mdC+1]-_mdG[o+_mdC])*tx;
+  return a+(b-a)*tz;}
 function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
   const stops=TERR_STOPS;
   let ai=0,bi=stops.length-1;
@@ -1000,6 +1025,22 @@ function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
   if(e>1.05&&e<1.95&&sw<0.2)out.lerp(TC_SWAMP,clamp((0.2-sw)*6,0,0.75));
   // wet dark sand where the land meets the sea (b103 AoE2 ground pass)
   if(e>1.0&&e<1.26)out.lerp(TC_WETSAND,clamp((1.26-e)/0.26,0,1)*0.55);
+  // MEADOW BREAK-UP. Everything above this comment only ever touched the coast: the swamp mottling
+  // is gated to e 1.05-1.95 and the wet sand to 1.0-1.26, but the map's land runs 2.0 to 3.4, so
+  // ordinary grass — the overwhelming majority of what anyone looks at — received no variation at
+  // all beyond a plus-or-minus 0.025 lightness nudge. Measured, half of it sat inside an eight-level
+  // tonal band. Two noise fields now run across all of it: a broad one about twelve tiles across for
+  // the shape of a meadow, and a finer one about three tiles for the break within it. Where they
+  // agree high the turf goes sun-bleached and straw, where they agree low it goes damp and deep.
+  // The texture is 1.52 texels per world unit, so both scales are comfortably above Nyquist and
+  // read as ground rather than as noise.
+  // Centred on the fields' own medians, not on 0.5: noise2 sits at 0.435 and 0.485 at these two
+  // frequencies, so splitting at 0.5 handed 59% of the country to the lush side and drove over a
+  // twentieth of it hard into the clamp, where large stretches all came out the same maximum green —
+  // flat again, just a darker flat. The gains are eased for the same reason, to keep the field in
+  // its gradient instead of pinned at the ends.
+  if(e>1.35){ const dry=meadowAt(vx,vz);
+    if(dry>0)out.lerp(TC_DRY,dry*0.50); else out.lerp(TC_LUSH,-dry*0.42); }
   { const d=(noise2(vx*0.18,vz*0.18)-0.5)*0.05;   // b169: a plain lightness nudge, without the HSL round trip
     out.r=out.r+d<0?0:out.r+d>1?1:out.r+d; out.g=out.g+d<0?0:out.g+d>1?1:out.g+d; out.b=out.b+d<0?0:out.b+d>1?1:out.b+d; }
   // fine grain speckle — reads as turf texture instead of flat paint
@@ -1015,7 +1056,10 @@ const L2S=new Float32Array(4096);
 for(let i=0;i<4096;i++){ const c=i/4095; L2S[i]=c<=0.0031308?c*12.92:1.055*Math.pow(c,1/2.4)-0.055; }
 const lin2srgb=c=>L2S[c<=0?0:c>=1?4095:(c*4095)|0];
 const srgb2lin=c=>c<=0?0:c>=1?1:(c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4));
-const SAT_LIFT=1.14, BRIGHT_LIFT=1.0;   // gentler now that it works on properly encoded colour
+// b196: 1.14 was still pushing every ground pixel further from its own luminance on top of stops
+// that were already too hot. Neutral now — the colour that comes out of terrainColor is the colour
+// that was chosen, and the variety comes from the meadow fields instead of from the saturation dial.
+const SAT_LIFT=1.0, BRIGHT_LIFT=1.0;
 function buildGroundTexture(){   // painted ground: bright grass with grain + worn dirt roads
   const TW=1024, TH=Math.max(256,Math.round(1024*MAP_H/MAP_W));
   const cv=document.createElement('canvas');cv.width=TW;cv.height=TH;const c2=cv.getContext('2d');groundCv=cv;groundCtx=c2;
