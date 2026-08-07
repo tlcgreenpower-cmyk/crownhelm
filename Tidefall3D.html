@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b172</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b173</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1922,10 +1922,15 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   return g;}
 function makeHealthBar(){const grp=new THREE.Group();
   const mk=(w,ht,col,op,ro,z)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,ht),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthTest:false,depthWrite:false}));m.renderOrder=ro;m.position.z=z;grp.add(m);return m;};
-  mk(1.9,.4,0x060a0e,.92,996,0);            // frame draws FIRST
-  mk(1.7,.24,0x2a1010,1,997,.01);           // empty track
-  const fg=mk(1.7,.24,0x54e468,1,998,.02);  // health fill on top
-  grp.userData.fg=fg;grp.visible=false;return grp;}
+  // b173: these used to be 1.9 wide and near-solid black — 45 pixels of slab against a unit only 54
+  // pixels tall. Twenty men in a scrap and the battle vanished behind a wall of black rectangles,
+  // which is precisely the moment you most want to see your soldiers. Two thirds the width, half
+  // the height, and the frame is now a thin dark edge rather than a plate.
+  const W=1.16;
+  mk(W+0.12,.20,0x0a0f14,.55,996,0);        // frame draws FIRST
+  mk(W,.12,0x2a1010,.85,997,.01);           // empty track
+  const fg=mk(W,.12,0x54e468,1,998,.02);    // health fill on top
+  grp.userData.fg=fg;grp.userData.hw=W/2;grp.visible=false;return grp;}
 // ---- b138: REAL FARMS — every field sows one of six crops on ridged soil, ringed by a post-and-rail fence ----
 const FARM_CROPS=[
   {n:'Wheat',a:0xd8b53c,b:0xc19a2c,k:'grain'},
@@ -2188,10 +2193,13 @@ function orientWallAround(tx,ty){ for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0
 function attachBuildUI(bl){ const grp=new THREE.Group();
   const bg=new THREE.Mesh(new THREE.PlaneGeometry(4.2,.5),new THREE.MeshBasicMaterial({color:0x14202c,depthTest:false}));
   const fg=new THREE.Mesh(new THREE.PlaneGeometry(4.2,.5),new THREE.MeshBasicMaterial({color:0xf0a840,depthTest:false}));fg.position.z=.01;
-  const cv=document.createElement('canvas');cv.width=128;cv.height=40;const ctx2=cv.getContext('2d');
+  // b173: this was a 128px canvas carrying the words "needs worker" at 22px bold — about 170px of
+  // text in 128px of room, so every site in the kingdom was labelled "needs work" with both ends
+  // sliced off. Wider canvas, matching the plane it is pasted on, and the font shrinks to fit.
+  const cv=document.createElement('canvas');cv.width=256;cv.height=64;const ctx2=cv.getContext('2d');
   const tex=new THREE.CanvasTexture(cv);
-  const label=new THREE.Mesh(new THREE.PlaneGeometry(3.4,1.05),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false}));
-  label.position.y=1.0;
+  const label=new THREE.Mesh(new THREE.PlaneGeometry(3.4,0.85),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false}));
+  label.position.y=1.05;
   grp.add(bg,fg,label);grp.renderOrder=999;
   grp.position.set(bl.cx,heightAtWorld(bl.cx,bl.cz)+(bl.type==='castle'?11:bl.type==='hall'?9:6.5),bl.cz);
   scene.add(grp);
@@ -2226,10 +2234,12 @@ function updateBuildUI(bl,dt){ const ui=bl.buildUI; if(!ui)return;
   const inst=(bl.progress-(bl._lastP||0))/Math.max(dt,0.001); bl._lastP=bl.progress;
   bl._rate=bl._rate===undefined?inst:bl._rate*0.85+inst*0.15;
   const txt=bl._rate>0.004?Math.max(1,Math.ceil((1-bl.progress)/bl._rate))+'s':'⚒ needs worker';
-  if(txt!==ui.lastTxt){ ui.lastTxt=txt; const c=ui.ctx2; c.clearRect(0,0,128,40);
-    c.font='bold 22px Segoe UI';c.textAlign='center';c.textBaseline='middle';
-    c.strokeStyle='rgba(0,0,0,0.8)';c.lineWidth=4;c.strokeText(txt,64,20);
-    c.fillStyle=bl._rate>0.004?'#ffe9c0':'#ff9a8a';c.fillText(txt,64,20); ui.tex.needsUpdate=true; } }
+  if(txt!==ui.lastTxt){ ui.lastTxt=txt; const c=ui.ctx2; c.clearRect(0,0,256,64);
+    let fs=40; c.textAlign='center';c.textBaseline='middle';
+    c.font='bold '+fs+'px Segoe UI';
+    while(fs>12&&c.measureText(txt).width>238){ fs-=2; c.font='bold '+fs+'px Segoe UI'; }
+    c.strokeStyle='rgba(0,0,0,0.8)';c.lineWidth=Math.max(3,fs*0.18);c.strokeText(txt,128,32);
+    c.fillStyle=bl._rate>0.004?'#ffe9c0':'#ff9a8a';c.fillText(txt,128,32); ui.tex.needsUpdate=true; } }
 function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; removeBuildUI(bl); const nm=makeBldMesh(bl.type,bl.owner,bl.tx*131+bl.ty*17);
     nm.position.copy(old.position); nm.scale.y=1;   // b149: rise is carried by position, not by stretching
     scene.remove(old); bl.mesh=nm; scene.add(nm); if(!bl.done)attachBuildUI(bl); } visT=0; }
@@ -2689,7 +2699,7 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
   updateBuildUI(b,dt);return;}
   const bhb=b.mesh.userData.hb;
   if(bhb){ if((b.hp<b.maxHp-1||selBuilding===b.id)&&b.mesh.visible){ bhb.visible=true; const hr=Math.max(0,b.hp/b.maxHp);
-      bhb.userData.fg.scale.x=Math.max(0.01,hr); bhb.userData.fg.position.x=-(1-hr)*0.85;
+      bhb.userData.fg.scale.x=Math.max(0.01,hr); bhb.userData.fg.position.x=-(1-hr)*bhb.userData.hw;
       bhb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
       bhb.quaternion.copy(b.mesh.quaternion).invert().multiply(camera.quaternion); } else bhb.visible=false; }
   if(!b._stamped&&b.type!=='wall'){ const ex=explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))];
@@ -2914,8 +2924,9 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
     else for(const k in ud.limbs) ud.limbs[k].rotation.x*=Math.max(0,1-dt*8); }
   const bn=e.mesh.userData.banner;if(bn)bn.rotation.y=Math.sin(elapsed*4+e.id)*0.4;
-  const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;const hr=e.hp/e.maxHp;
-    hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*0.85;
+  const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;
+    const hr=clamp(e.hp/e.maxHp,0,1);   // a man on the frame he dies in has negative hp; keep the fill inside its track
+    hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*hb.userData.hw;
     hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
     hb.quaternion.copy(e.mesh.quaternion).invert().multiply(camera.quaternion);}else hb.visible=false;}
 }
@@ -3520,6 +3531,53 @@ const impGeo=(()=>{ const body=new THREE.CapsuleGeometry(.42,1.0,3,6); body.tran
   const head=new THREE.SphereGeometry(.34,6,5); head.translate(0,2.05,0);
   const shld=new THREE.BoxGeometry(1.0,.30,.46); shld.translate(0,1.52,0);
   const g=BGU.mergeGeometries([body,head,shld],false); return g||body; })();
+// ---- b173 WHOSE MAN IS THAT: a team ring under every soldier ----
+// Player and enemy unit meshes were byte-for-byte identical — same two white vertex-colour
+// carriers, nothing tinted, nothing owned. In a scrap of thirty men you could not tell your
+// soldiers from theirs except by watching which way they walked. The ring takes its colour from
+// the same place the minimap dot does, so a realm is the one colour wherever you look at it.
+const TEAMR_CAP=900;
+const teamRingGeo=(()=>{const g=new THREE.RingGeometry(0.60,0.92,20);g.rotateX(-Math.PI/2);return g;})();
+const teamRingMesh=new THREE.InstancedMesh(teamRingGeo,
+  new THREE.MeshBasicMaterial({transparent:true,opacity:0.62,depthWrite:false}),TEAMR_CAP);
+teamRingMesh.count=0; teamRingMesh.frustumCulled=false; teamRingMesh.renderOrder=994;
+teamRingMesh.castShadow=false; teamRingMesh.receiveShadow=false; scene.add(teamRingMesh);
+const _trM=new THREE.Matrix4(), _trC=new THREE.Color(), _trV=new THREE.Vector3(), _trQ=new THREE.Quaternion(), _trS=new THREE.Vector3();
+// A realm keeps its own hue, but a coat colour is not a marker colour — the player's is a navy so
+// dark (#2b3040) that a ring drawn in it is just a grey scuff on the grass. Take the hue, force it
+// bright and saturated, and every realm gets a signal you can pick out at a glance.
+const _trCache={}, _trHSL={};
+function teamRingCol(o){ const k=o+'_'+faction[o]; let c=_trCache[k];
+  if(!c){ c=new THREE.Color().copy(ownerMats(o).A.color);
+    c.getHSL(_trHSL,THREE.SRGBColorSpace);
+    c.setHSL(_trHSL.h,Math.max(0.78,_trHSL.s),o==='player'?0.62:0.52,THREE.SRGBColorSpace);
+    _trCache[k]=c; }
+  return c; }
+function updateTeamRings(){
+  let n=0;
+  for(const e of ents){ if(n>=TEAMR_CAP)break;
+    if(e.inGar||e._off)continue;                        // garrisoned or off-screen: no ring to draw
+    const tx=txFromW(e.x),tz=tzFromW(e.z);
+    if(e.owner!=='player'&&(!inB(tx,tz)||visNow[ti(tx,tz)]!==1))continue;   // and never through the fog
+    const u=UNIT[e.type]||{r:1};
+    const rr=(u.r||1)*(u.cav?0.95:0.72);
+    // Sit the ring above the HIGHEST ground it spans, not the ground under the man's boots — a flat
+    // ring pinned to the centre height buries its uphill edge and reads as a broken arc. Floating a
+    // hair above a slope is far less noticeable than half a ring, and it keeps depth testing on, so
+    // rings still go behind the trees and hills they should.
+    let ym=heightAtWorld(e.x,e.z);
+    const h1=heightAtWorld(e.x+rr,e.z),h2=heightAtWorld(e.x-rr,e.z),h3=heightAtWorld(e.x,e.z+rr),h4=heightAtWorld(e.x,e.z-rr);
+    if(h1>ym)ym=h1; if(h2>ym)ym=h2; if(h3>ym)ym=h3; if(h4>ym)ym=h4;
+    _trV.set(e.x,ym+0.09,e.z);
+    _trS.setScalar(rr);
+    _trM.compose(_trV,_trQ,_trS);
+    teamRingMesh.setMatrixAt(n,_trM);
+    _trC.copy(teamRingCol(e.owner));
+    teamRingMesh.setColorAt(n,_trC);
+    n++; }
+  teamRingMesh.count=n;
+  if(n){ teamRingMesh.instanceMatrix.needsUpdate=true;
+    if(teamRingMesh.instanceColor)teamRingMesh.instanceColor.needsUpdate=true; } }
 const impMat=new THREE.MeshStandardMaterial({roughness:.85});
 const impMesh=new THREE.InstancedMesh(impGeo,impMat,IMP_CAP);
 impMesh.castShadow=false; impMesh.count=0; impMesh.frustumCulled=false; scene.add(impMesh);
@@ -4217,7 +4275,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
   _fogSweepT-=frame; if(_fogSweepT<=0){_fogSweepT=1.5;fogSweep();}   // newly built things join the fog
-  updateGhost();updateGarHint();updateRings();updateUnitLOD();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateSunShafts(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateGarHint();updateRings();updateUnitLOD();updateTeamRings();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateSunShafts(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   { const aa=document.getElementById('atkArrow');
     if(running&&!gameOver&&atkPing.t<6){ _aaV.set(atkPing.x,heightAtWorld(atkPing.x,atkPing.z),atkPing.z).project(camera);
       const sx=(_aaV.x+1)/2*vw, sy=(-_aaV.y+1)/2*vh;
@@ -4251,7 +4309,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       // off the render loop, so a headless soak that only calls update() never sees them at all.
       fellTree,get fallingTrees(){return fallingTrees;},
       frame(dt,now){ updateCamera(dt);updateMoveMarks(dt);updateRubble(dt);updateFallingTrees(dt);updateAmbient(dt,now||performance.now()/1000);
-        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();fogSweep(); },
+        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();updateTeamRings();fogSweep(); },
       get shaftGroup(){ return shaftGroup; },
       get shafts(){ return {n:shaftGroup?shaftGroup.children.length:0,on:!!(shaftGroup&&shaftGroup.visible),
         intensity:+shaftMat.uniforms.uInt.value.toFixed(4),cloud:+wCloud.toFixed(2),sun:+wSun.toFixed(2),rain:+rainI.toFixed(2)}; },
