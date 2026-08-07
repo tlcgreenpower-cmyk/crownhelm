@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b167</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b168</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3237,13 +3237,23 @@ function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b
   { let sites=0; for(const q of blds)if(q.owner===o&&!q.done)sites++;
     if(sites>=Math.max(2,Math.min(5,Math.floor(countType(o,'worker')/2))))return false; }
   const BAND={market:[4,8],church:[4,8],storehouse:[4,9],house:[5,10],mill:[6,11],bakery:[5,10],armourer:[6,11],barracks:[6,11],gunshop:[6,11],siege:[7,12],farm:[8,15],castle:[8,13],watch:[11,16],tower:[11,16]};
-  const band=BAND[type]||[5,12], margin=(type==='tower'||type==='watch')?0:1;
+  // b168: a Mill belongs BY THE CORN. Rings measured from the Keep put the mills at 6-11 tiles and
+  // the fields at 8-15, so they almost never landed inside the 30-pace grinding radius of each
+  // other: every realm had two mills, grain in the ground, and not one milled field between them —
+  // its wheat taking the unmilled penalty while the mills served nobody. A Mill now goes up beside
+  // the realm's grain, and a Bakery beside the mill it draws its flour from.
+  let anchor=hall, band=BAND[type]||[5,12];
+  if(type==='mill'){ const gf=blds.filter(q=>q.owner===o&&q.type==='farm'&&CROP_KIND[q.crop]==='grain');
+    if(gf.length){ anchor=gf[(Math.random()*gf.length)|0]; band=[2,5]; } }
+  else if(type==='bakery'){ const ml=blds.filter(q=>q.owner===o&&q.type==='mill');
+    if(ml.length){ anchor=ml[(Math.random()*ml.length)|0]; band=[2,6]; } }
+  const margin=(type==='tower'||type==='watch')?0:1;
   for(let att=0;att<90;att++){ const rr=band[0]+Math.random()*(band[1]-band[0]), ang=Math.random()*Math.PI*2;
-    const tx=Math.round(hall.tx+Math.cos(ang)*rr), ty=Math.round(hall.ty+Math.sin(ang)*rr);
+    const tx=Math.round(anchor.tx+Math.cos(ang)*rr), ty=Math.round(anchor.ty+Math.sin(ang)*rr);
     if(!canPlace(tx-margin,ty-margin,b.w+2*margin,b.h+2*margin))continue;
     if(minFootElev(tx,ty,b.w,b.h)<2.1)continue;
     res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true; }
-  for(let r=2;r<15;r++)for(let a=0;a<16;a++){const ang=a/16*Math.PI*2,tx=Math.round(hall.tx+Math.cos(ang)*r),ty=Math.round(hall.ty+Math.sin(ang)*r);if(canPlace(tx,ty,b.w,b.h)&&minFootElev(tx,ty,b.w,b.h)>=2.1){res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true;}}
+  for(let r=2;r<15;r++)for(let a=0;a<16;a++){const ang=a/16*Math.PI*2,tx=Math.round(anchor.tx+Math.cos(ang)*r),ty=Math.round(anchor.ty+Math.sin(ang)*r);if(canPlace(tx,ty,b.w,b.h)&&minFootElev(tx,ty,b.w,b.h)>=2.1){res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true;}}
   return false;}
 
 // ==================================================== PLACEMENT
