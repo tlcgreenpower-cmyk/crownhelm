@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b168</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b169</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -926,33 +926,50 @@ function heightAtWorld(x,z){ if(!hc)return 0; const gx=(x+HALF_W)/TILE,gz=(z+HAL
   const fx=clamp(gx-x0,0,1),fz=clamp(gz-z0,0,1),w=MAP_W+1;const a=hc[z0*w+x0],b=hc[z0*w+x1],c=hc[z1*w+x0],d=hc[z1*w+x1];
   return (a*(1-fx)+b*fx)*(1-fz)+(c*(1-fx)+d*fx)*fz; }
 const _tc1=new THREE.Color(),_tc2=new THREE.Color();
+// b169: hoisted out of terrainColor. It was rebuilt from scratch on every call — and that function
+// runs once per pixel of a 700,000-pixel ground texture, so this alone was millions of throwaway
+// arrays every time a world was built.
+const TERR_STOPS=[[0.0,0xbfa878],[1.05,0xd6c088],[1.45,0x7cb84c],[2.0,0x58ab3b],[2.6,0x479c33],[3.1,0x64a34a],[3.6,0x8fae74]];
+const TERR_STOPC=TERR_STOPS.map(s=>new THREE.Color(s[1]));   // the same colours, converted to working space ONCE
+const TC_SWAMP=new THREE.Color(0x5e6b42), TC_WETSAND=new THREE.Color(0x94794f);
 function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
-  const stops=[[0.0,0xbfa878],[1.05,0xd6c088],[1.45,0x7cb84c],[2.0,0x58ab3b],[2.6,0x479c33],[3.1,0x64a34a],[3.6,0x8fae74]];
-  let a=stops[0],b=stops[stops.length-1];
-  for(let i=0;i<stops.length-1;i++)if(e>=stops[i][0]&&e<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
+  const stops=TERR_STOPS;
+  let ai=0,bi=stops.length-1;
+  for(let i=0;i<stops.length-1;i++)if(e>=stops[i][0]&&e<=stops[i+1][0]){ai=i;bi=i+1;break;}
+  const a=stops[ai],b=stops[bi];
   const t=clamp((e-a[0])/((b[0]-a[0])||1),0,1);
-  out.setHex(a[1]);_tc2.setHex(b[1]);out.lerp(_tc2,t);
+  out.copy(TERR_STOPC[ai]).lerp(TERR_STOPC[bi],t);
   // swampy lowland mottling
   const sw=noise2(vx*0.045+80,vz*0.045+80);
-  if(e>1.05&&e<1.95&&sw<0.2){_tc2.setHex(0x5e6b42);out.lerp(_tc2,clamp((0.2-sw)*6,0,0.75));}
+  if(e>1.05&&e<1.95&&sw<0.2)out.lerp(TC_SWAMP,clamp((0.2-sw)*6,0,0.75));
   // wet dark sand where the land meets the sea (b103 AoE2 ground pass)
-  if(e>1.0&&e<1.26){_tc2.setHex(0x94794f);out.lerp(_tc2,clamp((1.26-e)/0.26,0,1)*0.55);}
-  out.offsetHSL(0,0,(noise2(vx*0.18,vz*0.18)-0.5)*0.05);
+  if(e>1.0&&e<1.26)out.lerp(TC_WETSAND,clamp((1.26-e)/0.26,0,1)*0.55);
+  { const d=(noise2(vx*0.18,vz*0.18)-0.5)*0.05;   // b169: a plain lightness nudge, without the HSL round trip
+    out.r=out.r+d<0?0:out.r+d>1?1:out.r+d; out.g=out.g+d<0?0:out.g+d>1?1:out.g+d; out.b=out.b+d<0?0:out.b+d>1?1:out.b+d; }
   // fine grain speckle — reads as turf texture instead of flat paint
   const spk=noise2(vx*1.9+31,vz*1.9+17);
-  if(spk>0.82)out.offsetHSL(0,0.03,0.045*(spk-0.82)/0.18);
-  else if(spk<0.14&&e>1.45)out.offsetHSL(0,0,-0.035); }
+  if(spk>0.82){ const L=0.045*(spk-0.82)/0.18, lum=0.299*out.r+0.587*out.g+0.114*out.b;   // brighter AND a touch richer
+    let r=lum+(out.r-lum)*1.09+L, g=lum+(out.g-lum)*1.09+L, bb=lum+(out.b-lum)*1.09+L;
+    out.r=r<0?0:r>1?1:r; out.g=g<0?0:g>1?1:g; out.b=bb<0?0:bb>1?1:bb; }
+  else if(spk<0.14&&e>1.45){ const r=out.r-0.035,g=out.g-0.035,bb=out.b-0.035;
+    out.r=r<0?0:r; out.g=g<0?0:g; out.b=bb<0?0:bb; } }
 function buildGroundTexture(){   // painted ground: bright grass with grain + worn dirt roads
   const TW=1024, TH=Math.max(256,Math.round(1024*MAP_H/MAP_W));
   const cv=document.createElement('canvas');cv.width=TW;cv.height=TH;const c2=cv.getContext('2d');groundCv=cv;groundCtx=c2;
-  const img=c2.createImageData(TW,TH);const d=img.data;const hsl={h:0,s:0,l:0};
+  const img=c2.createImageData(TW,TH);const d=img.data;
+  // b169: this paints seven hundred thousand pixels, and it used to convert every one of them to
+  // HSL and back again just to lift the saturation and lightness — 1.6 seconds of the load, the
+  // single biggest thing between the owner and their kingdom. The same lift is a few multiplies in
+  // RGB: push each channel away from its own luminance, then brighten.
   for(let py=0;py<TH;py++)for(let px=0;px<TW;px++){
     const wxp=(px/TW-0.5)*WORLD_W, wzp=(py/TH-0.5)*WORLD_H;
     const h=heightAtWorld(wxp,wzp)/HSCALE;
     terrainColor(h,wxp,wzp,_tc1);
-    _tc1.getHSL(hsl); _tc1.setHSL(hsl.h,Math.min(1,hsl.s*1.22),Math.min(1,hsl.l*1.10));   // sunnier, clearer
+    const r=_tc1.r,g=_tc1.g,b=_tc1.b, lum=0.299*r+0.587*g+0.114*b;
+    let R=(lum+(r-lum)*1.22)*1.10, G=(lum+(g-lum)*1.22)*1.10, B=(lum+(b-lum)*1.22)*1.10;
+    if(R<0)R=0;else if(R>1)R=1; if(G<0)G=0;else if(G>1)G=1; if(B<0)B=0;else if(B>1)B=1;
     const i=(py*TW+px)*4;
-    d[i]=_tc1.r*255;d[i+1]=_tc1.g*255;d[i+2]=_tc1.b*255;d[i+3]=255; }
+    d[i]=R*255;d[i+1]=G*255;d[i+2]=B*255;d[i+3]=255; }
   c2.putImageData(img,0,0);
   // worn dirt roads: villages to their nearest keep, keeps to the central highlands
   const toPx=(tx,ty)=>[(tx+0.5)/MAP_W*TW,(ty+0.5)/MAP_H*TH];
@@ -2081,7 +2098,7 @@ function attachBuildUI(bl){ const grp=new THREE.Group();
   grp.position.set(bl.cx,heightAtWorld(bl.cx,bl.cz)+(bl.type==='castle'?11:bl.type==='hall'?9:6.5),bl.cz);
   scene.add(grp);
   bl.buildUI={grp,fg,ctx2,tex,lastTxt:'',t:0};}
-function removeBuildUI(bl){ if(bl.buildUI){scene.remove(bl.buildUI.grp);bl.buildUI=null;} if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;} }
+function removeBuildUI(bl){ if(bl.buildUI){scene.remove(bl.buildUI.grp);bl.buildUI.tex.dispose();bl.buildUI=null;} if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;} }
 // ---- timber scaffold + plank foundation so building sites read as sites, not rugs ----
 const SCAF_MAT=new THREE.MeshStandardMaterial({color:0xc99a5e,roughness:.8});
 function attachScaffold(bl){ const g=new THREE.Group();
@@ -2118,7 +2135,10 @@ function updateBuildUI(bl,dt){ const ui=bl.buildUI; if(!ui)return;
 function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; removeBuildUI(bl); const nm=makeBldMesh(bl.type,bl.owner,bl.tx*131+bl.ty*17);
     nm.position.copy(old.position); nm.scale.y=1;   // b149: rise is carried by position, not by stretching
     scene.remove(old); bl.mesh=nm; scene.add(nm); if(!bl.done)attachBuildUI(bl); } visT=0; }
-function removeBuilding(bl){scene.remove(bl.mesh);if(bl.scaffold){scene.remove(bl.scaffold);bl.scaffold=null;}for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
+// b169: removeBuildUI, not just the scaffold. The progress bar hangs on its own group in the scene,
+// so razing a half-built thing used to leave its little orange bar floating there for the rest of
+// the session — invisible behind the rubble, but still drawn, every frame, forever.
+function removeBuilding(bl){scene.remove(bl.mesh);removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
 
 // ==================================================== POP / TECH
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=(b.up?12:8);else if(b.type==='castle')c+=12;else if(b.type==='garden')c+=2;}
@@ -2952,15 +2972,19 @@ function roadEdges(owner){ const out=[];
   for(const b of blds){ if(b.owner!==owner||!b.done||!b._road||!b._roadTo)continue;
     const t=b._roadTo; if(!blds.includes(t))continue; out.push([b,t]); }
   return out; }
+// b169: the cart round used to start at 'player' every time and BREAK out of the spawn loop the
+// moment that realm had no streets of its own. Early on the player has one building and no roads —
+// so not a single cart rolled anywhere in the world, however many roads the rival realms had laid.
+// Now only realms that actually have a network get a turn.
 function refreshCarts(){
-  const owners=['player'];
-  for(const o of AI_REALMS)if(blds.some(b=>b.owner===o&&b._road&&explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))]))owners.push(o);
-  let want=0; const edgesBy={};
-  for(const o of owners){ const e=roadEdges(o); edgesBy[o]=e; want+=e.length>=10?2:e.length>=3?1:0; }   // b153: a modest town gets its cart too
+  const cand=['player'];
+  for(const o of AI_REALMS)if(blds.some(b=>b.owner===o&&b._road&&explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))]))cand.push(o);
+  let want=0; const edgesBy={}, owners=[];
+  for(const o of cand){ const e=roadEdges(o); if(e.length<3)continue;   // b153: a modest town gets its cart too
+    edgesBy[o]=e; owners.push(o); want+=e.length>=10?2:1; }
   want=Math.min(CART_CAP,want);
   while(carts.length>want){ const c=carts.pop(); scene.remove(c.mesh); }
-  while(carts.length<want){ const o=owners[carts.length%owners.length], e=edgesBy[o];
-    if(!e||!e.length)break;
+  while(carts.length<want&&owners.length){ const o=owners[carts.length%owners.length], e=edgesBy[o];
     const m=makeCart(); scene.add(m);
     carts.push({mesh:m,owner:o,edge:e[(Math.random()*e.length)|0],t:Math.random(),dir:1,wait:0,spd:0.10+Math.random()*0.05}); } }
 function updateCarts(dt){
@@ -3988,7 +4012,11 @@ function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom
   if(rb)rb.onclick=()=>{freePlay=true;gameOver=false;running=true;ov.classList.add('hidden');flashMsg('👑 You rule in peace — build your kingdom as you please.');};}
 // REALM_SITES computed per battleground in setMap()
 function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H; sc.updateProjectionMatrix(); }
-function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds)scene.remove(b.mesh);for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
+// b169: a building owns three things in the scene — its mesh, its scaffold and its progress bar —
+// and starting a new world only ever took the first. Load a save five times and you were dragging
+// five worlds worth of orphaned scaffolding around behind you. Carts were adrift the same way.
+function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds){scene.remove(b.mesh);removeBuildUI(b);}
+  for(const c of carts)scene.remove(c.mesh); carts.length=0;for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   for(const n of meatNodes)if(n.mesh)scene.remove(n.mesh); meatNodes=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};if(demoMode)setDemo(false);updateGhost();
   for(const r of rubblePiles)scene.remove(r.g); rubblePiles=[]; fallingTrees=[];
@@ -4096,13 +4124,17 @@ let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,addBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
+  _dbg(){window.__D={THREE,scene,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
-      FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+      FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
+      timeWorld(){ const r={},T=n=>{const t=performance.now();return()=>{r[n]=+(performance.now()-t).toFixed(0);};};
+        let d=T('genMap');genMap();d(); d=T('terrain');buildTerrain();d(); d=T('water');buildWater();d();
+        d=T('decor');buildDecor();d(); d=T('ambient');buildAmbient();d(); d=T('sheep');buildSheep();d();
+        d=T('clouds');spawnClouds();d(); return r; },passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
