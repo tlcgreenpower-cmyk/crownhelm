@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b183</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b184</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3487,6 +3487,25 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
         if(best){ best.cmd='gar'; best.garB=t; best.slot=null;
           orderPath(best,t.tx+(t.w>>1),t.ty+t.h,t.id); return; } } } }
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
+  // b184: ABANDON A SITE THAT IS GOING NOWHERE. A realm may only have a few foundations open at
+  // once — max(2, workers/2, capped at 5) — and an unfinished one holds its slot for ever. So a
+  // site that cannot be reached is a permanent tax on the realm: masons are assigned to it, the
+  // pathing never gets them there, progress never moves, and once two or three of those pile up the
+  // realm can never lay another stone. That is the stall seen in b183 — nine buildings, population
+  // locked, eighteen hundred wood in the barn and nothing to spend it on. Keyed on PROGRESS rather
+  // than on whether anyone is assigned, because the broken case has men assigned who never arrive.
+  // Half the timber comes back: they salvaged the foundation.
+  { const dead=[];
+    for(const b of blds){ if(b.owner!==o||b.done)continue;
+      // a man still WALKING to it counts as progress — the map is wide enough that a mason can be
+      // a minute on the road, and culling the site out from under him would be its own bug
+      const coming=ents.some(e=>e.build===b&&e.path&&e.pi<e.path.length);
+      if(coming||b.progress>(b._stallP||0)+0.0005){ b._stallP=b.progress; b._stallT=0; continue; }
+      b._stallT=(b._stallT||0)+1;
+      if(b._stallT>40)dead.push(b); }
+    for(const b of dead){ const c=COST[b.type];
+      if(c&&c.w)r.w+=Math.round(c.w*0.5);
+      removeBuilding(b); } }
   const workers=countType(o,'worker'),cap=popCap(o),used=popUsed(o)+popQueued(o),barr=blds.filter(b=>b.owner===o&&b.type==='barracks'&&b.done);   // b143: count the men already ordered
   if(workers<8&&used+1<=cap&&r.f>=50&&hall.queue.length===0){r.f-=50;hall.queue.push({type:'worker',t:6});return;}
   // b157: A REALM AT WAR RAISES SOLDIERS FIRST. The brain does one thing a second and works down a
