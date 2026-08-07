@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b179</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b180</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -592,6 +592,10 @@ scene.add(sun,sun.target);
 const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{uSun:{value:SUNDIR},uNight:{value:0},uCloud:{value:0},uFlash:{value:0}},
   vertexShader:`varying vec3 vD; void main(){ vD=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader:`varying vec3 vD; uniform vec3 uSun; uniform float uNight; uniform float uCloud; uniform float uFlash;
+    uniform vec2 uCldDrift; uniform float uCldAmt; uniform float uCldFreq;
+    float _tfH21(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
+    float _tfVN(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+      return mix(mix(_tfH21(i),_tfH21(i+vec2(1.0,0.0)),f.x),mix(_tfH21(i+vec2(0.0,1.0)),_tfH21(i+vec2(1.0,1.0)),f.x),f.y); }
     void main(){ float t=clamp(vD.y*0.5+0.5,0.0,1.0);
       vec3 horizon=vec3(0.78,0.86,0.92), zenith=vec3(0.26,0.5,0.78);
       vec3 nHorizon=vec3(0.10,0.13,0.22), nZenith=vec3(0.02,0.04,0.10);
@@ -603,8 +607,23 @@ const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,unif
       col+=vec3(1.0,0.85,0.6)*pow(s,8.0)*0.12*(1.0-uNight)*(1.0-uCloud*0.8);
       // b146: weather. Cloud drains the blue out of the sky and drops a flat grey lid over it,
       // and lightning washes the whole dome white for an instant.
+      // b180: and a lid is all it ever was — overcast greyed the whole dome evenly, with no cloud
+      // in it anywhere. Meanwhile b178 put drifting shade on the ground, so the land was crossed by
+      // shadows with nothing overhead to cast them. The dome now samples the SAME noise field, at
+      // the SAME scale, carried by the SAME drift, projected onto a plane at the height the cloud
+      // layer actually sits: look up and there is a cloud, look down and there is its shade. The
+      // flat lid stays, at about half strength, as the haze between the gaps.
       vec3 grey=mix(vec3(0.60,0.63,0.66),vec3(0.36,0.38,0.42),pow(t,0.9));
-      col=mix(col,grey,clamp(uCloud,0.0,1.0));
+      col=mix(col,grey,clamp(uCloud,0.0,1.0)*0.55);
+      if(uCldAmt>0.001&&vD.y>0.02){
+        vec2 cp=(cameraPosition.xz+vD.xz*(130.0/vD.y))*uCldFreq+uCldDrift;
+        float cn=_tfVN(cp)*0.66+_tfVN(cp*2.13+7.0)*0.34;
+        // the THRESHOLD carries the weather, not just the opacity: a fair sky shows a few banks
+        // with blue between them, an overcast one closes over almost entirely.
+        float lo=mix(0.60,0.10,clamp(uCloud,0.0,1.0));
+        float cover=smoothstep(lo,lo+0.30,cn)*smoothstep(0.0,0.22,uCldAmt)*smoothstep(0.02,0.22,vD.y);
+        vec3 lit=mix(vec3(0.90,0.92,0.96),vec3(0.55,0.57,0.64),clamp(uCloud,0.0,1.0)*0.8);
+        col=mix(col,lit,clamp(cover,0.0,1.0)); }
       col+=vec3(0.85,0.88,1.0)*uFlash;
       gl_FragColor=vec4(col,1.0); }`});
 const sky=new THREE.Mesh(new THREE.SphereGeometry(600,24,16),skyMat); scene.add(sky);
@@ -1081,6 +1100,8 @@ const _fogUni={tex:{value:null},size:{value:null},on:{value:1}};
 // would cross a whole field in flat light and then sit under one enormous shadow. This holds
 // 15-42%: some sun and some shade in shot, near enough always.
 const _cldUni={drift:{value:new THREE.Vector2()},amt:{value:0},freq:{value:0.024},depth:{value:0.70}};
+// the sky dome is built long before this, so it is handed the same objects here rather than there
+skyMat.uniforms.uCldDrift=_cldUni.drift; skyMat.uniforms.uCldAmt=_cldUni.amt; skyMat.uniforms.uCldFreq=_cldUni.freq;
 // b179: the water shares the cloud-shade uniforms with the land. b178 put the shade in the fog
 // patch, and fogSkip passes over ShaderMaterials — so the weather stopped dead at the waterline:
 // measured 13.3 percent of the land in shade and 0.0 percent of the sea beside it, on the same
@@ -4447,7 +4468,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       timeWorld(){ const r={},T=n=>{const t=performance.now();return()=>{r[n]=+(performance.now()-t).toFixed(0);};};
         let d=T('genMap');genMap();d(); d=T('terrain');buildTerrain();d(); d=T('water');buildWater();d();
         d=T('decor');buildDecor();d(); d=T('ambient');buildAmbient();d(); d=T('sheep');buildSheep();d();
-        d=T('clouds');spawnClouds();d(); return r; },passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+        d=T('clouds');spawnClouds();d(); return r; },passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d,p)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;if(p!==undefined)camPitch=p;},get camPitch(){return camPitch;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   // b170: one glance at every system that is supposed to be putting something in the world. A
   // feature can die quietly — the carts did, for whole builds — and nothing in the game says so.
