@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b173</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b174</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1039,12 +1039,28 @@ function stampDirt(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,T
   groundTex.needsUpdate=true; }
 function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.map&&terrainMesh.material.map.dispose();}
   const SUB=3;   // render mesh 3x finer than the game grid — smooth rolling ground
-  const geo=new THREE.PlaneGeometry(WORLD_W,WORLD_H,MAP_W*SUB,MAP_H*SUB);geo.rotateX(-Math.PI/2);
-  const pos=geo.attributes.position;
+  // b174: the terrain plane used to stop dead on the map boundary, so the world was a rectangular
+  // slab of turf on a table — a straight coastline with a visible cliff face at the cut, north to
+  // south. The mesh now runs on past the playable edge and sinks under the sea, at a distance that
+  // varies with noise, so the land ends in bays and headlands instead of a ruled line. Nothing
+  // about the playable area changes: elev, passability and every tile index are exactly as before.
+  const SKIRT=60;
+  const TW2=WORLD_W+SKIRT*2, TH2=WORLD_H+SKIRT*2;
+  const segX=Math.round(MAP_W*SUB*TW2/WORLD_W), segZ=Math.round(MAP_H*SUB*TH2/WORLD_H);
+  const geo=new THREE.PlaneGeometry(TW2,TH2,segX,segZ);geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position, uvA=geo.attributes.uv;
   for(let i=0;i<pos.count;i++){const vx=pos.getX(i),vz=pos.getZ(i);
-    let h=heightAtWorld(vx,vz);
+    let h=heightAtWorld(clamp(vx,-HALF_W,HALF_W),clamp(vz,-HALF_H,HALF_H));
     h+=(noise2(vx*0.3,vz*0.3)-0.5)*0.5+(noise2(vx*0.9,vz*0.9)-0.5)*0.16;   // gentle natural detail
-    pos.setY(i,h);}
+    const ox=Math.abs(vx)-HALF_W, oz=Math.abs(vz)-HALF_H;
+    const d=Math.hypot(ox>0?ox:0,oz>0?oz:0);
+    if(d>0){ const reach=SKIRT*(0.30+0.70*noise2(vx*0.012+41,vz*0.012+17));
+      const t=clamp(d/Math.max(1,reach),0,1);
+      h=h*(1-t)+(waterY-9)*t;                                    // well under by the outer rim
+      h+=(noise2(vx*0.05+5,vz*0.05+9)-0.5)*3.2*(1-t)*(1-t); }    // a broken edge, not a smooth ramp
+    pos.setY(i,h);
+    // the painted ground stays pinned to the playable rectangle; the skirt clamps to the beach
+    uvA.setXY(i,(uvA.getX(i)*TW2-SKIRT)/WORLD_W,(uvA.getY(i)*TH2-SKIRT)/WORLD_H); }
   geo.computeVertexNormals();
   terrainMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:buildGroundTexture(),roughness:.95}));  // painted ground
   terrainMesh.receiveShadow=true;scene.add(terrainMesh);}
@@ -2174,6 +2190,15 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   scene.add(bl.mesh);blds.push(bl);
   // dirt yards stamp lazily in updateBuilding, once the ground is explored (no fog leaks)
   if(!done){attachBuildUI(bl);if(type!=='wall')attachScaffold(bl);}
+  // b174: clear the ground it stands on. canPlace checks bounds, buildings and water and has never
+  // once looked at a tree, and nothing afterwards did either — so on a wooded map every farm, house
+  // and barracks got an oak growing up through the middle of it. b165 cleared the founding
+  // footprints only, which is why the Keep looked right and everything built later did not.
+  if(type!=='bridge'){ let cleared=0;
+    for(const n of woodNodes){ if(n.amount<=0)continue;
+      if(n.tx>=tx&&n.tx<tx+b.w&&n.ty>=ty&&n.ty<ty+b.h){
+        n.amount=0; if(n.mesh)n.mesh.visible=false; else if(n.tim)setTreeK(n,0); cleared++; } }
+    if(cleared)rebuildTreeGrid(); }
   for(let y=ty;y<ty+b.h;y++)for(let x=tx;x<tx+b.w;x++)if(inB(x,y))buildGrid[ti(x,y)]=bl.id;if(type==='gate')gateOwner.set(bl.id,owner);
   orientWallAround(tx,ty);if(type==='bridge'&&done)rebuildBridges();return bl;}
 function isWallish(x,y){ if(!inB(x,y))return false; const id=buildGrid[ti(x,y)]; if(!id)return false;
