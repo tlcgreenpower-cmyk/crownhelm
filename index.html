@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b209</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b210</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4059,10 +4059,23 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   const foes=REALMS.filter(t=>isHostile(o,t)&&blds.some(b=>b.owner===t&&b.type==='hall'));
   const defending=ai.raid&&elapsed-ai.raid.t<25;   // b158: no new wave leaves while the town is burning
   if(foes.length&&ai.attackTimer<=0&&!defending){const army=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk&&!e.inGar);   // b159: men in the towers stay in the towers
-    if(army.length>=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave))){const foe=foes.includes('player')?'player':foes[0];const tgt=pickTargetFor(foe);
-      army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;
+    // b210: A WAVE THAT CAN NEVER SAIL. The muster counts only men in the FIELD, which is right —
+    // b159 put the tower garrisons beyond the brain's reach on purpose — but the bar it has to clear
+    // climbs with every wave sent, 8 then 12 then 16 and on to 24, and nothing ever lowered it again.
+    // A realm that has manned its towers can therefore end up permanently short of its own
+    // threshold. Caught exactly that: r7, at war, twenty-one soldiers, EIGHT of them in garrisons,
+    // thirteen in the field against a bar of sixteen. Three men short, and it would have stayed
+    // three men short for as long as the towers were manned — retrying every twelve seconds forever.
+    // Against the player that reads as an enemy who declares war and then simply never comes.
+    // Each failed muster now takes two men off the asking price, so a realm that cannot raise the
+    // host it wants eventually marches with the host it has. Reset on a launch, so a strong realm
+    // still gathers properly and only one that is genuinely stuck ever settles for less. The floor
+    // of four is unchanged — nobody attacks with a man and a dog.
+    const want=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave)-(ai.musterFail||0)*2);
+    if(army.length>=want){const foe=foes.includes('player')?'player':foes[0];const tgt=pickTargetFor(foe);
+      army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;ai.musterFail=0;
       if(foe==='player'){SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}}
-    else ai.attackTimer=12;}}
+    else {ai.attackTimer=12;ai.musterFail=(ai.musterFail||0)+1;}}}
 // b156: a realm's quarrels with its neighbours, entirely its own business
 function realmKnown(o){ const h=blds.find(b=>b.owner===o&&b.type==='hall');
   return !!h&&explored[ti(clamp(h.tx,0,MAP_W-1),clamp(h.ty,0,MAP_H-1))]===1; }
