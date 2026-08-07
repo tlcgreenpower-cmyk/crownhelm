@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b206</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b207</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2519,11 +2519,28 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   // once looked at a tree, and nothing afterwards did either — so on a wooded map every farm, house
   // and barracks got an oak growing up through the middle of it. b165 cleared the founding
   // footprints only, which is why the Keep looked right and everything built later did not.
+  // b207: and clear ONE TILE BEYOND it, for everything that is a building rather than a field or a
+  // fence. b174 took the footprint only, so a tree standing immediately against a wall kept its
+  // canopy over the roof — photographed on a naturally grown rival town, the place read as scattered
+  // huts in a thicket rather than a settlement. Counted across a mature world, towns hold anywhere
+  // from 29 to 194 trees inside their own radius: 1.5 a building where a realm was founded on open
+  // ground, 14.9 where it was founded in woodland, so whether your neighbour has a town or a copse
+  // is decided by where the map dropped them. There is a movement cost too — 237 tiles pressed
+  // directly against a building were impassable, and men walking through their own town have to
+  // weave around them.
+  // Farms, walls, gates and bridges keep the footprint-only rule. A field in a hedgerow looks right,
+  // and a wall run would otherwise cut a cleared swathe across the whole map. Excluding them also
+  // keeps most of the world's timber where it is: an unrestricted margin took 8.6 per cent of all
+  // the wood in the world, and farms alone are a third of every building standing.
+  // The felled timber is not simply deleted — the owner gets a little of it, the way you would get
+  // it clearing a site. Deliberately a token: a whole tree carries 220 and this pays 18, so it can
+  // never become a way of farming wood by laying foundations.
   if(type!=='bridge'){ let cleared=0;
+    const m=(type==='farm'||type==='wall'||type==='gate')?0:1;
     for(const n of woodNodes){ if(n.amount<=0)continue;
-      if(n.tx>=tx&&n.tx<tx+b.w&&n.ty>=ty&&n.ty<ty+b.h){
+      if(n.tx>=tx-m&&n.tx<tx+b.w+m&&n.ty>=ty-m&&n.ty<ty+b.h+m){
         n.amount=0; if(n.mesh)n.mesh.visible=false; else if(n.tim)setTreeK(n,0); cleared++; } }
-    if(cleared)rebuildTreeGrid(); }
+    if(cleared){ rebuildTreeGrid(); if(res[owner])res[owner].w+=cleared*18; } }
   for(let y=ty;y<ty+b.h;y++)for(let x=tx;x<tx+b.w;x++)if(inB(x,y))buildGrid[ti(x,y)]=bl.id;if(type==='gate')gateOwner.set(bl.id,owner);
   orientWallAround(tx,ty);if(type==='bridge'&&done)rebuildBridges();return bl;}
 function isWallish(x,y){ if(!inB(x,y))return false; const id=buildGrid[ti(x,y)]; if(!id)return false;
