@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b202</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b203</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1379,7 +1379,16 @@ function buildTreesInstanced(){
     else if(key[0]==='b'){geo=geos.b;mat=LEAF_MATS[+key.slice(1)];}
     else if(key[1]==='1'){geo=geos.c1;mat=PINE_MATS[+key.slice(2)];}
     else {geo=geos.c2;mat=PINE_MATS[+key.slice(2)];}
-    const im=new THREE.InstancedMesh(geo,mat,counts[key]);im.castShadow=false;im.receiveShadow=false;decorGroup.add(im);ims[key]=im;idx[key]=0; }
+    // b203: THE TREES GET THEIR SHADOWS BACK. This said castShadow=false, and with several thousand
+    // trees in a world that meant the single most numerous large object in the game was pasted flat
+    // onto the ground with nothing beneath it. It was a deliberate saving when the tree instancing
+    // went in, so I priced it rather than just flipping it: measured over sixty queued frames with
+    // one sync at the end, the whole of the large decor — 13,026 instances of trees, bushes,
+    // saplings, stumps, logs and boulders — costs 0.27 to 0.52ms a frame against a 12.9ms baseline.
+    // Turning the SMALL scatter on as well (43,481 grass tufts, flower heads, pebbles and shingle)
+    // costs a full millisecond more and cannot be seen at any distance anyone plays at, so it stays
+    // off. At Fast quality the shadow map is switched off entirely and none of this costs anything.
+    const im=new THREE.InstancedMesh(geo,mat,counts[key]);im.castShadow=true;im.receiveShadow=false;decorGroup.add(im);ims[key]=im;idx[key]=0; }
   for(const pl of plans){ const n=pl.n; n.px=pl.px;n.py=pl.py;n.pz=pl.pz;n.ry=pl.ry;n.rz=pl.rz;n.ts=pl.ts;
     n.tim=pl.parts.map(pp=>({im:ims[pp[0]],i:idx[pp[0]]++,l:pp[1]}));
     n.mesh=null; setTreeK(n,1); } }
@@ -1414,7 +1423,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.45,0.22+hashN(i,29)*0.08); bushes.setColorAt(bi,col); bi++; }
-  bushes.count=bi; ambientGroup.add(bushes);
+  bushes.count=bi; bushes.castShadow=true; ambientGroup.add(bushes);   // b203: big enough to ground
   // b103 AoE2 ground pass — shoreline reeds, pebbles, stumps and fallen logs
   const eul=new THREE.Euler();
   const RCAP=Math.round(2200*A);
@@ -1476,6 +1485,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
       v3.set(x,y+.05*s,z); q0.setFromEuler(eul.set(0,hashN(423,i)*3,0)); s3.set(s*1.5,s*.3,s*1.1); m4.compose(v3,q0,s3);
       wrack.setMatrixAt(wri,m4); col.setHSL(0.12+hashN(i,431)*0.05,0.30,0.16+hashN(433,i)*0.08); wrack.setColorAt(wri,col); wri++; } }
   boulder.count=bri; drift.count=dwi; wrack.count=wri;
+  boulder.castShadow=true; drift.castShadow=true;   // b203: a boulder on open sand with no shadow floats
   ambientGroup.add(boulder); ambientGroup.add(drift); ambientGroup.add(wrack);
   const SCAP2=Math.round(520*A);
   const stumps=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.28,.38,7),new THREE.MeshStandardMaterial({color:0x6b4b2e,roughness:.95}),SCAP2); let si=0;
@@ -1487,7 +1497,8 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     else if(li<Math.round(240*A)){ v3.set(x,heightAtWorld(x,z)+.16,z);
       q0.setFromEuler(eul.set(0,hashN(i,149)*3,Math.PI/2)); s3.set(1,1,1); m4.compose(v3,q0,s3);
       logs.setMatrixAt(li,m4); li++; } }
-  stumps.count=si; logs.count=li; ambientGroup.add(stumps); ambientGroup.add(logs);
+  stumps.count=si; logs.count=li; stumps.castShadow=true; logs.castShadow=true;
+  ambientGroup.add(stumps); ambientGroup.add(logs);
   // b130 forest variety: mushrooms under the eaves, saplings at the edges, the odd dead tree
   const MCAP2=Math.round(600*A);
   const mCap=new THREE.InstancedMesh(new THREE.SphereGeometry(.16,6,5),new THREE.MeshStandardMaterial({roughness:.8}),MCAP2);
@@ -1510,7 +1521,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const s=.7+hashN(i,239)*.7, y=heightAtWorld(x,z);
     v3.set(x,y+.45*s,z); q0.setFromEuler(eul.set(0,hashN(i,241)*3,(hashN(243,i)-.5)*.15)); s3.setScalar(s); m4.compose(v3,q0,s3);
     sapl.setMatrixAt(sp2,m4); col.setHSL(0.27+hashN(i,251)*0.05,0.5,0.32); sapl.setColorAt(sp2,col); sp2++; }
-  sapl.count=sp2; ambientGroup.add(sapl);
+  sapl.count=sp2; sapl.castShadow=true; ambientGroup.add(sapl);
   const DCAP=Math.round(110*A);
   const dead=new THREE.InstancedMesh(new THREE.CylinderGeometry(.12,.2,2.6,5),new THREE.MeshStandardMaterial({color:0x5d5248,roughness:1,flatShading:true}),DCAP);
   const deadBr=new THREE.InstancedMesh(new THREE.CylinderGeometry(.05,.07,1.1,4),new THREE.MeshStandardMaterial({color:0x554b42,roughness:1}),DCAP);
@@ -1523,7 +1534,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     dead.setMatrixAt(di2,m4);
     v3.set(x+.35,y+1.9,z); q0.setFromEuler(eul.set(0,hashN(i,281)*3,1.05)); m4.compose(v3,q0,s3);
     deadBr.setMatrixAt(di2,m4); di2++; }
-  dead.count=di2; deadBr.count=di2; ambientGroup.add(dead); ambientGroup.add(deadBr);
+  dead.count=di2; deadBr.count=di2; dead.castShadow=true; ambientGroup.add(dead); ambientGroup.add(deadBr);
   // b133 living water edges: foam along the shore, lilies in the coves, fish-splash spots
   const foamGeo=new THREE.PlaneGeometry(1.7,.4); foamGeo.rotateX(-Math.PI/2);
   const FOCAP=Math.round(1400*A), LYCAP=Math.round(400*A);
@@ -1965,7 +1976,10 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     horse.traverse(o=>{ if(o.isBone&&/^(back|spine|torso)$/i.test(o.name)){ const bp=new THREE.Vector3(); o.getWorldPosition(bp); if(bp.y>saddleY)saddleY=bp.y; } });
     if(saddleY<=0)saddleY=(hbox.max.y*hs)*0.62;
     rider.position.set(0,saddleY+0.02,0.3);   // in the saddle, forward of the rump
-    rider.traverse(o=>{if(o.isMesh)o.castShadow=false;});
+    // b197 recorded this and left it: the horse cast and the man did not, so a mounted shadow was a
+    // riderless horse. It mattered more once b197 made the rider full size. One skinned mesh per
+    // cavalryman, and cavalry are never the numerous unit — the same gate the foot soldiers use.
+    rider.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});
     const rmix=new THREE.AnimationMixer(rider);
     const sit=rsrc.clips.find(c=>/sit/i.test(c.name))||rsrc.clips.find(c=>/idle/i.test(c.name));
     if(sit){rmix.clipAction(sit).play();rmix.update(0.85);}   // frozen mid-sit — a posed rider, no per-frame cost
