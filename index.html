@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b192</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b193</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2386,7 +2386,7 @@ function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; remo
 // b169: removeBuildUI, not just the scaffold. The progress bar hangs on its own group in the scene,
 // so razing a half-built thing used to leave its little orange bar floating there for the rest of
 // the session — invisible behind the rubble, but still drawn, every frame, forever.
-function removeBuilding(bl){scene.remove(bl.mesh);removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
+function removeBuilding(bl){bl._gone=1;scene.remove(bl.mesh);removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
 
 // ==================================================== POP / TECH
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=(b.up?12:8);else if(b.type==='castle')c+=12;else if(b.type==='garden')c+=2;}
@@ -2769,6 +2769,9 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
       udd.deathA.reset(); udd.deathA.setLoop(THREE.LoopOnce,1); udd.deathA.clampWhenFinished=true; udd.deathA.play();
       corpses.push({mesh:e.mesh,t:0,mixer:udd.mixer}); }
     else corpses.push({mesh:e.mesh,t:0});
+    // b193: mark him gone. Everything that held him as a target used to prove he was still alive by
+    // scanning the whole entity list — see the note on the attack case.
+    e._dead=1;
     sfxWhere(e.x,e.z);SFX.die();selected=selected.filter(id=>id!==e.id);for(const k in groups)groups[k]=groups[k].filter(id=>id!==e.id);return false;}return true;});
   _t=_pt('deaths',_t);
   if(!paradeMode)for(const o of AI_REALMS)realmBrain(o,dt);
@@ -3049,8 +3052,13 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
               const d=raw*jobPull(e.owner,n.type); if(d<bd){bd=d;best=n;}}
             if(best)gatherOrder(e,best); } } }
       break;
-    case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
-    case 'attackb':{const b=e.target;if(!b||b.hp<=0||!blds.includes(b)){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
+    // b193: a man checks his target is still there by asking the target, not by searching the
+    // world for him. These lines ran ents.includes and blds.includes — a linear sweep of every
+    // entity or every building, per man, per step, six of them across the command cases. With two
+    // hundred and eighty men and two hundred buildings that is the same quadratic waste b191 and
+    // b192 took out of the towers and the target acquisition, hiding in the commands.
+    case 'attack':{const t=e.target;if(!t||t.hp<=0||t._dead||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
+    case 'attackb':{const b=e.target;if(!b||b.hp<=0||b._gone){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
     case 'hunt':{const s=e.hunt;
       if(!s||!sheep.includes(s)){ e.hunt=null; const n2=nearestNode(e,'food');
         if(n2&&Math.hypot(e.x-wx(n2.tx),e.z-wz(n2.ty))<16)gatherOrder(e,n2);else e.cmd='idle'; break; }
@@ -3097,12 +3105,12 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}   // can't get the load home — stand down rather than shuffle
         else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
-    case 'build':{const b=e.build;if(!b||!blds.includes(b)||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
+    case 'build':{const b=e.build;if(!b||b._gone||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
       b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-b.cx,e.z-b.cz))){clearStall(e);e.cmd='idle';e.build=null;e.noWork=elapsed+8;}   // can't reach the site — stop treading water
         else orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id); } break;}
-    case 'gar':{const b=e.garB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.garB=null;break;}
+    case 'gar':{const b=e.garB;if(!b||b._gone||!b.done){e.cmd='idle';e.garB=null;break;}
       const dg=Math.hypot(e.x-b.cx,e.z-b.cz);
       if(dg<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){ b.gar=b.gar||[];
         if(b.gar.length>=GAR_CAP[b.type]){e.cmd='idle';e.garB=null;if(e.owner==='player')flashMsg('⛨ The '+BLD[b.type].name+' is full');break;}
@@ -3110,7 +3118,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
         selected=selected.filter(id=>id!==e.id); refreshUI(); }
       else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
     case 'inside':break;   // safe behind the walls — the building does the fighting
-    case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
+    case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;break;}
       if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;break;}   // one farmhand per farm — extras step off
       // and a man already in the field walks off it once the granary is full, or the realm would
       // simply keep the hands it had before the surplus built up
@@ -3218,7 +3226,7 @@ function updateProjectiles(dt){for(const p of projs){p.t+=dt;const tx=p.target.x
   p.mesh.position.set(p.px,p.py,p.pz);if(p.kind==='arrow')p.mesh.lookAt(tx,ty,tz);else p.mesh.rotation.x+=dt*8;}
   projs=projs.filter(p=>{if(p.dead){scene.remove(p.mesh);return false;}return true;});}
 function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');for(let i=0;i<4;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1.6,p.target.z,'smoke');if(Math.random()<0.4)stampScorch(p.target.x,p.target.z,1);sfxWhere(p.target.x,p.target.z);SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
-  if(p.target.bld){if(blds.includes(p.target.bld)){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(ents.includes(p.target)){p.target.hp-=p.dmg;p.target.flinch=0.15;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
+  if(p.target.bld){if(!p.target.bld._gone){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(!p.target._dead){p.target.hp-=p.dmg;p.target.flinch=0.15;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
 const partGeo=new THREE.SphereGeometry(0.18,5,4);
 const partMats={smoke:new THREE.MeshBasicMaterial({color:0x9098a0,transparent:true}),splash:new THREE.MeshBasicMaterial({color:0x9fd6ec}),chip:new THREE.MeshBasicMaterial({color:0xa9803f}),spark:new THREE.MeshBasicMaterial({color:0xffdca0}),debris:new THREE.MeshBasicMaterial({color:0xb08050}),blood:new THREE.MeshBasicMaterial({color:0xa03828}),heal:new THREE.MeshBasicMaterial({color:0x9ff0b0,transparent:true}),
 musket:new THREE.MeshBasicMaterial({color:0xd8dade,transparent:true}),flash:new THREE.MeshBasicMaterial({color:0xffdf80,transparent:true}),flame:new THREE.MeshBasicMaterial({color:0xff8a30,transparent:true})};
@@ -3324,7 +3332,7 @@ function makeCart(){ const g=new THREE.Group();
   g.userData.wheels=wheels; return g; }
 function roadEdges(owner){ const out=[];
   for(const b of blds){ if(b.owner!==owner||!b.done||!b._road||!b._roadTo)continue;
-    const t=b._roadTo; if(!blds.includes(t))continue; out.push([b,t]); }
+    const t=b._roadTo; if(!t||t._gone)continue; out.push([b,t]); }
   return out; }
 // b169: the cart round used to start at 'player' every time and BREAK out of the spawn loop the
 // moment that realm had no streets of its own. Early on the player has one building and no roads —
@@ -3344,7 +3352,7 @@ function refreshCarts(){
 function updateCarts(dt){
   cartT-=dt; if(cartT<=0){ cartT=6; refreshCarts(); }
   for(const c of carts){ const e=c.edge;
-    if(!e||!blds.includes(e[0])||!blds.includes(e[1])){ const all=roadEdges(c.owner); if(!all.length){c.mesh.visible=false;continue;} c.edge=all[(Math.random()*all.length)|0]; c.t=0; continue; }
+    if(!e||e[0]._gone||e[1]._gone){ const all=roadEdges(c.owner); if(!all.length){c.mesh.visible=false;continue;} c.edge=all[(Math.random()*all.length)|0]; c.t=0; continue; }
     if(c.wait>0){ c.wait-=dt; }
     else { const len=Math.hypot(e[1].cx-e[0].cx,e[1].cz-e[0].cz)||1;
       c.t+=c.dir*c.spd*dt*12/len;
