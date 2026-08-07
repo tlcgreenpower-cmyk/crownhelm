@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b194</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b195</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4458,11 +4458,62 @@ function updateMoveMarks(dt){for(const k of moveMarks){k.t+=dt;
   moveMarks=moveMarks.filter(k=>{if(k.t>=(k.flash?1.5:.55)){scene.remove(k.m);k.m.material.dispose();return false;}return true;});}
 const mctx=mini.getContext('2d');
 const miniTerr=document.createElement('canvas');let miniTerrAt=-99;
-function drawMiniTerrain(){miniTerr.width=mini.width;miniTerr.height=mini.height;const c=miniTerr.getContext('2d'),w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;
-  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){const e=elev[ti(x,y)];
-    if(!explored[ti(x,y)])c.fillStyle=e<tideLevel?'#0a1a26':'#0e1c15';   // b121: fogged land shows as a dark silhouette, not void
-    else c.fillStyle=e<tideLevel?'#245478':(e>=2.7?'#4a6b3c':'#5c7d3a');
-    c.fillRect(x*sx,y*sy,sx+.5,sy+.5);}}
+// b195: the map used to be five flat colours — one green for low land, one for high, one blue for
+// everything wet — so a coastline read but nothing else did. It is drawn as a proper relief map now:
+// one pixel per TILE into an ImageData (no 20k fillRect calls), shaded two ways. Height tints it,
+// pale sand up to grey-green upland; and each tile is compared with its neighbour to the north-west,
+// so slopes facing the light lift and slopes falling away sink. That is what makes ridges, valleys
+// and river gorges visible as shapes. Water gets the same treatment by depth: shallows pale, deeps navy.
+// The relief itself never changes once a map is generated — only which tiles you have SEEN does.
+// So both palettes are baked once into flat byte arrays and a refresh is a straight per-pixel pick
+// between them. Doing the shading live cost 6.35ms every rebuild, which is a dropped frame about
+// once a second for nothing. elev is a fresh array per map, so its identity is the whole cache key.
+const miniSrc=document.createElement('canvas');let miniSrcID=null,_mLit=null,_mDark=null,_mFor=null;
+function buildMiniRelief(){const n=MAP_W*MAP_H;_mLit=new Uint8ClampedArray(n*4);_mDark=new Uint8ClampedArray(n*4);
+  // Fit the colour ramp to the land this map actually has. A fixed span put the median tile at 0.77
+  // of the way up and saturated the top 5% flat, which is exactly why the first attempt came out as
+  // one sheet of sage: half the country was sharing the last quarter of the palette. A 64-bucket
+  // histogram between the 2nd and 98th percentile spreads the ramp over the ground that exists,
+  // and it re-fits itself for a flat builder map or a mountainous one without any constant to tune.
+  let lo=tideLevel,hiE=tideLevel+1;
+  { const H=new Int32Array(64);let tot=0,mn=1e9,mx=-1e9;
+    for(let i=0;i<n;i++){const e=elev[i];if(e<tideLevel)continue;if(e<mn)mn=e;if(e>mx)mx=e;tot++;}
+    if(tot>0&&mx>mn){ const sp=mx-mn;
+      for(let i=0;i<n;i++){const e=elev[i];if(e<tideLevel)continue;H[Math.min(63,((e-mn)/sp*64)|0)]++;}
+      let acc=0;const lt=tot*0.02,ht=tot*0.98;let bl=0,bh=63;
+      for(let k=0;k<64;k++){acc+=H[k];if(acc<=lt)bl=k;if(acc<ht)bh=k;}
+      lo=mn+(bl/64)*sp; hiE=mn+((bh+1)/64)*sp; }
+    if(hiE-lo<0.15)hiE=lo+0.15; }
+  const span=hiE-lo;
+  for(let y=0,p=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++,p+=4){
+    const e=elev[ti(x,y)];
+    if(e<tideLevel){const dp=clamp((tideLevel-e)/Math.max(0.35,tideLevel),0,1);
+      _mLit[p]=58-dp*30;_mLit[p+1]=104-dp*58;_mLit[p+2]=140-dp*56;
+      _mDark[p]=10-dp*3;_mDark[p+1]=25-dp*7;_mDark[p+2]=38-dp*12;}
+    else{const hi=clamp((e-lo)/span,0,1);
+      // measured: neighbour deltas run p50 0.08, p90 0.47 in elev units, so 0.55 gives a
+      // readable lift on real slopes and leaves flat farmland almost untouched
+      const sh=1+clamp((e-elev[ti(x>0?x-1:x,y>0?y-1:y)])*0.55,-0.45,0.45);
+      // Damp river-valley green climbing to dry warm upland. Weighted towards the square so the
+      // warmth is held back for ground that has genuinely climbed — running it straight turned the
+      // whole country tan and left green only in the river bottoms, which reads as a desert, not
+      // Britain. Temperate relief maps stay green across most of their range and this one does too.
+      const t=hi*hi*0.75+hi*0.25;
+      _mLit[p]=(72+t*100)*sh;_mLit[p+1]=(104+t*58)*sh;_mLit[p+2]=(56+t*56)*sh;
+      _mDark[p]=(12+t*17)*sh;_mDark[p+1]=(26+t*19)*sh;_mDark[p+2]=(19+t*15)*sh;}
+    _mLit[p+3]=255;_mDark[p+3]=255;}
+  _mFor=elev;}
+function drawMiniTerrain(){miniTerr.width=mini.width;miniTerr.height=mini.height;
+  const c=miniTerr.getContext('2d');
+  if(miniSrc.width!==MAP_W||miniSrc.height!==MAP_H){miniSrc.width=MAP_W;miniSrc.height=MAP_H;miniSrcID=null;}
+  const sc=miniSrc.getContext('2d');
+  if(!miniSrcID)miniSrcID=sc.createImageData(MAP_W,MAP_H);
+  if(_mFor!==elev||!_mLit)buildMiniRelief();
+  const d=miniSrcID.data,n=MAP_W*MAP_H;
+  for(let i=0,p=0;i<n;i++,p+=4){const s=explored[i]?_mLit:_mDark;
+    d[p]=s[p];d[p+1]=s[p+1];d[p+2]=s[p+2];d[p+3]=255;}
+  sc.putImageData(miniSrcID,0,0);
+  c.imageSmoothingEnabled=true;c.drawImage(miniSrc,0,0,mini.width,mini.height);}
 function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;}const w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;mctx.clearRect(0,0,w,h);
   if(performance.now()-miniTerrAt>900){miniTerrAt=performance.now();drawMiniTerrain();}
   mctx.drawImage(miniTerr,0,0);
@@ -4473,8 +4524,26 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
   if(atkPing.t<3){ const px=(atkPing.x/TILE+MAP_W/2)*sx, py=(atkPing.z/TILE+MAP_H/2)*sy;
     mctx.strokeStyle='rgba(255,70,50,'+(1-atkPing.t/3)+')'; mctx.lineWidth=2;
     mctx.beginPath(); mctx.arc(px,py,3+(atkPing.t%1)*9,0,7); mctx.stroke(); mctx.lineWidth=1; }
-  // camera box
-  mctx.strokeStyle='#eef6fb';mctx.lineWidth=1;const cx=(camTarget.x/WORLD_W+0.5)*w,cy=(camTarget.z/WORLD_H+0.5)*h;mctx.strokeRect(cx-14,cy-9,28,18);}
+  // b195: the view box was a fixed 28x18 rectangle drawn around the camera target, so it claimed
+  // the same footprint whether you were zoomed to a man's shoulders (dist 13) or pulled back over
+  // half a county (dist 150) — an eleven-fold lie, and it never turned when you orbited either.
+  // Now the four screen corners are cast onto the ground and the quad they land on is drawn, so
+  // the shape on the map is literally what is on screen: it grows, shrinks, skews and rotates.
+  const q=viewQuad();mctx.beginPath();
+  for(let i=0;i<4;i++){const px=(q[i].x/WORLD_W+0.5)*w,py=(q[i].z/WORLD_H+0.5)*h;i?mctx.lineTo(px,py):mctx.moveTo(px,py);}
+  mctx.closePath();
+  mctx.fillStyle='rgba(238,246,251,0.10)';mctx.fill();
+  mctx.strokeStyle='#eef6fb';mctx.lineWidth=1;mctx.stroke();}
+// Corners in NDC, clockwise from top-left. Rays that look at or above the horizon (possible once
+// the pitch drops near 0.18) never meet the ground, so they are cut off at a sane distance instead
+// of running the quad out to infinity and painting the whole minimap white.
+const _vbQ=[new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()];
+const _vbN=[[-1,1],[1,1],[1,-1],[-1,-1]];
+function viewQuad(){camera.updateMatrixWorld();const o=camera.position,far=camDist*7+60;
+  for(let i=0;i<4;i++){const v=_vbQ[i].set(_vbN[i][0],_vbN[i][1],0.5).unproject(camera).sub(o).normalize();
+    let t=v.y<-1e-4?(-o.y/v.y):far;if(!(t>0)||t>far)t=far;
+    v.multiplyScalar(t).add(o);}
+  return _vbQ;}
 
 // ==================================================== WIN / LOOP
 function ownerCss(o){return '#'+FACTIONS[faction[o]].coat.toString(16).padStart(6,'0');}
@@ -4643,7 +4712,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
-      fellTree,get fallingTrees(){return fallingTrees;},
+      fellTree,get fallingTrees(){return fallingTrees;},drawMini,drawMiniTerrain,viewQuad,
       frame(dt,now){ updateCamera(dt);updateMoveMarks(dt);updateRubble(dt);updateFallingTrees(dt);updateAmbient(dt,now||performance.now()/1000);
         updateSheep(dt);updateAmbience(dt);updateRain(dt);updateCloudShade(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();updateTeamRings();
         updateRings();fogSweep();
