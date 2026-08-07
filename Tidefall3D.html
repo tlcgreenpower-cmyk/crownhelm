@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b200</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b201</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1820,6 +1820,7 @@ function makeSheep(kind){
     const find=re=>src.clips.find(c=>re.test(c.name));
     const wc=find(/walk/i)||find(/run/i), ic=find(/idle/i)||src.clips[0];
     gg.userData.mixer=mixer; gg.userData.walkA=wc?mixer.clipAction(wc):null; gg.userData.idleA=ic?mixer.clipAction(ic):null; gg.userData.mode='idle';
+    deSync(gg.userData);   // a flock of sheep grazing in perfect time is as odd as a regiment doing it
     if(gg.userData.idleA)gg.userData.idleA.play();
     return gg; }
   const g=new THREE.Group();
@@ -1859,7 +1860,7 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   if(sud.mixer&&sfar){ /* hidden: skip skinning */ }
   else if(sud.mixer){ sud.mixer.update(dt); const want=d<0.5?'idle':'walk';
     if(want!==sud.mode&&sud.walkA&&sud.idleA){ const to=want==='walk'?sud.walkA:sud.idleA, from=want==='walk'?sud.idleA:sud.walkA;
-      to.reset().fadeIn(0.2).play(); from.fadeOut(0.2); sud.mode=want; } }
+      deSyncTo(to.reset(),sud).fadeIn(0.2).play(); from.fadeOut(0.2); sud.mode=want; } }
   let hopY=0; if(s.kind==='rabbit'){ s.hopP=(s.hopP||0)+dt*9; const mvg2=Math.hypot(s.tx-s.x,s.tz-s.z)>=0.5; hopY=mvg2?Math.abs(Math.sin(s.hopP))*0.45:0; }
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z); } }
 
@@ -1948,6 +1949,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const ac=hf(/Attack_Kick/)||hf(/Attack/), dc=hf(/^Death$/);
     g.userData.mixer=mixer; g.userData.walkA=wc?mixer.clipAction(wc):null; g.userData.idleA=ic?mixer.clipAction(ic):null;
     g.userData.attackA=ac?mixer.clipAction(ac):null; g.userData.deathA=dc?mixer.clipAction(dc):null; g.userData.animMode='idle';
+    deSync(g.userData);
     if(g.userData.idleA)g.userData.idleA.play();
     const rsrc=CHAR_LIB.lib[RIDER_OF[type]];
     const rider=CHAR_LIB.clone(rsrc.scene);
@@ -2023,6 +2025,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     g.userData.deathA=deathClip?mixer.clipAction(deathClip):null;
     g.userData.cheerA=cheerClip?mixer.clipAction(cheerClip):null;
     g.userData.mixer=mixer;g.userData.walkA=wc?mixer.clipAction(wc):null;g.userData.idleA=ic?mixer.clipAction(ic):null;g.userData.animMode='idle';
+    deSync(g.userData);
     if(g.userData.idleA)g.userData.idleA.play();
     g.userData.noBob=true;
     const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8);g.add(hbk);g.userData.hb=hbk;
@@ -2142,6 +2145,21 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
       const sw=new THREE.Mesh(new THREE.BoxGeometry(.1,1.5,.1),M.ore);sw.position.set(.5,1.5,0);anim.add(sw);} }
   const hb=makeHealthBar();hb.position.y=u.r*2.6+.5;g.add(hb);g.userData.hb=hb;
   return g;}
+// b201: BREAK THE CHORUS LINE. Twelve pikemen raised together were measured standing in the same
+// frame of the same idle clip — eight of the twelve at phase 4.000 of a 4.17 second loop, to three
+// decimal places, and only five distinct phases across all twelve. Every man breathing in on the
+// same beat. Two causes: nothing ever set a starting phase, and the walk-to-idle transition calls
+// reset(), which winds the clip back to zero — so any group that halts together locks together, and
+// a body of troops arriving somewhere resyncs on arrival however scattered they were on the way.
+// Each figure now gets its own entry phase and its own slightly-off tempo (a few per cent either
+// side), so they start apart and drift further apart instead of converging. Set once, costs nothing
+// per frame. deSyncTo re-enters a clip at that figure's own phase rather than at zero.
+function deSync(ud){ if(!ud)return; const off=Math.random(), sc=0.94+Math.random()*0.12;
+  ud._phase=off;
+  for(const a of [ud.idleA,ud.walkA]){ if(!a)continue; a.timeScale=sc;
+    const d=a.getClip()?a.getClip().duration:0; if(d)a.time=off*d; } }
+function deSyncTo(a,ud){ if(!a)return a; const d=a.getClip()?a.getClip().duration:0;
+  if(d)a.time=((ud&&ud._phase)||0)*d; return a; }
 function makeHealthBar(){const grp=new THREE.Group();
   const mk=(w,ht,col,op,ro,z)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,ht),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthTest:false,depthWrite:false}));m.renderOrder=ro;m.position.z=z;grp.add(m);return m;};
   // b173: these used to be 1.9 wide and near-solid black — 45 pixels of slab against a unit only 54
@@ -3282,10 +3300,11 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     else { if(ud.lodAcc){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} ud.mixer.update(dt); if(_prof)_prof.mixN=(_prof.mixN||0)+1; }
     if((ud.oneT||0)>0){ ud.oneT-=dt;
       if(ud.oneT<=0){ if(ud.oneA)ud.oneA.fadeOut(0.15); ud.oneA=null;
-        const back=ud.animMode==='walk'?ud.walkA:ud.idleA; if(back)back.reset().fadeIn(0.15).play(); } }
+        const back=ud.animMode==='walk'?ud.walkA:ud.idleA; if(back)deSyncTo(back.reset(),ud).fadeIn(0.15).play(); } }
     else { const mv=e.path&&e.pi<e.path.length, want=mv?'walk':'idle';
       if(want!==ud.animMode&&ud.walkA&&ud.idleA){ const to=mv?ud.walkA:ud.idleA, from=mv?ud.idleA:ud.walkA;
-        to.reset().fadeIn(0.15).play(); from.fadeOut(0.15); ud.animMode=want; } } }
+        // reset() winds the clip back to zero, which is what locked a halting company together
+        deSyncTo(to.reset(),ud).fadeIn(0.15).play(); from.fadeOut(0.15); ud.animMode=want; } } }
   else if(ud.limbs){ const mv=e.path&&e.pi<e.path.length;
     if(mv){ const s=Math.sin(e.walk*10)*0.65;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
@@ -3410,9 +3429,10 @@ function spawnCitizen(b){
       const find=re=>src.clips.find(c=>re.test(c.name));
       const wc=find(/walk/i)||find(/run/i)||src.clips[0], ic=find(/^idle/i)||find(/idle/i)||src.clips[0];
       const walkA=wc?mixer.clipAction(wc):null, idleA=ic?mixer.clipAction(ic):null;
+      const cud={walkA,idleA}; deSync(cud);   // townsfolk stand about in crowds; same fault, same cure
       if(idleA)idleA.play();
       scene.add(g);
-      citizens.push({mesh:g,mixer,walkA,idleA,mode:'idle',armL:null,armR:null,legL:null,legR:null,phase:0,hx:b.cx,hz:b.cz,x:sx1,z:sz1,tx:sx1,tz:sz1,wait:1,kid,own:b.owner});
+      citizens.push({mesh:g,mixer,walkA,idleA,_phase:cud._phase,mode:'idle',armL:null,armR:null,legL:null,legR:null,phase:0,hx:b.cx,hz:b.cz,x:sx1,z:sz1,tx:sx1,tz:sz1,wait:1,kid,own:b.owner});
       return; } }
   const g=new THREE.Group(),i=citizens.length,coat=citMats[i%citMats.length];
   // legs
@@ -3531,7 +3551,7 @@ function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
   else if(c.mixer){ c.mixer.update(dt);
     const want=moving?'walk':'idle';
     if(want!==c.mode&&c.walkA&&c.idleA){ const to=moving?c.walkA:c.idleA, from=moving?c.idleA:c.walkA;
-      to.reset().fadeIn(0.18).play(); from.fadeOut(0.18); c.mode=want; } }
+      deSyncTo(to.reset(),c).fadeIn(0.18).play(); from.fadeOut(0.18); c.mode=want; } }
   else if(c.armL){ if(moving){ c.phase+=dt*9; const s=Math.sin(c.phase)*0.7;
       c.armL.rotation.x=s; c.armR.rotation.x=-s; c.legL.rotation.x=-s*0.85; c.legR.rotation.x=s*0.85; }
     else for(const l of[c.armL,c.armR,c.legL,c.legR]) l.rotation.x*=Math.max(0,1-dt*8); }
