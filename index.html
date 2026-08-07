@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b196</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b197</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1892,7 +1892,12 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const rsrc=CHAR_LIB.lib[RIDER_OF[type]];
     const rider=CHAR_LIB.clone(rsrc.scene);
     const rbox=modelBox(rider), rh=rbox.max.y-rbox.min.y||1;
-    rider.scale.setScalar(1.9/rh);
+    // b197: this was 1.9 while every man on foot is scaled to 2.4 — riders were 79% the size of the
+    // same soldier walking, which is why a knight read as a boy on a carthorse. Measured, a foot
+    // soldier stands 2.28 and a rider spanned 1.68. Worse, armUnit hangs the weapon off the GROUP,
+    // not off the rider, so a lance sized for a 2.4 man was being carried by a 1.9 one — that is
+    // where the comically long pike came from. One number fixes both.
+    rider.scale.setScalar(2.4/rh);
     // seat him on the actual spine, not on a guess off the head-high bounding box
     let saddleY=0; horse.updateMatrixWorld(true);
     horse.traverse(o=>{ if(o.isBone&&/^(back|spine|torso)$/i.test(o.name)){ const bp=new THREE.Vector3(); o.getWorldPosition(bp); if(bp.y>saddleY)saddleY=bp.y; } });
@@ -1905,7 +1910,11 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     g.add(rider);
     armUnit(g,type); if(g.userData.weapon)g.userData.weapon.position.y+=saddleY+0.35;   // b148: a horseman carries his too
     g.userData.noBob=true;
-    const hbc2=makeHealthBar();hbc2.position.y=3.4;g.add(hbc2);g.userData.hb=hbc2;
+    // Health bars draw with depthTest off, so this does not hide behind the man — it paints across
+    // him. At 3.4 it was already crossing the old rider's helmet (top 3.57); with a full-size rider
+    // topping out at 4.02 it sat over his face. Foot units clear their heads by about half a unit
+    // (bar 2.8 over a 2.28 body) and mounted men now get the same margin.
+    const hbc2=makeHealthBar();hbc2.position.y=4.55;g.add(hbc2);g.userData.hb=hbc2;
     return g; }
   // b148 MILITARY SILHOUETTES: the character packs ship their people UNARMED — a pikeman, a
   // musketeer and a monk were the same shape from above, which is why an army read as a crowd.
