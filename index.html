@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b176</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b177</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1443,7 +1443,15 @@ function spawnSunShafts(){ if(shaftGroup)scene.remove(shaftGroup);
 let _shaftA=0;
 function updateSunShafts(dt){ if(!shaftGroup)return;
   const gaps=4*wCloud*(1-wCloud);   // a hump: nothing when clear, nothing when solid, most in between
-  const want=0.10*wSun*Math.max(0,gaps)*(1-rainI*0.7);
+  // b177: and nothing at all unless the camera is well ABOVE them. Measured against rendered frames
+  // these shafts were not the harmless subtlety b171 claimed: at a close camera they contribute
+  // nothing (the eye is down among them), and at dist 70 — a thoroughly ordinary working zoom, with
+  // the camera at y=67, level with their tops — they washed EIGHTY-FOUR PERCENT of the frame. That
+  // is the fog failure b171 was trying to avoid, shipped without being noticed because I only ever
+  // measured one camera. They earn their place looking down from height and nowhere else.
+  const camH=camera.position.y-70;
+  const hgt=camH<=0?0:camH>=60?1:camH/60;
+  const want=0.10*wSun*Math.max(0,gaps)*(1-rainI*0.7)*hgt;
   const u=shaftMat.uniforms.uInt; u.value+=(want-u.value)*Math.min(1,dt*0.7);
   shaftGroup.visible=u.value>0.002; if(!shaftGroup.visible)return;
   _shaftA+=dt*0.02; const dx=Math.cos(_shaftA)*3.2*wWind*dt, dz=Math.sin(_shaftA)*3.2*wWind*dt;
@@ -4379,7 +4387,12 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       // off the render loop, so a headless soak that only calls update() never sees them at all.
       fellTree,get fallingTrees(){return fallingTrees;},
       frame(dt,now){ updateCamera(dt);updateMoveMarks(dt);updateRubble(dt);updateFallingTrees(dt);updateAmbient(dt,now||performance.now()/1000);
-        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();updateTeamRings();fogSweep(); },
+        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();updateTeamRings();
+        updateRings();fogSweep();
+        // the water is SEATED by the render loop, not by the sim. Leaving this out of the driver
+        // parked the sea at y=0 while the waterline is 1.87, so every shallow river bed came out
+        // dry sand and I spent a while hunting a rendering bug that was only ever in the harness.
+        waterUniforms.uTime.value=now||0; if(waterMesh)waterMesh.position.y=waterY; },
       get shaftGroup(){ return shaftGroup; },
       get shafts(){ return {n:shaftGroup?shaftGroup.children.length:0,on:!!(shaftGroup&&shaftGroup.visible),
         intensity:+shaftMat.uniforms.uInt.value.toFixed(4),cloud:+wCloud.toFixed(2),sun:+wSun.toFixed(2),rain:+rainI.toFixed(2)}; },
