@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b177</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b178</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1067,6 +1067,20 @@ function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.g
 // b141 fog-of-war state — declared here because the water shader shares these uniforms
 let fogTex=null,fogData=null;
 const _fogUni={tex:{value:null},size:{value:null},on:{value:1}};
+// b178 CLOUD SHADE. The clouds have carried castShadow since b126 and it has never amounted to
+// anything: measured across fifteen viewpoints at high quality, the shadow map put cloud shade on
+// 0.02 percent of the frame, and on nothing at all in fifteen views out of fifteen. Each cloud is
+// simply too small — parked directly overhead one darkens 0.4 percent of a working view. Rather
+// than inflate the clouds until their shadows read, the shade goes in the LAND SHADER: a drifting
+// noise field over world XZ, folded into the same patch that already draws the fog of war. It
+// follows the ground exactly, costs no geometry and no shadow-map work, and — unlike the real
+// shadows — it is there on Fast quality too, where the shadow map is switched off entirely.
+// freq 0.024 puts a patch at about ten tiles across. Measured over seven viewpoints every frequency
+// shades the same ~26% of frame (the smoothstep threshold decides that, not the scale) — what the
+// scale decides is CONSISTENCY, and the slow settings swung between 1% and 64% of the view, so you
+// would cross a whole field in flat light and then sit under one enormous shadow. This holds
+// 15-42%: some sun and some shade in shot, near enough always.
+const _cldUni={drift:{value:new THREE.Vector2()},amt:{value:0},freq:{value:0.024},depth:{value:0.70}};
 const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR},uHeight:{value:null},uSea:{value:SEA},uFogTex:_fogUni.tex,uFogOn:_fogUni.on};
 function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.dispose();}
   // terrain heightmap so the water knows its own depth
@@ -1441,6 +1455,13 @@ function spawnSunShafts(){ if(shaftGroup)scene.remove(shaftGroup);
     _shaftOff.push({x:(hashN(i,71)-0.5)*2*SHAFT_R,y:26+hashN(73,i)*16,z:(hashN(i,79)-0.5)*2*SHAFT_R});
     shaftGroup.add(m); } }
 let _shaftA=0;
+// The shade drifts downwind, and there is most of it in broken cloud — a clear sky casts none and a
+// solid overcast has no gaps to shape a patch, the same reasoning the shafts use.
+let _cldT=0;
+function updateCloudShade(dt){ _cldT+=dt*(0.010+0.014*wWind);
+  _cldUni.drift.value.set(_cldT,_cldT*0.42);
+  const want=Math.min(1,wCloud*1.55)*(1-rainI*0.45);
+  const a=_cldUni.amt; a.value+=(want-a.value)*Math.min(1,dt*0.5); }
 function updateSunShafts(dt){ if(!shaftGroup)return;
   const gaps=4*wCloud*(1-wCloud);   // a hump: nothing when clear, nothing when solid, most in between
   // b177: and nothing at all unless the camera is well ABOVE them. Measured against rendered frames
@@ -3244,10 +3265,24 @@ function fogPatch(m){ if(m.userData._fog||fogSkip(m))return false; m.userData._f
   const prev=m.onBeforeCompile;
   m.onBeforeCompile=function(sh){ if(prev)prev.call(this,sh);
     sh.uniforms.uFogTex=_fogUni.tex; sh.uniforms.uFogSize=_fogUni.size; sh.uniforms.uFogOn=_fogUni.on;
+    sh.uniforms.uCldDrift=_cldUni.drift; sh.uniforms.uCldAmt=_cldUni.amt;
+    sh.uniforms.uCldFreq=_cldUni.freq; sh.uniforms.uCldDepth=_cldUni.depth;
     sh.vertexShader='varying vec2 vFogUv;\nuniform vec2 uFogSize;\n'+sh.vertexShader.replace('#include <project_vertex>',
       '#include <project_vertex>\n  vec4 _fwp=vec4(transformed,1.0);\n  #ifdef USE_INSTANCING\n  _fwp=instanceMatrix*_fwp;\n  #endif\n  _fwp=modelMatrix*_fwp;\n  vFogUv=vec2(_fwp.x/uFogSize.x+0.5,_fwp.z/uFogSize.y+0.5);');
-    sh.fragmentShader='varying vec2 vFogUv;\nuniform sampler2D uFogTex;\nuniform float uFogOn;\n'+sh.fragmentShader.replace('#include <dithering_fragment>',
-      '#include <dithering_fragment>\n  if(uFogOn>0.5){ float _fg=texture2D(uFogTex,clamp(vFogUv,0.002,0.998)).r;\n    gl_FragColor.rgb=mix(gl_FragColor.rgb*vec3(0.055,0.065,0.10),gl_FragColor.rgb,_fg); }');
+    sh.fragmentShader='varying vec2 vFogUv;\nuniform sampler2D uFogTex;\nuniform float uFogOn;\n'
+      +'uniform vec2 uCldDrift;\nuniform float uCldAmt;\nuniform vec2 uFogSize;\nuniform float uCldFreq;\nuniform float uCldDepth;\n'
+      // a sin-free hash: the first cut cost 2.84ms a frame, being eight sin() calls in every land
+      // fragment on screen, which is far too much to pay for weather you can only just see.
+      +'float _tfH21(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }\n'
+      +'float _tfVN(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);\n'
+      +'  return mix(mix(_tfH21(i),_tfH21(i+vec2(1.0,0.0)),f.x),mix(_tfH21(i+vec2(0.0,1.0)),_tfH21(i+vec2(1.0,1.0)),f.x),f.y); }\n'
+      +sh.fragmentShader.replace('#include <dithering_fragment>',
+      '#include <dithering_fragment>\n'
+      +'  if(uCldAmt>0.001){ vec2 _cw=(vFogUv-0.5)*uFogSize*uCldFreq+uCldDrift;\n'
+      +'    float _cn=_tfVN(_cw)*0.66+_tfVN(_cw*2.13+7.0)*0.34;\n'
+      +'    gl_FragColor.rgb*=mix(1.0,uCldDepth,smoothstep(0.46,0.74,_cn)*uCldAmt); }\n'
+      +'  if(uFogOn>0.5){ float _fg=texture2D(uFogTex,clamp(vFogUv,0.002,0.998)).r;\n'
+      +'    gl_FragColor.rgb=mix(gl_FragColor.rgb*vec3(0.055,0.065,0.10),gl_FragColor.rgb,_fg); }');
   };
   m.needsUpdate=true; return true; }
 let _fogSweepT=0;
@@ -4353,7 +4388,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
   _fogSweepT-=frame; if(_fogSweepT<=0){_fogSweepT=1.5;fogSweep();}   // newly built things join the fog
-  updateGhost();updateGarHint();updateRings();updateUnitLOD();updateTeamRings();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateSunShafts(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateGarHint();updateRings();updateUnitLOD();updateTeamRings();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateCloudShade(frame);updateSunShafts(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   { const aa=document.getElementById('atkArrow');
     if(running&&!gameOver&&atkPing.t<6){ _aaV.set(atkPing.x,heightAtWorld(atkPing.x,atkPing.z),atkPing.z).project(camera);
       const sx=(_aaV.x+1)/2*vw, sy=(-_aaV.y+1)/2*vh;
@@ -4387,13 +4422,14 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       // off the render loop, so a headless soak that only calls update() never sees them at all.
       fellTree,get fallingTrees(){return fallingTrees;},
       frame(dt,now){ updateCamera(dt);updateMoveMarks(dt);updateRubble(dt);updateFallingTrees(dt);updateAmbient(dt,now||performance.now()/1000);
-        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();updateTeamRings();
+        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateCloudShade(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();updateTeamRings();
         updateRings();fogSweep();
         // the water is SEATED by the render loop, not by the sim. Leaving this out of the driver
         // parked the sea at y=0 while the waterline is 1.87, so every shallow river bed came out
         // dry sand and I spent a while hunting a rendering bug that was only ever in the harness.
         waterUniforms.uTime.value=now||0; if(waterMesh)waterMesh.position.y=waterY; },
       get shaftGroup(){ return shaftGroup; },
+      get cloudShade(){ return _cldUni; },
       get shafts(){ return {n:shaftGroup?shaftGroup.children.length:0,on:!!(shaftGroup&&shaftGroup.visible),
         intensity:+shaftMat.uniforms.uInt.value.toFixed(4),cloud:+wCloud.toFixed(2),sun:+wSun.toFixed(2),rain:+rainI.toFixed(2)}; },
       timeWorld(){ const r={},T=n=>{const t=performance.now();return()=>{r[n]=+(performance.now()-t).toFixed(0);};};
