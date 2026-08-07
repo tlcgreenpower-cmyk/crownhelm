@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b212</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b213</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4099,7 +4099,17 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
     // still gathers properly and only one that is genuinely stuck ever settles for less. The floor
     // of four is unchanged — nobody attacks with a man and a dog.
     const want=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave)-(ai.musterFail||0)*2);
-    if(army.length>=want){const foe=foes.includes('player')?'player':foes[0];const tgt=pickTargetFor(foe);
+    if(army.length>=want){const foe=foes.includes('player')?'player':foes[0];
+      // b213: PRESS THE SAME POINT UNTIL IT FALLS. Every wave used to draw a fresh random building
+      // out of the enemy's whole estate, so successive hosts walked off in different directions and
+      // the damage never gathered anywhere. That is exactly the shape b212 measured and could not
+      // explain away: after five minutes of war one realm had FOUR buildings standing at a third to
+      // a half, and not one of them down. Four half-ruined barns are worth nothing; one barn on the
+      // ground is worth something. A realm now keeps its siege until the building falls, is
+      // rebuilt by somebody else, or stops being an enemy's, and only then picks the next.
+      if(ai.siegeT&&(ai.siegeT._gone||ai.siegeT.hp<=0||!isHostile(o,ai.siegeT.owner)))ai.siegeT=null;
+      if(!ai.siegeT)ai.siegeT=pickTargetFor(foe);
+      const tgt=ai.siegeT;
       army.forEach(e=>{if(tgt)attackBOrder(e,tgt);});ai.wave++;ai.attackTimer=55;ai.musterFail=0;
       if(foe==='player'){SFX.wave();flashMsg('The '+realmName(o)+' are marching on you!');}}
     else {ai.attackTimer=12;ai.musterFail=(ai.musterFail||0)+1;}}}
@@ -4126,7 +4136,18 @@ function aiDiplomacy(o,ai){
     aiWars[warKey(o,near)]=true; realmAI[o].attackTimer=Math.min(realmAI[o].attackTimer,10);
     if(realmAI[near])realmAI[near].attackTimer=Math.min(realmAI[near].attackTimer,25);
     if(realmKnown(o)||realmKnown(near))flashMsg('⚔ '+realmName(o)+' declare war on '+realmName(near)+'!'); } }
-function pickTargetFor(victim){const pb=blds.filter(b=>b.owner===victim),front=pb.filter(b=>b.type!=='hall');return front.length?front[Math.floor(Math.random()*front.length)]:pb.find(b=>b.type==='hall');}
+// b213: and it presses the TOWN. This drew uniformly from everything the victim owned, so a host
+// was as likely to be sent at a barn on the far edge of their land as at the streets round their
+// keep — a long march for a building whose loss nobody would notice, and by the time it got there
+// the wave had been whittled on the way. It now chooses among the third of their buildings standing
+// nearest their own keep, which is both the shorter march and the part of a realm that matters.
+function pickTargetFor(victim){const pb=blds.filter(b=>b.owner===victim),hall=pb.find(b=>b.type==='hall');
+  const front=pb.filter(b=>b.type!=='hall');
+  if(!front.length)return hall;
+  if(!hall)return front[Math.floor(Math.random()*front.length)];
+  front.sort((a,b)=>Math.hypot(a.cx-hall.cx,a.cz-hall.cz)-Math.hypot(b.cx-hall.cx,b.cz-hall.cz));
+  const pool=front.slice(0,Math.max(1,Math.ceil(front.length/3)));
+  return pool[Math.floor(Math.random()*pool.length)];}
 function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b=BLD[type];
   // b157: FINISH WHAT YOU START. Per-kind limits stopped the foundation spam of b155, but a realm
   // could still have thirteen different kinds on the go at once with eight masons to build them —
