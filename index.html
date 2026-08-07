@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b185</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b186</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2806,9 +2806,17 @@ function spawnRubble(b){ const g=new THREE.Group(); const w=b.w*TILE,h=b.h*TILE;
     m.position.set(b.cx+(hashN(b.id*3,i)-.5)*w*0.7,0,b.cz+(hashN(i,b.id*5)-.5)*h*0.7);
     m.position.y=heightAtWorld(m.position.x,m.position.z)+s*0.18;
     m.rotation.set(0,hashN(i*7,b.id)*3,(hashN(b.id,i*11)-.5)*0.3); g.add(m); }
-  scene.add(g); rubblePiles.push({g,t:0});
+  scene.add(g); rubblePiles.push({g,t:0,x:b.cx,z:b.cz,w:Math.max(w,h)});
   if(rubblePiles.length>24){const old=rubblePiles.shift();scene.remove(old.g);} }
-function updateRubble(dt){ for(const r of rubblePiles){ r.t+=dt; if(r.t>70)r.g.position.y=-(r.t-70)*0.05; }
+// b186: fresh ruins SMOULDER. Until b185 a razed town was something no player ever saw — the
+// attack waves dissolved before they reached anyone, and eight realms never pulled down a single
+// building between them. Now that they do, the aftermath is on screen and it wanted more than a
+// heap of grey stone sitting on the grass: a town that has just come down should still be smoking.
+// It dies away over half a minute, so a battlefield reads as recent, and old ruins go quiet.
+function updateRubble(dt){ for(const r of rubblePiles){ r.t+=dt; if(r.t>70)r.g.position.y=-(r.t-70)*0.05;
+    if(r.t<32&&Math.random()<dt*(2.6-r.t*0.07)){
+      const w=(r.w||6)*0.34;
+      spawnPart(r.x+(Math.random()-.5)*w, heightAtWorld(r.x,r.z)+0.7+Math.random()*0.8, r.z+(Math.random()-.5)*w, 'smoke'); } }
   rubblePiles=rubblePiles.filter(r=>{ if(r.t>=95){scene.remove(r.g);return false;} return true; }); }
 function ungarrison(b){ if(!b.gar)return; for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
   const sp=spawnSpot(b,u.type); u.inGar=null; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
