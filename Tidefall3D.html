@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b204</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b205</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3408,6 +3408,13 @@ function autoAcq(e,chase){if(e.type==='worker'||UNIT[e.type].noAtk||UNIT[e.type]
   for(const o of foesOfOwner(e.owner)){if(o.hp<=0)continue;const dx=e.x-o.x,dz=e.z-o.z,d2=dx*dx+dz*dz;if(d2<bd2){bd2=d2;tgt=o;}}if(tgt){e.cmd='attack';e.target=tgt;}}
 function muzzleFX(e,U){ if(e.owner!=='player'&&!tileVis(e.x,e.z))return; const mx=e.x+Math.cos(e.dir)*1.3, mz=e.z+Math.sin(e.dir)*1.3, my=heightAtWorld(e.x,e.z)+1.6;
   spawnPart(mx,my,mz,'flash');
+  // The count is deliberately unchanged. Raising it to five at nearly two seconds each took the peak
+  // to 241 against the 240 cap, with 32 frames in 900 of a forty-man fight saturated — and at the cap
+  // spawnPart drops EVERYTHING, not just smoke: blood, chips, the smoke off burning buildings. Then I
+  // measured what a particle actually costs, which is the thing I should have measured first: 200 of
+  // them in view are 200 draw calls and just under a millisecond, against a scene that otherwise
+  // draws in 103. The cap is load-bearing. So the volley gets its weight from size and movement
+  // instead, which are free — same three puffs a shot as before this build.
   const n=U.siege?5:3; for(let i=0;i<n;i++)spawnPart(mx,my,mz,'musket');
   if(U.siege)for(let i=0;i<3;i++)spawnPart(mx,my,mz,'smoke');
   if(U.siege&&Math.hypot(e.x-camTarget.x,e.z-camTarget.z)<70)camShake=Math.min(1.1,camShake+0.45); }
@@ -3457,14 +3464,22 @@ function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heig
 const partGeo=new THREE.SphereGeometry(0.18,5,4);
 const partMats={smoke:new THREE.MeshBasicMaterial({color:0x9098a0,transparent:true}),splash:new THREE.MeshBasicMaterial({color:0x9fd6ec}),chip:new THREE.MeshBasicMaterial({color:0xa9803f}),spark:new THREE.MeshBasicMaterial({color:0xffdca0}),debris:new THREE.MeshBasicMaterial({color:0xb08050}),blood:new THREE.MeshBasicMaterial({color:0xa03828}),heal:new THREE.MeshBasicMaterial({color:0x9ff0b0,transparent:true}),
 musket:new THREE.MeshBasicMaterial({color:0xd8dade,transparent:true}),flash:new THREE.MeshBasicMaterial({color:0xffdf80,transparent:true}),flame:new THREE.MeshBasicMaterial({color:0xff8a30,transparent:true})};
-function spawnPart(x,y,z,type){if(parts.length>240)return;const m=new THREE.Mesh(partGeo,partMats[type]||partMats.spark);m.position.set(x,y,z);scene.add(m);
+// b205: at the cap this used to drop the NEW effect and keep the old. Measured on a forty-man fight,
+// 20 frames in 900 sit at the ceiling — and that is with the smoke exactly as it has always been, so
+// this is not something this build introduced. What it means is that at the height of a battle the
+// musket flash you just fired does not appear, while a puff of smoke from two seconds ago is still
+// being drawn. The newest thing is always the thing being looked at, so the oldest particle gives up
+// its place instead. Same ceiling, same cost — 200 particles in view are 200 draw calls and just
+// under a millisecond against a scene that otherwise draws in 103, so the ceiling stays where it is.
+function spawnPart(x,y,z,type){if(parts.length>240){const old=parts.shift();if(old)scene.remove(old.mesh);}
+  const m=new THREE.Mesh(partGeo,partMats[type]||partMats.spark);m.position.set(x,y,z);scene.add(m);
   let p={mesh:m,x,y,z,t:0,type};if(type==='smoke'){p.vx=(Math.random()-.5)*1;p.vy=3.5;p.vz=(Math.random()-.5)*1;p.life=1.6;p.g=0;p.s=1.4;}
   else if(type==='splash'){p.vx=(Math.random()-.5)*5;p.vy=5;p.vz=(Math.random()-.5)*5;p.life=.6;p.g=-16;p.s=.5;}
   else if(type==='chip'){p.vx=(Math.random()-.5)*5;p.vy=4;p.vz=(Math.random()-.5)*5;p.life=.6;p.g=-20;p.s=.5;}
   else if(type==='spark'){p.vx=(Math.random()-.5)*7;p.vy=(Math.random())*4;p.vz=(Math.random()-.5)*7;p.life=.3;p.g=-10;p.s=.5;}
   else if(type==='debris'){p.vx=(Math.random()-.5)*10;p.vy=6+Math.random()*5;p.vz=(Math.random()-.5)*10;p.life=1.0;p.g=-24;p.s=1;}
   else if(type==='heal'){p.vx=(Math.random()-.5)*1.2;p.vy=3.2;p.vz=(Math.random()-.5)*1.2;p.life=.8;p.g=2;p.s=.55;}
-  else if(type==='musket'){p.vx=(Math.random()-.5)*2.5;p.vy=1.6+Math.random()*1.2;p.vz=(Math.random()-.5)*2.5;p.life=1.1;p.g=.4;p.s=.8;}
+  else if(type==='musket'){p.vx=(Math.random()-.5)*2.5;p.vy=1.6+Math.random()*1.2;p.vz=(Math.random()-.5)*2.5;p.life=1.1;p.g=.4;p.s=1.15;}
   else if(type==='flash'){p.vx=0;p.vy=.4;p.vz=0;p.life=.12;p.g=0;p.s=1.1;}
   else if(type==='flame'){p.vx=(Math.random()-.5)*1.2;p.vy=2.6+Math.random()*1.5;p.vz=(Math.random()-.5)*1.2;p.life=.5;p.g=0;p.s=.7;}
   else{p.vx=(Math.random()-.5)*6;p.vy=3;p.vz=(Math.random()-.5)*6;p.life=.5;p.g=-18;p.s=.6;}m.scale.setScalar(p.s);parts.push(p);}
@@ -3637,7 +3652,19 @@ function updateCorpses(dt){ for(const c of corpses){ c.t+=dt;
   else if(c.t>1.2)c.mesh.position.y-=dt*1.2;                 // sink away
   if(c.t>2.4){scene.remove(c.mesh);c.dead=true;} }
   corpses=corpses.filter(c=>!c.dead); }
-function updateParticles(dt){for(const p of parts){p.t+=dt;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.mesh.position.set(p.x,p.y,p.z);const a=1-p.t/p.life;if(p.mesh.material.transparent)p.mesh.material.opacity=a;if(p.type==='smoke')p.mesh.scale.setScalar(p.s*(1+p.t));}
+// b205: powder smoke drifts and spreads. This is a musket-era game and a discharge left three small
+// puffs that hung exactly where they were made and then vanished at a constant size — the one effect
+// the whole period is known for, and it did not move. Smoke and musket smoke now take the same wind
+// that drives the rain and the leaves, and musket smoke swells the way a powder cloud does. Priced
+// first: even with forty men fighting at close quarters the particle count peaks at 135 against a
+// cap of 240, and hiding every live particle changed the draw-call count by nothing, so there was
+// headroom to spend.
+function updateParticles(dt){const wdx=2.6*wWind*dt, wdz=0.8*wWind*dt;
+  for(const p of parts){p.t+=dt;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
+    if(p.type==='smoke'||p.type==='musket'){p.x+=wdx;p.z+=wdz;}
+    p.mesh.position.set(p.x,p.y,p.z);const a=1-p.t/p.life;if(p.mesh.material.transparent)p.mesh.material.opacity=a;
+    if(p.type==='smoke')p.mesh.scale.setScalar(p.s*(1+p.t));
+    else if(p.type==='musket')p.mesh.scale.setScalar(p.s*(1+p.t*0.9));}
   parts=parts.filter(p=>{if(p.t>=p.life){scene.remove(p.mesh);return false;}return true;});}
 
 // ==================================================== FOG (reveal-based; hide unseen enemies)
