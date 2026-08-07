@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b186</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b187</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2799,13 +2799,24 @@ let rubblePiles=[];
 const rubGeo=new THREE.BoxGeometry(1,1,1);
 const rubMatA=new THREE.MeshStandardMaterial({color:0x6d675e,roughness:1,flatShading:true});
 const rubMatB=new THREE.MeshStandardMaterial({color:0x4c463e,roughness:1,flatShading:true});
+// b186 put smoke over the ruins; looking at them showed the next thing — a timber cottage and a
+// stone keep collapsed into the identical heap of grey masonry. A thatched house leaves BURNT WOOD:
+// charred beams lying across each other, dark and long, not blocks of dressed stone. Only the
+// stone-built things — keep, castle, tower, wall, gate — leave masonry now.
+const rubMatC=new THREE.MeshStandardMaterial({color:0x3a2a1e,roughness:1,flatShading:true});
+const rubMatD=new THREE.MeshStandardMaterial({color:0x241a13,roughness:1,flatShading:true});
+const STONE_BUILT=new Set(['hall','castle','tower','wall','gate']);
 function spawnRubble(b){ const g=new THREE.Group(); const w=b.w*TILE,h=b.h*TILE;
   const n=4+Math.min(5,b.w*b.h);
-  for(let i=0;i<n;i++){ const m=new THREE.Mesh(rubGeo,i%3?rubMatA:rubMatB);
-    const s=0.7+hashN(b.id,i)*1.6; m.scale.set(s,s*0.55,s*(0.7+hashN(i,b.id)*0.6));
+  const stone=STONE_BUILT.has(b.type);
+  for(let i=0;i<n;i++){ const m=new THREE.Mesh(rubGeo,stone?(i%3?rubMatA:rubMatB):(i%3?rubMatC:rubMatD));
+    const s=0.7+hashN(b.id,i)*1.6;
+    // burnt timber falls as beams — long, thin and lying over; stone falls as blocks
+    if(stone)m.scale.set(s,s*0.55,s*(0.7+hashN(i,b.id)*0.6));
+    else m.scale.set(s*(1.5+hashN(i,b.id)),s*0.26,s*0.34);
     m.position.set(b.cx+(hashN(b.id*3,i)-.5)*w*0.7,0,b.cz+(hashN(i,b.id*5)-.5)*h*0.7);
-    m.position.y=heightAtWorld(m.position.x,m.position.z)+s*0.18;
-    m.rotation.set(0,hashN(i*7,b.id)*3,(hashN(b.id,i*11)-.5)*0.3); g.add(m); }
+    m.position.y=heightAtWorld(m.position.x,m.position.z)+(stone?s*0.18:s*0.12);
+    m.rotation.set(0,hashN(i*7,b.id)*3,(hashN(b.id,i*11)-.5)*(stone?0.3:0.14)); g.add(m); }
   scene.add(g); rubblePiles.push({g,t:0,x:b.cx,z:b.cz,w:Math.max(w,h)});
   if(rubblePiles.length>24){const old=rubblePiles.shift();scene.remove(old.g);} }
 // b186: fresh ruins SMOULDER. Until b185 a razed town was something no player ever saw — the
