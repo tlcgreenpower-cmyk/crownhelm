@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b166</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b167</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3459,6 +3459,13 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
   { const tip=document.getElementById('nodeTip'); const nd=(running&&!placing&&!dragging&&!rDrag)?nodeAt(g.x,g.z):null;
     if(nd){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
       tip.textContent=(nd.type==='wood'?'🌲 Timber: ':nd.type==='gold'?'💰 Gold left: ':nd.type==='food'?'🐑 Meat left: ':'⛏️ Iron left: ')+Math.max(0,Math.round(nd.amount)); }
+    // b167: what grows in a field is decided by the ground it stands on, so say so BEFORE it is
+    // built. Otherwise siting a Mill and a Bakery is a guess — as it was for me, laying four farms
+    // in a row and getting four vegetable plots with a Bakery next door that could bake nothing.
+    else if(placing==='farm'&&running){ const c=FARM_CROPS[farmCropIndex(farmSeed(hoverTile.tx,hoverTile.ty))];
+      const kind=CROP_KIND[c.n]||'veg';
+      tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
+      tip.textContent='🌱 '+c.n+(kind==='grain'?' — grain, wants a Mill within 30':kind==='flax'?' — linen, wants a Market':' — feeds the town straight from the row'); }
     else if(garHintB){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
       tip.textContent='⛨ Right-click to man the '+BLD[garHintB.type].name+' — '+(garHintB.gar||[]).length+'/'+GAR_CAP[garHintB.type]; }
     else tip.style.display='none'; }
@@ -4083,7 +4090,9 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
-      get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
+      get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
+      setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
+      FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
