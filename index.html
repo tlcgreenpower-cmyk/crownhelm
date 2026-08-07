@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b198</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b199</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1433,6 +1433,50 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     q0.setFromEuler(eul.set(hashN(i,131)*3,hashN(137,i)*3,0)); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     peb.setMatrixAt(pi2,m4); col.setHSL(0.09,0.05,0.32+hashN(i,139)*0.18); peb.setColorAt(pi2,col); pi2++; }
   peb.count=pi2; ambientGroup.add(peb);
+  // b199 THE STRAND. Photographed at the water's edge the beach was a flat empty tan stripe between
+  // a land thick with tufts, bushes, stumps, mushrooms and logs and a sea with foam on it. Not an
+  // oversight in placement — an oversight in RANGE. The sea sits at 0.55 and the b103 shore pass
+  // starts its reeds at 1.02 and its pebbles at 1.08, while stumps, logs, mushrooms and saplings all
+  // want 1.55 or more. Measured on this map, 430 tiles — 2.3 per cent of the whole world — lie above
+  // the waterline and below the floor of EVERY scatter in the game. That band was empty by
+  // construction, and it is the bright strip the eye lands on whenever you are near the coast.
+  // Same fault as b196's meadow, where the mottling was gated to elevations the land never reached.
+  // Shingle first, thickening towards the water the way a real beach does.
+  const SHCAP=Math.round(1500*A);
+  const shingle=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.12,0),new THREE.MeshStandardMaterial({roughness:.9,flatShading:true}),SHCAP); let shi=0;
+  for(let i=0;i<26000*A&&shi<SHCAP;i++){ const x=(hashN(i*6.7,307)-0.5)*WORLD_W, z=(hashN(311,i*4.1)-0.5)*WORLD_H;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)];
+    if(e<tideLevel-0.02||e>1.10)continue;
+    // thicker down by the tideline. Written the other way up first, which put the keep-chance at 0
+    // right at the water and 1 at the top of the sand — the exact opposite — and the strip nearest
+    // the sea came out the barest part of the beach.
+    if(hashN(i,313)>(1.10-e)/(1.10-tideLevel))continue;
+    const s=.5+hashN(i,317)*1.1; v3.set(x,heightAtWorld(x,z)+.05*s,z);
+    q0.setFromEuler(eul.set(hashN(i,331)*3,hashN(337,i)*3,0)); s3.set(s*1.3,s*.55,s*1.1); m4.compose(v3,q0,s3);
+    shingle.setMatrixAt(shi,m4); col.setHSL(0.09,0.09,0.42+hashN(i,347)*0.22); shingle.setColorAt(shi,col); shi++; }
+  shingle.count=shi; ambientGroup.add(shingle);
+  // a few boulders sat in the sand, and bleached driftwood above the water
+  const BRCAP=Math.round(260*A);
+  const boulder=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.5,0),new THREE.MeshStandardMaterial({roughness:.95,flatShading:true}),BRCAP); let bri=0;
+  const DWCAP=Math.round(150*A);
+  const drift=new THREE.InstancedMesh(new THREE.CylinderGeometry(.13,.17,1.5,5),new THREE.MeshStandardMaterial({color:0xa89880,roughness:1,flatShading:true}),DWCAP); let dwi=0;
+  const WRCAP=Math.round(420*A);
+  const wrack=new THREE.InstancedMesh(new THREE.SphereGeometry(.26,5,4),new THREE.MeshStandardMaterial({roughness:1,flatShading:true}),WRCAP); let wri=0;
+  for(let i=0;i<14000*A;i++){ const x=(hashN(i*5.9,353)-0.5)*WORLD_W, z=(hashN(359,i*7.3)-0.5)*WORLD_H;
+    const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)];
+    if(e<tideLevel-0.04||e>1.06)continue;
+    const y=heightAtWorld(x,z), k=i%7;
+    if(k===0&&bri<BRCAP){ const s=.55+hashN(i,367)*.9; v3.set(x,y+.16*s,z);
+      q0.setFromEuler(eul.set(hashN(i,373)*3,hashN(379,i)*3,hashN(i,383)*3)); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
+      boulder.setMatrixAt(bri,m4); col.setHSL(0.08,0.06,0.34+hashN(i,389)*0.16); boulder.setColorAt(bri,col); bri++; }
+    else if(k===1&&dwi<DWCAP&&e>tideLevel+0.06){ v3.set(x,y+.13,z);
+      q0.setFromEuler(eul.set(0,hashN(i,397)*3,Math.PI/2+(hashN(401,i)-.5)*.3)); s3.set(1,.7+hashN(i,409)*.8,1); m4.compose(v3,q0,s3);
+      drift.setMatrixAt(dwi,m4); dwi++; }
+    else if((k===2||k===3)&&wri<WRCAP&&e<tideLevel+0.30){ const s=.6+hashN(i,419)*.9;   // wrack rots along the tideline
+      v3.set(x,y+.05*s,z); q0.setFromEuler(eul.set(0,hashN(423,i)*3,0)); s3.set(s*1.5,s*.3,s*1.1); m4.compose(v3,q0,s3);
+      wrack.setMatrixAt(wri,m4); col.setHSL(0.12+hashN(i,431)*0.05,0.30,0.16+hashN(433,i)*0.08); wrack.setColorAt(wri,col); wri++; } }
+  boulder.count=bri; drift.count=dwi; wrack.count=wri;
+  ambientGroup.add(boulder); ambientGroup.add(drift); ambientGroup.add(wrack);
   const SCAP2=Math.round(520*A);
   const stumps=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.28,.38,7),new THREE.MeshStandardMaterial({color:0x6b4b2e,roughness:.95}),SCAP2); let si=0;
   const logs=new THREE.InstancedMesh(new THREE.CylinderGeometry(.15,.19,1.7,6),new THREE.MeshStandardMaterial({color:0x5e4128,roughness:.95}),Math.round(240*A)); let li=0;
