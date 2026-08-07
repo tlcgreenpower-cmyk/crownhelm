@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b181</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b182</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1112,7 +1112,12 @@ skyMat.uniforms.uCldDrift=_cldUni.drift; skyMat.uniforms.uCldAmt=_cldUni.amt; sk
 // measured 13.3 percent of the land in shade and 0.0 percent of the sea beside it, on the same
 // coast in the same frame. A cloud does not stop at the beach.
 const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR},uHeight:{value:null},uSea:{value:SEA},uFogTex:_fogUni.tex,uFogOn:_fogUni.on,
-  uCldDrift:_cldUni.drift,uCldAmt:_cldUni.amt,uCldFreq:_cldUni.freq,uCldDepth:_cldUni.depth};
+  uCldDrift:_cldUni.drift,uCldAmt:_cldUni.amt,uCldFreq:_cldUni.freq,uCldDepth:_cldUni.depth,
+  // b182: and the same again for the distance haze. b181 put aerial perspective in the fog patch,
+  // which passes over ShaderMaterials, so the land receded and the sea did not: measured 34.1
+  // percent of the land touched by the haze against 0.3 percent of the water in the same frame.
+  // Exactly the fault b179 fixed for the cloud shade, made a second time in the same place.
+  uHazeK:_hazeUni.k,uHazeCol:_hazeUni.col};
 function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.dispose();}
   // terrain heightmap so the water knows its own depth
   const hdata=new Float32Array(MAP_W*MAP_H);
@@ -1128,6 +1133,7 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
         vec4 wp=modelMatrix*vec4(p,1.0);vW=wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`,
     fragmentShader:`uniform vec3 uCam;uniform vec3 uSun;uniform float uTime;uniform sampler2D uHeight;uniform float uSea;uniform sampler2D uFogTex;uniform float uFogOn;varying vec3 vW;
       uniform vec2 uCldDrift;uniform float uCldAmt;uniform float uCldFreq;uniform float uCldDepth;
+      uniform float uHazeK;uniform vec3 uHazeCol;
       float _tfH21(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
       float _tfVN(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
         return mix(mix(_tfH21(i),_tfH21(i+vec2(1.0,0.0)),f.x),mix(_tfH21(i+vec2(0.0,1.0)),_tfH21(i+vec2(1.0,1.0)),f.x),f.y); }
@@ -1154,6 +1160,8 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
           float cn=_tfVN(cw)*0.66+_tfVN(cw*2.13+7.0)*0.34;
           col*=mix(1.0,uCldDepth,smoothstep(0.46,0.74,cn)*uCldAmt); }
         if(uFogOn>0.5){ float fg=texture2D(uFogTex,clamp(uv,0.002,0.998)).r;   // b141: unsailed water lies in the dark too
+          { float hd=length(uCam-vW);   // b182: the sea recedes with the land it lies beside
+            col=mix(col,uHazeCol,(1.0-exp(-hd*hd*uHazeK))*fg); }
           col=mix(col*vec3(0.10,0.13,0.20),col,fg);
           alpha=mix(1.0,alpha,fg); }   // and turns opaque, so the bright sky cannot shine through the dark sea
         gl_FragColor=vec4(col,alpha);}`});
