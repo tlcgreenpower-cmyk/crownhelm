@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b210</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b211</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3949,6 +3949,20 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   // map and let its own town be pulled down behind it, every soldier out on a wave and nobody
   // looking back. If its buildings are being struck, the nearest fourteen turn round — however far
   // off they are, now that they can make the march — and no fresh wave leaves while the town burns.
+  // b211: ...and it answers an enemy STANDING THERE, not only one currently swinging. The raid flag
+  // was set in doAttackB, so a realm knew it was under attack for exactly 25 seconds after the last
+  // blow landed. An army that walks between targets, or that is picking off an outlying farm before
+  // it comes on, goes unnoticed. Caught it exactly: two realms at war two minutes, one with fifteen
+  // men in the field, the other's raid flag 101 seconds stale and its twelve soldiers standing idle
+  // a hundred and seventy paces away. Not one man on either side had taken a scratch in the whole
+  // war. A realm now looks for hostiles inside its own town radius once a second and raises the
+  // alarm on the nearest — cheap, because b192 already keeps the enemy list built for the step.
+  if(!ai.raid||elapsed-ai.raid.t>=25){
+    let near=null,nd=70*70;
+    for(const f of foesOfOwner(o)){ if(f.hp<=0||f.inGar)continue;
+      const dx=f.x-hall.cx,dz=f.z-hall.cz,d2=dx*dx+dz*dz;
+      if(d2<nd){nd=d2;near=f;} }
+    if(near)ai.raid={x:near.x,z:near.z,t:elapsed}; }
   if(ai.raid&&elapsed-ai.raid.t<25){
     const rx=ai.raid.x,rz=ai.raid.z,cand=[];
     for(const e of ents){ if(e.owner!==o||e.type==='worker'||UNIT[e.type].noAtk||e.inGar)continue;
