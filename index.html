@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b174</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b175</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2116,7 +2116,17 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     if(type==='castle'){for(const cx of[-wpx*.38,wpx*.38])for(const cz of[-hpx*.38,hpx*.38]){const tw=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.3,wallH+2.5,10),M.stone);tw.position.set(cx,(wallH+2.5)/2+.4,cz);tw.castShadow=true;g.add(tw);const tc=new THREE.Mesh(new THREE.ConeGeometry(1.5,2,8),roof);tc.position.set(cx,wallH+3.7,cz);tc.castShadow=true;g.add(tc);}
       const keep=new THREE.Mesh(new THREE.BoxGeometry(wpx*.32,wallH*.9,hpx*.32),M.stone);keep.position.y=wallH+wallH*.45+.4;keep.castShadow=true;g.add(keep);}
   } else {
-    const r=new THREE.Mesh(new THREE.ConeGeometry(Math.max(wpx,hpx)*.62,(type==='barracks'||type==='siege'||type==='gunshop')?2.6:2.2,4),type==='farm'?M.thatch:roof);r.position.y=wallH+((type==='barracks'||type==='gunshop')?1.7:1.5);r.rotation.y=Math.PI/4;r.castShadow=true;g.add(r);
+    // b175: the roof was a SQUARE pyramid sized to Math.max(wpx,hpx) — so on an oblong building it
+    // was cut to the long side and overhung the short one by two whole units each way, eaves right
+    // down past the walls to the grass. A 3x2 armourer or barracks read as a flat red lozenge lying
+    // in a field with no building under it at all; 2x2 houses escaped it, which is exactly why they
+    // always looked right. Rotate the geometry rather than the mesh, then scale each axis to its own
+    // side, and the roof becomes an oblong that fits what it is sitting on.
+    const mx=Math.max(wpx,hpx);
+    const rgeo=new THREE.ConeGeometry(mx*.62,(type==='barracks'||type==='siege'||type==='gunshop')?2.6:2.2,4); rgeo.rotateY(Math.PI/4);
+    const r=new THREE.Mesh(rgeo,type==='farm'?M.thatch:roof);
+    r.scale.set(wpx/mx,1,hpx/mx);
+    r.position.y=wallH+((type==='barracks'||type==='gunshop')?1.7:1.5);r.castShadow=true;g.add(r);
     const door=new THREE.Mesh(new THREE.BoxGeometry(.9,1.6,.15),M.wood);door.position.set(0,1.2,hpx*.42);g.add(door);
     if(type!=='farm')for(const xx of[-wpx*.28,wpx*.28]){const win=new THREE.Mesh(new THREE.BoxGeometry(.6,.6,.12),M.window);win.position.set(xx,wallH*.6,hpx*.42);g.add(win);}
   }
@@ -3241,7 +3251,35 @@ function computeVision(){visT-=1/30;if(visT>0)return;visT=0.25;visNow.fill(0);
     b.mesh.visible=vis; if(b.scaffold)b.scaffold.visible=vis; if(b.buildUI)b.buildUI.grp.visible=vis;}
   // townsfolk hide in the fog like troops do
   for(const c of citizens)c.mesh.visible=tileVis(c.x,c.z)||c.own==='player';
-  if(fogData){ for(let i=0;i<fogData.length;i++)fogData[i]=visNow[i]?255:(explored[i]?150:0); fogTex.needsUpdate=true; } }
+  // b175: the fog map carries one texel per TILE and three hard steps — seen, been, never. Vision is
+  // marked with a plain dx*dx+dy*dy<=r*r test, so its edge is a tile staircase, and one texel of
+  // linear filtering is nowhere near enough to hide it: the lit ground round your keep ended in
+  // visible square notches. Blurring the map before it goes to the GPU turns that staircase into a
+  // soft falloff a few tiles wide. Only the SHADING reads this — visNow still decides who can see
+  // whom, so nothing about scouting or what hides in the fog changes.
+  if(fogData){ const N=MAP_W*MAP_H;
+    if(!_fogA||_fogA.length!==N){_fogA=new Float32Array(N);_fogB=new Float32Array(N);}
+    for(let i=0;i<N;i++)_fogA[i]=visNow[i]?255:(explored[i]?150:0);
+    // A sliding window, not five taps a pixel: the sum carries across, picking up the tile entering
+    // the window and dropping the one leaving it. Same blur, and it took the cost from 2.6ms a pass
+    // to well under half that — this runs four times a second and should not be felt.
+    const R=2;
+    for(let y=0;y<MAP_H;y++){ const row=y*MAP_W;
+      let sum=0,cnt=0;
+      for(let x=0;x<=R&&x<MAP_W;x++){ sum+=_fogA[row+x]; cnt++; }
+      for(let x=0;x<MAP_W;x++){ _fogB[row+x]=sum/cnt;
+        const add=x+R+1, rem=x-R;
+        if(add<MAP_W){ sum+=_fogA[row+add]; cnt++; }
+        if(rem>=0){ sum-=_fogA[row+rem]; cnt--; } } }
+    for(let x=0;x<MAP_W;x++){
+      let sum=0,cnt=0;
+      for(let y=0;y<=R&&y<MAP_H;y++){ sum+=_fogB[y*MAP_W+x]; cnt++; }
+      for(let y=0;y<MAP_H;y++){ fogData[y*MAP_W+x]=sum/cnt;
+        const add=y+R+1, rem=y-R;
+        if(add<MAP_H){ sum+=_fogB[add*MAP_W+x]; cnt++; }
+        if(rem>=0){ sum-=_fogB[rem*MAP_W+x]; cnt--; } } }
+    fogTex.needsUpdate=true; } }
+let _fogA=null,_fogB=null;
 
 // ==================================================== REALM AI + DIPLOMACY
 function realmWant(o){if(res[o].g<130&&goldNodes.some(n=>n.amount>0)&&Math.random()<0.3)return 'gold';return res[o].w<=res[o].m*1.15?'wood':'metal';}
