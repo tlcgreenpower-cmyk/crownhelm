@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b189</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b190</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2283,11 +2283,19 @@ function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owne
 function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
   if(bridgeTiles.size&&y<waterY){const bi=ti(txFromW(e.x),tzFromW(e.z));if(bridgeTiles.has(bi))y=waterY+0.42;}   // march the planks, not the seabed
   e.mesh.position.set(e.x,y,e.z);}
+const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   if(type==='farm')bl.crop=FARM_CROPS[farmCropIndex(farmSeed(tx,ty))].n;
   bl.mesh=makeBldMesh(type,owner,farmSeed(tx,ty));const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
   bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(type==='bridge')bl.mesh.position.y=waterY+0.1;
+  // b190: a town used to sit on the grid like print on a page — every house, every barn, every
+  // church square to the same axis, because a building's footprint is tiles and its mesh simply
+  // took the tiles' bearing. Each one is now turned a few degrees off true, seeded from its own
+  // tile so a saved town comes back exactly as it stood. It is only twelve degrees at the outside,
+  // which is enough to break the ruled rows and not enough to hang a wall over its own plot.
+  // Walls, gates and bridges keep their bearing — those are surveyed lines and must meet.
+  if(!NO_JITTER.has(type))bl.mesh.rotation.y=(hashN(tx*2.7+11,ty*1.9+5)-0.5)*0.42;
   bl._baseY=bl.mesh.position.y;                                   // b149: the height it will stand at once it is up
   if(!done)bl.mesh.position.y=bl._baseY-bldHeight(type);           // and it starts buried, rising as it is built
   scene.add(bl.mesh);blds.push(bl);
@@ -2369,7 +2377,11 @@ function updateBuildUI(bl,dt){ const ui=bl.buildUI; if(!ui)return;
     c.strokeStyle='rgba(0,0,0,0.8)';c.lineWidth=Math.max(3,fs*0.18);c.strokeText(txt,128,32);
     c.fillStyle=bl._rate>0.004?'#ffe9c0':'#ff9a8a';c.fillText(txt,128,32); ui.tex.needsUpdate=true; } }
 function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; removeBuildUI(bl); const nm=makeBldMesh(bl.type,bl.owner,bl.tx*131+bl.ty*17);
-    nm.position.copy(old.position); nm.scale.y=1;   // b149: rise is carried by position, not by stretching
+    nm.position.copy(old.position); nm.rotation.copy(old.rotation); nm.scale.y=1;   // b149: rise is carried by position, not by stretching
+    // b190: and its BEARING carries over too. This rebuilds every mesh when the graphics setting
+    // changes, and it only ever copied the position — so a wall that had been turned to lie along
+    // its line, or a house sitting a few degrees off true, snapped back square the moment the owner
+    // touched the quality button.
     scene.remove(old); bl.mesh=nm; scene.add(nm); if(!bl.done)attachBuildUI(bl); } visT=0; }
 // b169: removeBuildUI, not just the scaffold. The progress bar hangs on its own group in the scene,
 // so razing a half-built thing used to leave its little orange bar floating there for the rest of
