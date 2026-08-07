@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b188</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b189</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -508,7 +508,17 @@ let citizens=[],villages=[],corpses=[];
 let res={},tech={},realmAI={};
 function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
   for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,ageTimer:0}; }
-  for(const o of AI_REALMS){ realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:30+Math.random()*50,warCheck:120+Math.random()*120};
+  // b189: every realm used to build the SAME TOWN. The caps in the build order are fixed numbers,
+  // so eight kingdoms of eight different factions all converged on exactly five farms, two mills,
+  // one storehouse, one church, one gunshop and one watch house — measured across seven realms at
+  // six minutes and identical to the building. A realm now has a taste of its own: some are
+  // farming country with barns everywhere and barely a wall, some bristle with towers, some raise
+  // three barracks and let the fields look after themselves. Scouting a neighbour tells you
+  // something about them now, and the map stops looking stamped out.
+  for(const o of AI_REALMS){ const rr=()=>Math.random();
+    realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:30+Math.random()*50,warCheck:120+Math.random()*120,
+      taste:{farm:4+Math.round(rr()*3), mill:1+Math.round(rr()*2), barracks:1+Math.round(rr()*2),
+        tower:Math.round(rr()*3), watch:1+Math.round(rr()*1), church:rr()<0.75?1:0}};
     diplo[o]={score:10,stance:'neutral'}; } }
 initRealms();
 let selected=[],selBuilding=null,placing=null,groups={},attackMove=false,buildCat=null,demoMode=false;
@@ -3568,22 +3578,23 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   // else waits. Without this a rich realm laid foundations forever, because a decision that reads
   // only FINISHED buildings can never see what it has already ordered.
   const pend=t=>pendingBld(o,t), barrAll=countBld(o,'barracks');
+  const TASTE=ai.taste||{farm:5,mill:2,barracks:2,tower:2,watch:1,church:1};
   if(used>=cap-3&&cap<dif().cap&&r.w>=40&&pend('house')<2){if(placeAI(o,'house'))return;}
   if(countBld(o,'farm')<1&&r.w>=55){if(placeAI(o,'farm'))return;}
   if(countBld(o,'storehouse')<1&&r.w>=45){if(placeAI(o,'storehouse'))return;}
   if(barrAll<1&&r.w>=110){if(placeAI(o,'barracks'))return;}
-  if(barrAll===1&&!pend('barracks')&&countType(o,'worker')>=6&&r.w>=160){if(placeAI(o,'barracks'))return;}
+  if(barrAll<TASTE.barracks&&!pend('barracks')&&countType(o,'worker')>=6&&r.w>=160){if(placeAI(o,'barracks'))return;}
   if(!hasBld(o,'gunshop')&&!pend('gunshop')&&r.w>=120&&r.m>=40){if(placeAI(o,'gunshop'))return;}
-  if(!hasBld(o,'church')&&!pend('church')&&r.w>=100&&Math.random()<.5){if(placeAI(o,'church'))return;}
-  if(countBld(o,'farm')<5&&r.w>=55){if(placeAI(o,'farm'))return;}
-  if(countBld(o,'mill')<2&&r.w>=60){if(placeAI(o,'mill'))return;}
+  if(TASTE.church&&!hasBld(o,'church')&&!pend('church')&&r.w>=100&&Math.random()<.5){if(placeAI(o,'church'))return;}
+  if(countBld(o,'farm')<TASTE.farm&&r.w>=55){if(placeAI(o,'farm'))return;}
+  if(countBld(o,'mill')<TASTE.mill&&r.w>=60){if(placeAI(o,'mill'))return;}
   if(T.age>=2&&countBld(o,'bakery')<1&&hasBld(o,'mill')&&r.w>=80&&r.m>=20){if(placeAI(o,'bakery'))return;}
   if(!hasBld(o,'armourer')&&!pend('armourer')&&barr.length&&r.w>=120&&r.m>=60){if(placeAI(o,'armourer'))return;}
-  if(countBld(o,'watch')<1&&r.w>=50&&r.m>=20&&barr.length){if(placeAI(o,'watch'))return;}
+  if(countBld(o,'watch')<TASTE.watch&&r.w>=50&&r.m>=20&&barr.length){if(placeAI(o,'watch'))return;}
   if(T.age===1&&T.ageTimer<=0&&barr.length&&r.f>=AGE2.f&&r.w>=AGE2.w){r.f-=AGE2.f;r.w-=AGE2.w;T.ageTimer=AGE2.time;T.ageTo=2;return;}
   if(T.age===2&&T.ageTimer<=0&&hasBld(o,'castle')&&r.f>=AGE3.f&&r.w>=AGE3.w&&r.m>=AGE3.m){r.f-=AGE3.f;r.w-=AGE3.w;r.m-=AGE3.m;T.ageTimer=AGE3.time;T.ageTo=3;return;}
   if(T.age===2){if(countBld(o,'castle')<1&&r.w>=220&&r.m>=150){if(placeAI(o,'castle'))return;}if(countBld(o,'siege')<1&&r.w>=130&&r.m>=60){if(placeAI(o,'siege'))return;}if(barrAll<2&&r.w>=110){if(placeAI(o,'barracks'))return;}}
-  if(countBld(o,'tower')<(T.age>=2?3:2)&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
+  if(countBld(o,'tower')<(T.age>=2?TASTE.tower+1:TASTE.tower)&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
   if(T.age>=2)for(const tb of blds)if(tb.owner===o&&tb.type==='tower'&&tb.done&&!tb.up&&r.w>=80&&r.m>=60&&Math.random()<.25){r.w-=80;r.m-=60;tb.up=true;break;}
   if(barr.length&&!T.rsch)for(const rk of ['weapon','armor']){ const D=RSCH[rk],tier=T[rk]||0;
     if(tier>=3||T.age<D.age[tier])continue; const c=rschCost(rk,tier,o),tm=rschTime(rk,tier,o);   // an AI armourer pays the same lower price
@@ -4475,6 +4486,9 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
 function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key=key||'tidefall_save';
   const s={v:1,hpv:2,players:REALMS.length,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),name:name||undefined,fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
+    // b189: a realm's taste in building goes in the save. newGame re-rolls it, so without this a
+    // reloaded kingdom would find its farming neighbour had quietly become a tower-builder.
+    taste:Object.fromEntries(AI_REALMS.map(o=>[o,realmAI[o]&&realmAI[o].taste]).filter(p=>p[1])),
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
     blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,rk:b.rschK||0,rt:Math.round(b.rschT||0),la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
@@ -4493,6 +4507,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if
   for(const e of ents)scene.remove(e.mesh); ents=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
   res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed; statKills=s.kills||0;
+  if(s.taste)for(const o in s.taste)if(realmAI[o]&&s.taste[o])realmAI[o].taste=s.taste[o];   // b189: they keep their character
   const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0){if(arr[i].mesh)arr[i].mesh.visible=false;else if(arr[i].tim)setTreeK(arr[i],0);}}});};
   restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);rebuildTreeGrid();
   (s.vil||[]).forEach((c,i)=>{if(c&&villages[i])claimVillageSilent(villages[i],c);});
