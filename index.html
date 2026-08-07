@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b211</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b212</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2853,7 +2853,7 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   grp.add(fl);grp.position.set(-.35,0,-.35);
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
-function commandMove(list,x,z,amove,fdir){for(const u of list)u.pfCool=0;const gx=txFromW(x),gy=tzFromW(z);
+function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege
   // b118: real-army order — melee line front, muskets centre, cavalry next, guns & healers rear,
   // and every regiment stands TOGETHER (same types form contiguous blocks in the ranks)
   const rank=t=>{const U=UNIT[t];return (U.heal||U.noAtk)?5:(U.siege||U.ramOnly)?4:U.cav?2:U.ranged?1:0;};   // healers ALWAYS at the very back (owner rule)
@@ -2916,7 +2916,9 @@ function attackOrder(e,t){if(UNIT[e.type].noAtk||UNIT[e.type].ramOnly){e.cmd='mo
   if(e.owner==='player'&&t.owner!=='player'&&!isHostile('player',t.owner))declareWar(t.owner,'player');
   e.cmd='attack';e.target=t;e.gather=null;e.build=null;orderPath(e,txFromW(t.x),tzFromW(t.z),0);}
 function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostile('player',b.owner))declareWar(b.owner,'player');
-  e.cmd='attackb';e.target=b;e.gather=null;e.build=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
+  // b212: remember what he was sent to pull down. e.target is overwritten the moment he breaks off
+  // to shoot at somebody, so without this the order is simply forgotten — see acquireNext.
+  e.cmd='attackb';e.target=b;e.siegeB=b;e.gather=null;e.build=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
 function pathToNode(e,n){ let bx=n.tx,by=n.ty,bd2=1e9;   // b124: walk to a SPECIFIC open tile beside the node — no more unreachable-tree limbo
   for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy;
     if(inB(x,y)&&passable(x,y,0,'land')){ const ddx=wx(x)-e.x,ddz=wz(y)-e.z,d2=ddx*ddx+ddz*ddz; if(d2<bd2){bd2=d2;bx=x;by=y;} } }
@@ -3490,6 +3492,17 @@ function acquireNext(e){ if(UNIT[e.type].noAtk)return false;
   let tb=null,bbd=26;
   for(const b of blds)if(isHostile(e.owner,b.owner)&&b.hp>0){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bbd){bbd=d;tb=b;}}
   if(tb){e.cmd='attackb';e.target=tb;return true;}
+  // b212: BACK TO THE WALL HE WAS SENT TO. A wave is ordered onto one building, but the moment a
+  // defender comes into range autoAcq retargets him and e.target — the only record of the order —
+  // is gone. When that skirmish ends he looks for another foe within 20, then a building within 26,
+  // and failing both he goes idle and forgets the siege entirely. Counted over two minutes of a
+  // real war: seven men broke off from the wall and four of them ended the fight idle. That is why
+  // a wave that CAN level a house in twenty-eight seconds took four minutes to get one building to
+  // half — measured, the host spent about a twentieth of its time actually shooting the target.
+  // He now walks back to it however far he strayed, as long as it still stands and is still an
+  // enemy's. An explicit move order clears it, so this can never drag a man back against orders.
+  if(e.siegeB&&!e.siegeB._gone&&e.siegeB.hp>0&&isHostile(e.owner,e.siegeB.owner)){
+    attackBOrder(e,e.siegeB); return true; }
   return false;}
 function autoAcq(e,chase){if(e.type==='worker'||UNIT[e.type].noAtk||UNIT[e.type].ramOnly||e.stance==='hold'||e.cmd==='attack'||e.cmd==='attackb')return;
   e.acqT=(e.acqT===undefined?(e.id%16)/60:e.acqT); if(e.acqT>0){e.acqT-=1/30;return;} e.acqT=0.26;let tgt=null,bd=UNIT[e.type].range+(UNIT[e.type].ranged?7:11);let bd2=bd*bd;
