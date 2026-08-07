@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b203</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b204</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2470,7 +2470,13 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
 function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owner].armor*0.15)*(tech[owner].plate?1.1:1);const fac=faction[owner];
   if(u.coat&&fac==='scottish')hp*=1.15;if(type==='knight'&&fac==='french')hp*=1.2;hp=Math.round(hp);
   const e={id:idc++,type,owner,x:wx(tx),z:wz(ty),hp,maxHp:hp,cmd:'idle',path:null,pi:0,target:null,gather:null,carry:0,carryType:null,build:null,cd:0,dir:owner==='player'?0:Math.PI,disp:owner==='player'?0:Math.PI,atk:0,walk:0,stance:'aggr'};
-  e.mesh=makeUnitMesh(type,owner);scene.add(e.mesh);placeMesh(e);ents.push(e);return e;}
+  e.mesh=makeUnitMesh(type,owner);
+  // b204: not one of the 980 meshes a hundred men are made of received a shadow. b203 gave the
+  // trees their shadows and the ground takes them, but the men walked through shade in full
+  // sunlight — the one thing on screen you actually watch, lit as if nothing were above it.
+  // Health bars, rings and pips draw with depthTest off and must stay out of it.
+  e.mesh.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.depthTest===false))o.receiveShadow=true;});
+  scene.add(e.mesh);placeMesh(e);ents.push(e);return e;}
 // b202: the deck's height above the waterline, and the height a man walks at when he is on it.
 // The plank sits 0.15 above the group origin and is 0.3 thick, so its top is deck+0.30 and a boot
 // clears it by 0.02. These were 0.1 and 0.42, two loose numbers that happened to agree; derive one
@@ -2489,7 +2495,13 @@ const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   if(type==='farm')bl.crop=FARM_CROPS[farmCropIndex(farmSeed(tx,ty))].n;
-  bl.mesh=makeBldMesh(type,owner,farmSeed(tx,ty));const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
+  bl.mesh=makeBldMesh(type,owner,farmSeed(tx,ty));
+  // and the same for masonry. Counted across a built-up world only about one building mesh in five
+  // received — a keep had eight of its forty parts taking shadow — so a tree's shadow stopped dead
+  // at a wall and a tower never darkened the roof below it. Set once here rather than at each of
+  // makeBldMesh's many exits, so no building type can be forgotten.
+  bl.mesh.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.depthTest===false))o.receiveShadow=true;});
+  const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
   bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(type==='bridge')bl.mesh.position.y=waterY+BRIDGE_DECK;
   // b190: a town used to sit on the grid like print on a page — every house, every barn, every
   // church square to the same axis, because a building's footprint is tiles and its mesh simply
