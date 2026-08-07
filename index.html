@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b169</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b170</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1109,7 +1109,7 @@ function addVillage(v){ const g=new THREE.Group();const cx0=wx(v.tx),cz0=wz(v.ty
   flag.position.set(.65,4.7,0);g.add(flag);g.userData.flag=flag;
   g.position.set(cx0,vy,cz0);decorGroup.add(g);
   // resident villagers pottering about
-  spawnCitizen({cx:cx0,cz:cz0});spawnCitizen({cx:cx0,cz:cz0});
+  spawnCitizen({cx:cx0,cz:cz0,owner:'village'});spawnCitizen({cx:cx0,cz:cz0,owner:'village'});
   return g;}
 function tileVis(x,z){const tx=txFromW(x),ty=tzFromW(z);return inB(tx,ty)&&visNow[ti(tx,ty)]===1;}
 let vilT=0,atkPing={t:99,x:0,z:0},statKills=0,freePlay=false,paradeMode=false;
@@ -1166,6 +1166,12 @@ function updateFallingTrees(dt){ if(!fallingTrees.length)return;
       for(let i=0;i<5;i++)spawnPart(n.px+Math.sin(f.ry)*3,n.py+0.5,n.pz+Math.cos(f.ry)*3,'chip'); }
     let k=1;   // the felled trunk LIES on the ground until every log is harvested
     if(n.amount<=0){ f.fadeT=(f.fadeT||0)+dt; k=Math.max(0.0001,1-f.fadeT*0.4); }   // then sinks away slowly...
+    // b170: a trunk finishes toppling in under a second, then lies dead still — possibly for
+    // minutes, while the woodcutters work it. It was still rewriting its matrices every frame,
+    // and each write dirties the WHOLE shared tree buffer: forty logs meant ten thousand instance
+    // matrices re-uploaded to the GPU every frame to animate nothing at all.
+    if(f._tilt===tilt&&f._k===k)continue;
+    f._tilt=tilt; f._k=k;
     _tq2.setFromEuler(_te.set(tilt,f.ry,n.rz,'YXZ'));
     _tm4a.compose(_tvA.set(n.px,n.py,n.pz),_tq2,_tvB.setScalar(n.ts*k));
     for(const pt of n.tim){_tm4b.multiplyMatrices(_tm4a,pt.l);pt.im.setMatrixAt(pt.i,_tm4b);pt.im.instanceMatrix.needsUpdate=true;} }
@@ -2902,7 +2908,25 @@ const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new
 const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
 const strawMat=new THREE.MeshStandardMaterial({color:0xd8b96a,roughness:1,flatShading:true});
 const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian','Anne','Henry','Mako','Sharky','WorkerM','WorkerF','Ninja','Soldier'];
-function spawnCitizen(b){ if(citizens.length>=22)return;
+const CIT_CAP=22;   // townsfolk are skinned meshes, so the world affords only so many
+const CIT_FLOOR=o=>o==='village'?8:3;   // how many each pool keeps back, however much the player builds
+// b170: that budget used to go to whichever realm finished its houses first — across all eight
+// realms, first come first served. The player could raise a street of houses and watch nobody move
+// in, because seven rival towns on the far side of the fog had already spent the lot. The cap
+// stays (it is there for the frame rate), but a full budget now yields to the town the camera is
+// actually looking at: a villager packs up from the most crowded rival realm and moves in here.
+function spawnCitizen(b){
+  if(citizens.length>=CIT_CAP){
+    if(b.owner!=='player')return;
+    const cnt={}; for(const c of citizens)cnt[c.own]=(cnt[c.own]||0)+1;
+    let donor=null,most=0;
+    for(const c of citizens){ if(c.own==='player')continue; const k=cnt[c.own]||0;
+      if(k>most&&k>CIT_FLOOR(c.own)){most=k;donor=c;} }   // and never strip a town bare to fill this one
+    if(!donor)return;
+    donor.own='player'; donor.hx=b.cx; donor.hz=b.cz;
+    donor.x=donor.tx=b.cx+(Math.random()-.5)*10; donor.z=donor.tz=b.cz+7+Math.random()*4;
+    donor.mesh.position.set(donor.x,heightAtWorld(donor.x,donor.z),donor.z); donor.wait=1;
+    return; }
   const sx1=b.cx+(Math.random()-.5)*10,sz1=b.cz+7+Math.random()*4;
   if(CHAR_LIB){ const src=CHAR_LIB.lib[CIT_CHARS[citizens.length%CIT_CHARS.length]];
     if(src){ const g=CHAR_LIB.clone(src.scene);
@@ -2917,7 +2941,7 @@ function spawnCitizen(b){ if(citizens.length>=22)return;
       const walkA=wc?mixer.clipAction(wc):null, idleA=ic?mixer.clipAction(ic):null;
       if(idleA)idleA.play();
       scene.add(g);
-      citizens.push({mesh:g,mixer,walkA,idleA,mode:'idle',armL:null,armR:null,legL:null,legR:null,phase:0,hx:b.cx,hz:b.cz,x:sx1,z:sz1,tx:sx1,tz:sz1,wait:1,kid});
+      citizens.push({mesh:g,mixer,walkA,idleA,mode:'idle',armL:null,armR:null,legL:null,legR:null,phase:0,hx:b.cx,hz:b.cz,x:sx1,z:sz1,tx:sx1,tz:sz1,wait:1,kid,own:b.owner});
       return; } }
   const g=new THREE.Group(),i=citizens.length,coat=citMats[i%citMats.length];
   // legs
@@ -2942,7 +2966,7 @@ function spawnCitizen(b){ if(citizens.length>=22)return;
   else{const hair=new THREE.Mesh(new THREE.SphereGeometry(.25,8,6,0,6.28,0,1.4),M.wood);hair.position.y=1.64;g.add(hair);}
   scene.add(g);
   const sx0=b.cx+(Math.random()-.5)*10,sz0=b.cz+7+Math.random()*4;   // start outside the walls
-  citizens.push({mesh:g,armL,armR,legL,legR,phase:Math.random()*6,hx:b.cx,hz:b.cz,x:sx0,z:sz0,tx:sx0,tz:sz0,wait:1}); }
+  citizens.push({mesh:g,armL,armR,legL,legR,phase:Math.random()*6,hx:b.cx,hz:b.cz,x:sx0,z:sz0,tx:sx0,tz:sz0,wait:1,own:b.owner}); }
 // ---- b152 CARTS ON THE ROADS: goods move, so the network is doing something ----
 // A cart is an ox, a body and two turning wheels, and it tours the road network edge by edge,
 // picking up whatever the town trades in. It follows the SAME edges the roads are painted along,
@@ -4131,11 +4155,29 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
+      // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
+      // off the render loop, so a headless soak that only calls update() never sees them at all.
+      fellTree,get fallingTrees(){return fallingTrees;},
+      frame(dt,now){ updateMoveMarks(dt);updateRubble(dt);updateFallingTrees(dt);updateAmbient(dt,now||performance.now()/1000);
+        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateDayNight();updateUnitLOD();fogSweep(); },
       timeWorld(){ const r={},T=n=>{const t=performance.now();return()=>{r[n]=+(performance.now()-t).toFixed(0);};};
         let d=T('genMap');genMap();d(); d=T('terrain');buildTerrain();d(); d=T('water');buildWater();d();
         d=T('decor');buildDecor();d(); d=T('ambient');buildAmbient();d(); d=T('sheep');buildSheep();d();
         d=T('clouds');spawnClouds();d(); return r; },passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
+  // b170: one glance at every system that is supposed to be putting something in the world. A
+  // feature can die quietly — the carts did, for whole builds — and nothing in the game says so.
+  census(){ const inst=g=>{let n=0;if(g)g.traverse(o=>{if(o.isInstancedMesh)n+=o.count;else if(o.isMesh)n++;});return n;};
+    return {ents:ents.length,blds:blds.length,citizens:citizens.length,carts:carts.length,
+      corpses:corpses.length,parts:parts.length,projs:projs.length,rubble:rubblePiles.length,
+      sheep:sheep.length,meat:meatNodes.length,villages:villages.length,
+      birds:birds.length,bflies:bflies.length,leaves:leaves.length,fallingTrees:fallingTrees.length,
+      clouds:cloudGroup?cloudGroup.children.length:0,ambientInst:inst(ambientGroup),
+      clutter:clutterGroup?clutterGroup.children.length:0,decor:decorGroup?decorGroup.children.length:0,
+      stumps:chopStumps?chopStumps.count:0,
+      roadEdges:[...new Set(blds.map(b=>b.owner))].reduce((s,o)=>s+roadEdges(o).length,0),
+      scaffolds:blds.filter(b=>b.scaffold).length,buildBars:blds.filter(b=>b.buildUI).length,
+      meshes:(()=>{let n=0;scene.traverse(o=>{if(o.isMesh)n++;});return n;})()}; },
   get weather(){ return {front:front.k,rain:+rainI.toFixed(2),cloud:+wCloud.toFixed(2),fog:+wFog.toFixed(2),
     mist:+wMist.toFixed(2),wind:+wWind.toFixed(2),sun:+wSun.toFixed(2),flash:+flashI.toFixed(2),changesIn:Math.round(frontT)}; },
   setWeather(k){ const f=FRONTS.find(x=>x.k===k); if(!f)return 'try: '+FRONTS.map(x=>x.k).join(', ');
