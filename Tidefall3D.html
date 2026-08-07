@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b178</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b179</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1081,7 +1081,12 @@ const _fogUni={tex:{value:null},size:{value:null},on:{value:1}};
 // would cross a whole field in flat light and then sit under one enormous shadow. This holds
 // 15-42%: some sun and some shade in shot, near enough always.
 const _cldUni={drift:{value:new THREE.Vector2()},amt:{value:0},freq:{value:0.024},depth:{value:0.70}};
-const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR},uHeight:{value:null},uSea:{value:SEA},uFogTex:_fogUni.tex,uFogOn:_fogUni.on};
+// b179: the water shares the cloud-shade uniforms with the land. b178 put the shade in the fog
+// patch, and fogSkip passes over ShaderMaterials — so the weather stopped dead at the waterline:
+// measured 13.3 percent of the land in shade and 0.0 percent of the sea beside it, on the same
+// coast in the same frame. A cloud does not stop at the beach.
+const waterUniforms={uTime:{value:0},uCam:{value:new THREE.Vector3()},uSun:{value:SUNDIR},uHeight:{value:null},uSea:{value:SEA},uFogTex:_fogUni.tex,uFogOn:_fogUni.on,
+  uCldDrift:_cldUni.drift,uCldAmt:_cldUni.amt,uCldFreq:_cldUni.freq,uCldDepth:_cldUni.depth};
 function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.dispose();}
   // terrain heightmap so the water knows its own depth
   const hdata=new Float32Array(MAP_W*MAP_H);
@@ -1096,6 +1101,10 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
         p.y+=sin(p.x*0.45+uTime*1.6)*0.13+cos(p.z*0.52+uTime*1.3)*0.13+sin((p.x-p.z)*0.23+uTime*0.8)*0.09;
         vec4 wp=modelMatrix*vec4(p,1.0);vW=wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`,
     fragmentShader:`uniform vec3 uCam;uniform vec3 uSun;uniform float uTime;uniform sampler2D uHeight;uniform float uSea;uniform sampler2D uFogTex;uniform float uFogOn;varying vec3 vW;
+      uniform vec2 uCldDrift;uniform float uCldAmt;uniform float uCldFreq;uniform float uCldDepth;
+      float _tfH21(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
+      float _tfVN(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(_tfH21(i),_tfH21(i+vec2(1.0,0.0)),f.x),mix(_tfH21(i+vec2(0.0,1.0)),_tfH21(i+vec2(1.0,1.0)),f.x),f.y); }
       void main(){
         vec2 uv=vec2((vW.x+${HALF_W.toFixed(1)})/${WORLD_W.toFixed(1)},(vW.z+${HALF_H.toFixed(1)})/${WORLD_H.toFixed(1)});
         float ground=texture2D(uHeight,clamp(uv,0.0,1.0)).r;
@@ -1115,6 +1124,9 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
         float foam=smoothstep(0.16,0.02,depth)*(0.55+0.45*sin(uTime*2.0+vW.x*0.8+vW.z*0.7));
         col=mix(col,vec3(0.94,0.97,1.0),clamp(foam,0.0,1.0)*0.7);
         float alpha=mix(0.72,0.94,smoothstep(0.05,0.8,depth));
+        if(uCldAmt>0.001){ vec2 cw=vW.xz*uCldFreq+uCldDrift;   // b179: the same cloud crossing the same coast
+          float cn=_tfVN(cw)*0.66+_tfVN(cw*2.13+7.0)*0.34;
+          col*=mix(1.0,uCldDepth,smoothstep(0.46,0.74,cn)*uCldAmt); }
         if(uFogOn>0.5){ float fg=texture2D(uFogTex,clamp(uv,0.002,0.998)).r;   // b141: unsailed water lies in the dark too
           col=mix(col*vec3(0.10,0.13,0.20),col,fg);
           alpha=mix(1.0,alpha,fg); }   // and turns opaque, so the bright sky cannot shine through the dark sea
