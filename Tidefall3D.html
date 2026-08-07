@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b208</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b209</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2550,6 +2550,37 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   // which is enough to break the ruled rows and not enough to hang a wall over its own plot.
   // Walls, gates and bridges keep their bearing — those are surveyed lines and must meet.
   if(!NO_JITTER.has(type))bl.mesh.rotation.y=(hashN(tx*2.7+11,ty*1.9+5)-0.5)*0.42;
+  // b209: SIT IT ON THE HILL, NOT OVER IT. A building takes its height from the ONE point at the
+  // centre of its plot, so on any slope the downhill side hangs in the air. Measured from the bottom
+  // of the solid geometry to the lowest ground under the footprint: 73 of 126 buildings stood more
+  // than 0.3 clear, the median gap was 0.37, and the worst — a mill on a scarp — floated 3.25, which
+  // is a man and a half. Two steps, in this order, because each is cheap where the other is not.
+  // First drop it onto the low corner, up to 0.8. That closes the median case outright and costs
+  // nothing at all: the uphill side simply beds into the slope, which is what a building on a hill
+  // does. Capped so a hall on a scarp is not swallowed to its windows.
+  // Then, only where a gap survives that, a footing. One box, footprint-sized, from the underside
+  // down to the ground — masonry, which is what you would actually build. Measured, that is the
+  // worst few per cent, so it costs a handful of draw calls across a whole kingdom rather than one
+  // for every building standing.
+  if(type!=='bridge'){
+    bl.mesh.updateMatrixWorld(true);
+    let minY=1e9;
+    bl.mesh.traverse(o=>{ if(!o.isMesh||!o.geometry)return;
+      if(o.material&&o.material.depthTest===false)return;
+      if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();
+      const bb=o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
+      if(bb.min.y<minY)minY=bb.min.y; });
+    if(minY<1e8){
+      const hx=b.w*TILE/2,hz=b.h*TILE/2; let lo=1e9;
+      for(let dx=-hx;dx<=hx;dx+=1.5)for(let dz=-hz;dz<=hz;dz+=1.5){
+        const h2=heightAtWorld(cx+dx,cz+dz); if(h2<lo)lo=h2; }
+      const gap=minY-lo;
+      if(gap>0.06){ const drop=Math.min(gap,0.8); bl.mesh.position.y-=drop;
+        const left=gap-drop;
+        if(left>0.4){ const top=minY-drop, foot=new THREE.Mesh(
+            new THREE.BoxGeometry(b.w*TILE*0.92,left+0.3,b.h*TILE*0.92),M.stoneD);
+          foot.position.y=(top-(left+0.3)/2)-bl.mesh.position.y;   // local: hangs beneath the underside
+          foot.castShadow=true; foot.receiveShadow=true; bl.mesh.add(foot); } } } }
   bl._baseY=bl.mesh.position.y;                                   // b149: the height it will stand at once it is up
   if(!done)bl.mesh.position.y=bl._baseY-bldHeight(type);           // and it starts buried, rising as it is built
   scene.add(bl.mesh);blds.push(bl);
