@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b201</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b202</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2295,12 +2295,38 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     g.add(postL,postR,arch,crL,crR,door,bandT,bandB);
     const hbgt=makeHealthBar();hbgt.scale.setScalar(1.2);hbgt.position.y=5.6;g.add(hbgt);g.userData.hb=hbgt;return g;}
   if(type==='bridge'){ const darkWood=new THREE.MeshStandardMaterial({color:0x6e4c2e,roughness:.95,flatShading:true});
-    for(let p2=0;p2<3;p2++){ const plank=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.04,.3,hpx*.31),p2===1?M.wood:darkWood);
-      plank.position.set(0,.15,(p2-1)*hpx*.34); plank.castShadow=true; plank.receiveShadow=true; g.add(plank); }
-    for(const sz of[-1,1]){ const beam=new THREE.Mesh(new THREE.BoxGeometry(wpx*1.1,.18,.2),darkWood); beam.position.set(0,-.06,sz*hpx*.3); g.add(beam); }
-    for(const sx of[-1,1]){ const rail=new THREE.Mesh(new THREE.BoxGeometry(.14,.46,hpx*1.02),M.trunk); rail.position.set(sx*wpx*.46,.55,0); rail.castShadow=true; g.add(rail); }
-    for(const sz of[-1,1])for(const sx of[-1,1]){ const pier=new THREE.Mesh(new THREE.BoxGeometry(.5,2.4,.5),M.stone); pier.position.set(sx*wpx*.34,-1.05,sz*hpx*.3); g.add(pier); }
-    if(Math.random()<0.45){ const sx=Math.random()<0.5?-1:1;   // the odd torch post lights the crossing
+    // b202: a bridge had piers, beams and rails all along, and you could see none of it, because the
+    // deck was seated a tenth of a unit above the waterline — everything below the planks was under
+    // the water and the whole thing read as a raft lying on the surface. Photographed as a run
+    // across a channel it is a flat plank causeway floating on the sea. Raised to BRIDGE_DECK it
+    // stands on its legs: the piers show, the cross-bracing shows, and the deck throws a shadow on
+    // the water. The walking height is derived from the same constant now rather than being a second
+    // number that happened to agree — they were 0.1 and 0.42, matched by hand to the plank top, and
+    // nothing tied them together if either ever moved.
+    // Merged per material as well: eleven meshes a section is fifty-five draw calls for a five-tile
+    // crossing, and bridges do not go through the b92 static merge any more than other buildings do.
+    const deckP=[],trunkP=[],stoneP=[];
+    for(let p2=0;p2<3;p2++){ const gg=new THREE.BoxGeometry(wpx*1.04,.3,hpx*.31); gg.translate(0,.15,(p2-1)*hpx*.34);
+      if(p2===1){ const pl=new THREE.Mesh(gg,M.wood); pl.castShadow=true; pl.receiveShadow=true; g.add(pl); } else deckP.push(gg); }
+    for(const sz of[-1,1]){ const gg=new THREE.BoxGeometry(wpx*1.1,.18,.2); gg.translate(0,-.06,sz*hpx*.3); deckP.push(gg); }
+    for(const sx of[-1,1]){ const gg=new THREE.BoxGeometry(.14,.46,hpx*1.02); gg.translate(sx*wpx*.46,.55,0); trunkP.push(gg);
+      // a handrail on posts above the kerb — the thing that says bridge rather than jetty
+      for(const pz of[-1,0,1]){ const po=new THREE.BoxGeometry(.11,.52,.11); po.translate(sx*wpx*.46,1.04,pz*hpx*.36); trunkP.push(po); }
+      const hr=new THREE.BoxGeometry(.1,.12,hpx*1.02); hr.translate(sx*wpx*.46,1.34,0); trunkP.push(hr); }
+    for(const sz of[-1,1])for(const sx of[-1,1]){ const gg=new THREE.BoxGeometry(.5,2.4,.5); gg.translate(sx*wpx*.34,-1.05,sz*hpx*.3); stoneP.push(gg); }
+    // trestle bracing between the legs, which is what reads as a bridge from the bank
+    for(const sz of[-1,1]){ const br=new THREE.BoxGeometry(wpx*.78,.16,.16); br.translate(0,-.5,sz*hpx*.3); deckP.push(br); }
+    const addMerged=(parts,mat,shadow)=>{ if(!parts.length)return;
+      const m=BGU?BGU.mergeGeometries(parts,false):null;
+      if(m){ const me=new THREE.Mesh(m,mat); me.castShadow=shadow; g.add(me); }
+      else for(const p of parts){ const me=new THREE.Mesh(p,mat); me.castShadow=shadow; g.add(me); } };
+    addMerged(deckP,darkWood,true); addMerged(trunkP,M.trunk,true); addMerged(stoneP,M.stone,false);
+    // Seeded from the tile, not from Math.random. The torch was a coin flip taken at mesh-build
+    // time, so a crossing grew and lost lamps every time the kingdom was loaded — the mesh count
+    // drifted by two across three consecutive loads, which is exactly what the drift check is for.
+    // It has been latent since the torches went in and only shows once a save contains a bridge.
+    // b190 settled this for every other building: seed the decoration from the tile it stands on.
+    if(hashN(seed,17)<0.45){ const sx=hashN(seed,23)<0.5?-1:1;   // the odd torch post lights the crossing
       const tp=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,1.3,5),M.trunk); tp.position.set(sx*wpx*.46,1.15,hpx*.35); g.add(tp);
       const fl2=new THREE.Mesh(new THREE.SphereGeometry(.12,6,5),new THREE.MeshStandardMaterial({color:0xffb050,emissive:0xff9030,emissiveIntensity:1.2})); fl2.position.set(sx*wpx*.46,1.85,hpx*.35); g.add(fl2); }
     return g;}
@@ -2431,15 +2457,26 @@ function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owne
   if(u.coat&&fac==='scottish')hp*=1.15;if(type==='knight'&&fac==='french')hp*=1.2;hp=Math.round(hp);
   const e={id:idc++,type,owner,x:wx(tx),z:wz(ty),hp,maxHp:hp,cmd:'idle',path:null,pi:0,target:null,gather:null,carry:0,carryType:null,build:null,cd:0,dir:owner==='player'?0:Math.PI,disp:owner==='player'?0:Math.PI,atk:0,walk:0,stance:'aggr'};
   e.mesh=makeUnitMesh(type,owner);scene.add(e.mesh);placeMesh(e);ents.push(e);return e;}
+// b202: the deck's height above the waterline, and the height a man walks at when he is on it.
+// The plank sits 0.15 above the group origin and is 0.3 thick, so its top is deck+0.30 and a boot
+// clears it by 0.02. These were 0.1 and 0.42, two loose numbers that happened to agree; derive one
+// from the other so raising the bridge cannot leave the troops wading through it.
+// Measured against the map rather than picked by eye: across 789 shore tiles the bank stands 1.15
+// above the waterline at the lower quartile and 1.74 at the median. The old deck top sat 0.40 above
+// the water — below the TENTH percentile — so a bridge lay in a trench relative to the banks it
+// joined, everywhere, which is most of why it read as a raft. 1.15 puts the deck top at 1.45,
+// between the quartile and the median, so it meets a typical bank roughly level and only steps a
+// little either way on unusually low or high ground.
+const BRIDGE_DECK=1.15, BRIDGE_WALK=BRIDGE_DECK+0.32;
 function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
-  if(bridgeTiles.size&&y<waterY){const bi=ti(txFromW(e.x),tzFromW(e.z));if(bridgeTiles.has(bi))y=waterY+0.42;}   // march the planks, not the seabed
+  if(bridgeTiles.size&&y<waterY){const bi=ti(txFromW(e.x),tzFromW(e.z));if(bridgeTiles.has(bi))y=waterY+BRIDGE_WALK;}   // march the planks, not the seabed
   e.mesh.position.set(e.x,y,e.z);}
 const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   if(type==='farm')bl.crop=FARM_CROPS[farmCropIndex(farmSeed(tx,ty))].n;
   bl.mesh=makeBldMesh(type,owner,farmSeed(tx,ty));const cx=wx(tx)+(b.w-1)*TILE/2,cz=wz(ty)+(b.h-1)*TILE/2;bl.cx=cx;bl.cz=cz;
-  bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(type==='bridge')bl.mesh.position.y=waterY+0.1;
+  bl.mesh.position.set(cx,heightAtWorld(cx,cz),cz);if(type==='bridge')bl.mesh.position.y=waterY+BRIDGE_DECK;
   // b190: a town used to sit on the grid like print on a page — every house, every barn, every
   // church square to the same axis, because a building's footprint is tiles and its mesh simply
   // took the tiles' bearing. Each one is now turned a few degrees off true, seeded from its own
@@ -2570,7 +2607,19 @@ function addRankPips(e){ const old=e.mesh.userData.pips; if(old)e.mesh.remove(ol
 const gateOwner=new Map();
 let bridgeIds=new Set(),bridgeTiles=new Set();
 function rebuildBridges(){ bridgeIds=new Set(); bridgeTiles=new Set();
-  for(const b of blds)if(b.type==='bridge'&&b.done){bridgeIds.add(b.id);bridgeTiles.add(ti(b.tx,b.ty));} }
+  for(const b of blds)if(b.type==='bridge'&&b.done){bridgeIds.add(b.id);bridgeTiles.add(ti(b.tx,b.ty));}
+  // b202: TURN THE RAILINGS TO FACE THE CROSSING. A section's handrails are thin walls running the
+  // full depth in Z, set at either end of X — which is right for a bridge going north and south, and
+  // wrong for one going east and west, where they stand ACROSS the deck like gates between every
+  // section instead of down its sides. Every east-west crossing in the game has been walling itself
+  // off at each tile. Sections take their bearing from their neighbours now, the same way walls have
+  // since orientWall: a bridge with a bridge to its east or west turns a quarter turn. The section is
+  // square, so turning the whole group is safe and keeps the planks across the line of travel either
+  // way. A lone section keeps its default and reads as a jetty, which is what a lone section is.
+  for(const b of blds){ if(b.type!=='bridge'||!b.mesh)continue;
+    const ew=bridgeTiles.has(ti(b.tx+1,b.ty))||bridgeTiles.has(ti(b.tx-1,b.ty));
+    const ns=bridgeTiles.has(ti(b.tx,b.ty+1))||bridgeTiles.has(ti(b.tx,b.ty-1));
+    b.mesh.rotation.y=(ew&&!ns)?Math.PI/2:0; } }
 function passable(tx,ty,goalId,dom,own){if(!inB(tx,ty))return false;const i=ti(tx,ty);const fl=isFlooded(tx,ty);const br=bridgeTiles.has(i);
   if(dom==='water'){if(!fl||br)return false;}else if(fl&&!br)return false;   // bridges carry land troops over the water
   if(dom!=='water'&&treeGrid&&treeGrid[i]===1)return false;   // standing forest blocks the way — chop a gap through
