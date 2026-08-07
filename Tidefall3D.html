@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b205</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b206</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3461,19 +3461,43 @@ function updateProjectiles(dt){for(const p of projs){p.t+=dt;const tx=p.target.x
   projs=projs.filter(p=>{if(p.dead){scene.remove(p.mesh);return false;}return true;});}
 function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');for(let i=0;i<4;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1.6,p.target.z,'smoke');if(Math.random()<0.4)stampScorch(p.target.x,p.target.z,1);sfxWhere(p.target.x,p.target.z);SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
   if(p.target.bld){if(!p.target.bld._gone){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(!p.target._dead){p.target.hp-=p.dmg;p.target.flinch=0.15;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
-const partGeo=new THREE.SphereGeometry(0.18,5,4);
-const partMats={smoke:new THREE.MeshBasicMaterial({color:0x9098a0,transparent:true}),splash:new THREE.MeshBasicMaterial({color:0x9fd6ec}),chip:new THREE.MeshBasicMaterial({color:0xa9803f}),spark:new THREE.MeshBasicMaterial({color:0xffdca0}),debris:new THREE.MeshBasicMaterial({color:0xb08050}),blood:new THREE.MeshBasicMaterial({color:0xa03828}),heal:new THREE.MeshBasicMaterial({color:0x9ff0b0,transparent:true}),
-musket:new THREE.MeshBasicMaterial({color:0xd8dade,transparent:true}),flash:new THREE.MeshBasicMaterial({color:0xffdf80,transparent:true}),flame:new THREE.MeshBasicMaterial({color:0xff8a30,transparent:true})};
-// b205: at the cap this used to drop the NEW effect and keep the old. Measured on a forty-man fight,
-// 20 frames in 900 sit at the ceiling — and that is with the smoke exactly as it has always been, so
-// this is not something this build introduced. What it means is that at the height of a battle the
-// musket flash you just fired does not appear, while a puff of smoke from two seconds ago is still
-// being drawn. The newest thing is always the thing being looked at, so the oldest particle gives up
-// its place instead. Same ceiling, same cost — 200 particles in view are 200 draw calls and just
-// under a millisecond against a scene that otherwise draws in 103, so the ceiling stays where it is.
-function spawnPart(x,y,z,type){if(parts.length>240){const old=parts.shift();if(old)scene.remove(old.mesh);}
-  const m=new THREE.Mesh(partGeo,partMats[type]||partMats.spark);m.position.set(x,y,z);scene.add(m);
-  let p={mesh:m,x,y,z,t:0,type};if(type==='smoke'){p.vx=(Math.random()-.5)*1;p.vy=3.5;p.vz=(Math.random()-.5)*1;p.life=1.6;p.g=0;p.s=1.4;}
+// b206: ONE MESH A TYPE, AND PARTICLES THAT ACTUALLY FADE.
+// Every particle used to be its own THREE.Mesh, and every particle of a type shared ONE material.
+// Two consequences, both measured. Two hundred particles in view were two hundred draw calls against
+// a scene that otherwise draws in 103, which is why the ceiling had to sit at 240 and why a
+// forty-man battle ran into it and started dropping effects. And because the material was shared,
+// `p.mesh.material.opacity = a` set the alpha for EVERY live particle of that type to whatever the
+// last one in the array happened to be — caught 50 puffs of smoke all drawing at 0.979, pinned there
+// by the youngest. Particles have never faded. They have drawn at near-full alpha for their whole
+// life and then vanished, and the fade code has been running all along being overwritten fifty times
+// a frame.
+// One InstancedMesh a type fixes both: ten draw calls instead of the count, and a per-instance alpha
+// attribute so each puff carries its own fade. The ceiling doubles to 480 on the strength of it.
+const PART_CAP=480;
+const partGeoSrc=new THREE.SphereGeometry(0.18,5,4);
+const PART_COL={smoke:0x9098a0,splash:0x9fd6ec,chip:0xa9803f,spark:0xffdca0,debris:0xb08050,
+  blood:0xa03828,heal:0x9ff0b0,musket:0xd8dade,flash:0xffdf80,flame:0xff8a30};
+const partIM={};
+function partPool(type){ let P=partIM[type]; if(P)return P;
+  const g=partGeoSrc.clone();
+  const al=new THREE.InstancedBufferAttribute(new Float32Array(PART_CAP),1);
+  al.setUsage(THREE.DynamicDrawUsage); g.setAttribute('aAlpha',al);
+  const m=new THREE.MeshBasicMaterial({color:PART_COL[type]!==undefined?PART_COL[type]:0xffdca0,
+    transparent:true,depthWrite:false});
+  m.onBeforeCompile=sh=>{
+    sh.vertexShader='attribute float aAlpha;\nvarying float vPA;\n'+sh.vertexShader.replace(
+      '#include <begin_vertex>','#include <begin_vertex>\n  vPA=aAlpha;');
+    sh.fragmentShader='varying float vPA;\n'+sh.fragmentShader.replace(
+      '#include <dithering_fragment>','#include <dithering_fragment>\n  gl_FragColor.a*=vPA;'); };
+  const im=new THREE.InstancedMesh(g,m,PART_CAP);
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.frustumCulled=false; im.count=0; scene.add(im);
+  return partIM[type]={im,al}; }
+// b205: at the ceiling this used to drop the NEW effect and keep the old, so at the height of a
+// battle the flash you just fired never appeared while smoke from two seconds ago was still drawn.
+// The oldest gives up its place instead — the newest thing is the thing being looked at.
+function spawnPart(x,y,z,type){if(parts.length>=PART_CAP)parts.shift();
+  let p={x,y,z,t:0,type};if(type==='smoke'){p.vx=(Math.random()-.5)*1;p.vy=3.5;p.vz=(Math.random()-.5)*1;p.life=1.6;p.g=0;p.s=1.4;}
   else if(type==='splash'){p.vx=(Math.random()-.5)*5;p.vy=5;p.vz=(Math.random()-.5)*5;p.life=.6;p.g=-16;p.s=.5;}
   else if(type==='chip'){p.vx=(Math.random()-.5)*5;p.vy=4;p.vz=(Math.random()-.5)*5;p.life=.6;p.g=-20;p.s=.5;}
   else if(type==='spark'){p.vx=(Math.random()-.5)*7;p.vy=(Math.random())*4;p.vz=(Math.random()-.5)*7;p.life=.3;p.g=-10;p.s=.5;}
@@ -3482,7 +3506,7 @@ function spawnPart(x,y,z,type){if(parts.length>240){const old=parts.shift();if(o
   else if(type==='musket'){p.vx=(Math.random()-.5)*2.5;p.vy=1.6+Math.random()*1.2;p.vz=(Math.random()-.5)*2.5;p.life=1.1;p.g=.4;p.s=1.15;}
   else if(type==='flash'){p.vx=0;p.vy=.4;p.vz=0;p.life=.12;p.g=0;p.s=1.1;}
   else if(type==='flame'){p.vx=(Math.random()-.5)*1.2;p.vy=2.6+Math.random()*1.5;p.vz=(Math.random()-.5)*1.2;p.life=.5;p.g=0;p.s=.7;}
-  else{p.vx=(Math.random()-.5)*6;p.vy=3;p.vz=(Math.random()-.5)*6;p.life=.5;p.g=-18;p.s=.6;}m.scale.setScalar(p.s);parts.push(p);}
+  else{p.vx=(Math.random()-.5)*6;p.vy=3;p.vz=(Math.random()-.5)*6;p.life=.5;p.g=-18;p.s=.6;}parts.push(p);}
 // ---- decorative citizens ----
 const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
 const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
@@ -3659,13 +3683,22 @@ function updateCorpses(dt){ for(const c of corpses){ c.t+=dt;
 // first: even with forty men fighting at close quarters the particle count peaks at 135 against a
 // cap of 240, and hiding every live particle changed the draw-call count by nothing, so there was
 // headroom to spend.
+const _pM4=new THREE.Matrix4(),_pV3=new THREE.Vector3(),_pQ=new THREE.Quaternion(),_pS3=new THREE.Vector3();
 function updateParticles(dt){const wdx=2.6*wWind*dt, wdz=0.8*wWind*dt;
   for(const p of parts){p.t+=dt;p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
-    if(p.type==='smoke'||p.type==='musket'){p.x+=wdx;p.z+=wdz;}
-    p.mesh.position.set(p.x,p.y,p.z);const a=1-p.t/p.life;if(p.mesh.material.transparent)p.mesh.material.opacity=a;
-    if(p.type==='smoke')p.mesh.scale.setScalar(p.s*(1+p.t));
-    else if(p.type==='musket')p.mesh.scale.setScalar(p.s*(1+p.t*0.9));}
-  parts=parts.filter(p=>{if(p.t>=p.life){scene.remove(p.mesh);return false;}return true;});}
+    if(p.type==='smoke'||p.type==='musket'){p.x+=wdx;p.z+=wdz;}}
+  parts=parts.filter(p=>p.t<p.life);
+  // b206: pack the survivors into their type's instanced mesh. The alpha goes in a per-instance
+  // attribute, which is the whole point — one shared material cannot carry ten different fades.
+  for(const k in partIM)partIM[k].im.count=0;
+  for(const p of parts){ const P=partPool(p.type), i=P.im.count; if(i>=PART_CAP)continue;
+    let sc=p.s;
+    if(p.type==='smoke')sc=p.s*(1+p.t); else if(p.type==='musket')sc=p.s*(1+p.t*0.9);
+    _pM4.compose(_pV3.set(p.x,p.y,p.z),_pQ,_pS3.setScalar(sc));
+    P.im.setMatrixAt(i,_pM4);
+    P.al.array[i]=Math.max(0,1-p.t/p.life);
+    P.im.count=i+1; }
+  for(const k in partIM){const P=partIM[k];P.im.instanceMatrix.needsUpdate=true;P.al.needsUpdate=true;}}
 
 // ==================================================== FOG (reveal-based; hide unseen enemies)
 // b141: the fog is now IN THE WORLD, not just on the minimap. A one-byte-per-tile texture
@@ -4846,7 +4879,10 @@ function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HA
 // and starting a new world only ever took the first. Load a save five times and you were dragging
 // five worlds worth of orphaned scaffolding around behind you. Carts were adrift the same way.
 function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds){scene.remove(b.mesh);removeBuildUI(b);}
-  for(const c of carts)scene.remove(c.mesh); carts.length=0;for(const p of parts)scene.remove(p.mesh);for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
+  for(const c of carts)scene.remove(c.mesh); carts.length=0;
+  // b206: particles no longer own meshes — the pools live for the session and are simply emptied
+  parts.length=0; for(const k in partIM)partIM[k].im.count=0;
+  for(const p of projs)scene.remove(p.mesh);for(const c of citizens)scene.remove(c.mesh);for(const c of corpses)scene.remove(c.mesh);corpses=[];
   for(const n of meatNodes)if(n.mesh)scene.remove(n.mesh); meatNodes=[];
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};if(demoMode)setDemo(false);updateGhost();
   for(const r of rubblePiles)scene.remove(r.g); rubblePiles=[]; fallingTrees=[];
