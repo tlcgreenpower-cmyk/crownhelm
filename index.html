@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b175</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b176</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1846,7 +1846,14 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(type==='cannon'||type==='howitzer'){
     if(PIRATE_CANNON){ const c=PIRATE_CANNON.clone(true);
       const box=new THREE.Box3().setFromObject(c),len=Math.max(box.max.z-box.min.z,box.max.x-box.min.x)||1;
-      c.scale.setScalar((type==='howitzer'?2.6:3.2)/len); c.position.y=0.1;   // b144: the gun now points where it shoots (it was mounted back to front)
+      c.scale.setScalar((type==='howitzer'?2.6:3.2)/len); c.position.y=0.1;
+      // b176: the gun points where it SHOOTS. b144 said it fixed this and did not — the barrel was
+      // still ninety degrees out, laid across the line of fire rather than along it. The model is
+      // built down its X axis (1.48 long against 1.04 across) while every unit in the game is
+      // aimed by pointing its local +Z at the target, and the muzzle is the -X end: the mass, being
+      // breech and carriage and wheels, sits toward +X. Rotating a quarter turn puts -X onto +Z,
+      // and the aiming code — which was always correct, to within a rounded degree — does the rest.
+      c.rotation.y=Math.PI/2;
       c.traverse(o=>{if(o.isMesh)o.castShadow=true;}); anim.add(c);
       const hbp=makeHealthBar();hbp.position.y=3.4;g.add(hbp);g.userData.hb=hbp;g.userData.noBob=true;return g; }
     const carriage=new THREE.Mesh(new THREE.BoxGeometry(1.5,.5,2.3),M.wood);carriage.position.y=.75;carriage.castShadow=true;anim.add(carriage);
