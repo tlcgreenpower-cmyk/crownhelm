@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b193</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b194</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2220,6 +2220,26 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     const r=new THREE.Mesh(rgeo,type==='farm'?M.thatch:roof);
     r.scale.set(wpx/mx,1,hpx/mx);
     r.position.y=wallH+((type==='barracks'||type==='gunshop')?1.7:1.5);r.castShadow=true;g.add(r);
+    // b194: EAVES AND A RIDGE CAP. The game is played looking down at about fifty degrees, so what
+    // the owner mostly sees of a building is its roof — and a big one was a bare four-sided plane
+    // in a single flat colour. Houses got away with it because their gables and chimneys break the
+    // shape up; an armourer or a barracks read as a red slab lying in the grass. A dark board along
+    // each eave outlines the roof against the ground, and a cap at the apex gives the pyramid a
+    // point to read from directly above. Six small boxes on a building, and only on the ones that
+    // had nothing.
+    // Merged into ONE mesh, not five. Buildings do not go through the b92 static merge, so every
+    // box on them is its own draw call — five apiece across a two-hundred-building kingdom would
+    // have been a thousand extra calls to outline some roofs, which is not a trade worth making.
+    { const rH=(type==='barracks'||type==='siege'||type==='gunshop')?2.6:2.2;
+      const ey=r.position.y-rH/2+0.06, ex=wpx*0.442, ez=hpx*0.442;
+      const parts=[];
+      for(const [bw,bd2,bx,bz] of [[ex*2,0.26,0,ez],[ex*2,0.26,0,-ez],[0.26,ez*2,ex,0],[0.26,ez*2,-ex,0]]){
+        const gg=new THREE.BoxGeometry(bw,0.3,bd2); gg.translate(bx,ey,bz); parts.push(gg); }
+      const capG=new THREE.BoxGeometry(0.42,0.34,0.42); capG.rotateY(Math.PI/4);
+      capG.translate(0,r.position.y+rH/2-0.05,0); parts.push(capG);
+      const merged=BGU?BGU.mergeGeometries(parts,false):null;
+      if(merged){ const em=new THREE.Mesh(merged,M.trunk); em.castShadow=true; g.add(em); }
+      else for(const gg of parts){ const em=new THREE.Mesh(gg,M.trunk); em.castShadow=true; g.add(em); } }
     const door=new THREE.Mesh(new THREE.BoxGeometry(.9,1.6,.15),M.wood);door.position.set(0,1.2,hpx*.42);g.add(door);
     if(type!=='farm')for(const xx of[-wpx*.28,wpx*.28]){const win=new THREE.Mesh(new THREE.BoxGeometry(.6,.6,.12),M.window);win.position.set(xx,wallH*.6,hpx*.42);g.add(win);}
   }
