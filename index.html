@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b184</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b185</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2939,8 +2939,17 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
   // b161: ONLY while he is actually under a marching order. This continuation used to run whatever
   // the man was doing, so a stop order — which halts him by clearing his path — left the march
   // standing and he simply set off again. Stop now means stop.
+  // b185: and if that next stage cannot be pathed THIS step, he waits and tries again — he does not
+  // abandon the campaign. A* is rationed (24 searches a step for the whole AI) and a wave re-paths
+  // in a body, so most of a stage change lands on an empty budget. The old code left arrived true,
+  // amove stood the man down on the spot, and going idle wiped his march order for good. Measured:
+  // thirteen of thirteen attackers dropped to idle inside thirty seconds and finished FURTHER from
+  // the enemy keep than they set out — which is why eight realms had fought a war and not lost one
+  // building between them.
   if(arrived&&e.march&&!e.inGar&&(e.cmd==='move'||e.cmd==='amove'||e.cmd==='attackb'||e.cmd==='gar')){ const m=e.march;
-    if(Math.hypot(m.gx-txFromW(e.x),m.gy-tzFromW(e.z))>2){ if(orderPath(e,m.gx,m.gy,m.id))arrived=false; }
+    if(Math.hypot(m.gx-txFromW(e.x),m.gy-tzFromW(e.z))>2){
+      if(orderPath(e,m.gx,m.gy,m.id)){ arrived=false; e._mfail=0; }
+      else { e._mfail=(e._mfail||0)+1; if(e._mfail<120)arrived=false; else { e.march=null; e._mfail=0; } } }
     else e.march=null; }
   else if(e.march&&e.cmd==='idle')e.march=null;
   // b143: DRESS THE RANKS. A* only ever gets a man to the right tile; the last stride onto his
