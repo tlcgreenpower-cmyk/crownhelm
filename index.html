@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b182</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b183</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2603,6 +2603,27 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 // a hands-off player finished six minutes with 2456 wood and not one extra food, iron or gold, and
 // so could never advance an Age. A stock the realm is short of is worth walking for; one it is
 // drowning in is not.
+// b183: a farm only wants a hand if the realm actually wants the FOOD. Idle workers were sent to
+// any untended farm before gathering was so much as considered, and since a realm keeps building
+// farms there was always one waiting — so every AI ended up with three or four men standing in the
+// fields and barely one in the woods. Measured across seven rival realms at three minutes: five to
+// seven workers each ASSIGNED to wood by the b166 scarcity weighting, and nought or one actually
+// swinging an axe, while food climbed past two thousand and wood sat at two. The weighting was
+// right all along; the farms were eating the labour before it could reach it.
+// The test is RELATIVE, not a fixed ceiling. A flat cap of 1200 still left realms standing five men
+// in the fields on a thousand food with sixty wood, because a thousand is under the cap. What
+// matters is whether food is among the things the realm is actually short OF — so it reuses the
+// same scarcity pull the gatherers weigh their work by, and a farmhand is only worth having while
+// food is at least as scarce as timber. Below 400 they work the fields regardless: hungry comes
+// first.
+function wantsFarmhand(o){ const r=res[o]; if(!r)return true;
+  if(r.f<400)return true;                     // hungry comes first
+  // A floor of two hands in the fields regardless was tried and measured WORSE: it brought the food
+  // glut straight back, 1418 to 2432 a realm, and growth fell from 147 buildings and 203 men to 133
+  // and 173. The relative test alone wins, so the relative test alone it is. The AI does end up
+  // with farms nobody works while timber is the bottleneck, and the honest fix for that is to stop
+  // it BUILDING so many farms — a change for its own build order, not a floor bolted on here.
+  return jobPull(o,'food')<=jobPull(o,'wood'); }
 const STOCK_OF={wood:'w',metal:'m',gold:'g',food:'f'};
 function jobPull(o,t){ const have=res[o]?res[o][STOCK_OF[t]]||0:0;
   return have<250?0.45:have<600?0.7:have<1200?1:have<2500?1.7:2.8; }
@@ -2849,7 +2870,7 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
     if(b.rally){ const nd2=type==='worker'?nodeAt(b.rally.x,b.rally.z):null;
       if(nd2&&nd2.amount>0)gatherOrder(u,nd2);   // rally on a tree/vein = straight to work
       else{u.cmd='move';orderPath(u,txFromW(b.rally.x),tzFromW(b.rally.z),0);} }else if(b.owner!=='player'&&type==='worker'){
-      const uf=blds.find(q=>q.owner===b.owner&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q));
+      const uf=wantsFarmhand(b.owner)?blds.find(q=>q.owner===b.owner&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q)):null;
       if(uf){u.cmd='tend';u.tendB=uf;orderPath(u,uf.tx+(uf.w>>1),uf.ty+(uf.h>>1),uf.id);}
       else{const n=nearestNode(u,realmWant(b.owner));if(n)gatherOrder(u,n);}}}}}
 function spawnSpot(b,type){const dom=UNIT[type].dom;for(let r=0;r<9;r++)for(const[dx,dy]of[[b.w>>1,b.h+r],[b.w+r,b.h>>1],[-1-r,b.h>>1],[b.w>>1,-1-r]]){const x=b.tx+dx,y=b.ty+dy;if(passable(x,y,0,dom))return{x:wx(x),z:wz(y)};}return{x:b.cx,z:b.cz+b.h*TILE};}
@@ -2936,7 +2957,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     case 'idle':autoAcq(e,true);
       if(!e.inGar&&!e.path&&Math.random()<dt*0.045&&e.mesh.userData.cheerA)playOnce(e,Math.random()<0.6?'cheerA':'attackA');   // b134: idle folk stretch, wave, drill
       if(e.type==='worker'&&Math.random()<dt*2&&!(e.noWork&&elapsed<e.noWork)){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
-        else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
+        else{const f=(Math.random()<0.5&&wantsFarmhand(e.owner))?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
           else{ let best=null,bd=48*2.8;   // b93: idle peasants find their own work — b166: weighed by what the realm is short of
             for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(n.type==='wood'&&!chopReachable(n))continue;
@@ -3007,6 +3028,9 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     case 'inside':break;   // safe behind the walls — the building does the fighting
     case 'tend':{const b=e.tendB;if(!b||!blds.includes(b)||!b.done){e.cmd='idle';e.tendB=null;break;}
       if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;break;}   // one farmhand per farm — extras step off
+      // and a man already in the field walks off it once the granary is full, or the realm would
+      // simply keep the hands it had before the surplus built up
+      if(!wantsFarmhand(e.owner)){e.cmd='idle';e.tendB=null;break;}
       e.tendT=(e.tendT||0)-dt;
       if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
         const tx2=b.tx+Math.floor(Math.random()*b.w),ty2=b.ty+Math.floor(Math.random()*b.h);
@@ -3422,9 +3446,14 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
     aiDiplomacy(o,ai); }
   for(const e of ents)if(e.owner===o&&e.type==='worker'&&e.cmd==='idle'){
     if(e.noWork&&elapsed<e.noWork)continue;
-    const uf=blds.find(q=>q.owner===o&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q));
+    const uf=wantsFarmhand(o)?blds.find(q=>q.owner===o&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q)):null;
     if(uf){e.cmd='tend';e.tendB=uf;orderPath(e,uf.tx+(uf.w>>1),uf.ty+(uf.h>>1),uf.id);continue;}
-    const n=nearestNode(e,realmWant(o));if(n)gatherOrder(e,n);}
+    // b183: and if there is no seam of the ONE thing realmWant asked for, fall back to whatever
+    // work exists rather than standing still. realmWant names a single resource; when none of it is
+    // reachable, nearestNode came back null and the man simply stayed idle — r1 was sat on three
+    // thousand wood with four peasants doing nothing because the realm had decided it wanted metal
+    // and there was no metal to be had.
+    const n=nearestNode(e,realmWant(o))||nextJob(e);if(n)gatherOrder(e,n);}
   if(ai.t<1)return; ai.t=0;
   // b158: HOME DEFENCE, and it comes FIRST — the brain does one thing a second and works down a
   // list, so anything below the masonry never ran. A realm used to march its whole host across the
