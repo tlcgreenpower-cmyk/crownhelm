@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b199</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b200</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3670,16 +3670,36 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
     // of YOURS, so a player who kept the peace watched seven kingdoms build side by side forever.
     // Neighbours now fall out on their own — and make it up again — whether you are involved or not.
     aiDiplomacy(o,ai); }
-  for(const e of ents)if(e.owner===o&&e.type==='worker'&&e.cmd==='idle'){
-    if(e.noWork&&elapsed<e.noWork)continue;
-    const uf=wantsFarmhand(o)?blds.find(q=>q.owner===o&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q)):null;
-    if(uf){e.cmd='tend';e.tendB=uf;orderPath(e,uf.tx+(uf.w>>1),uf.ty+(uf.h>>1),uf.id);continue;}
-    // b183: and if there is no seam of the ONE thing realmWant asked for, fall back to whatever
-    // work exists rather than standing still. realmWant names a single resource; when none of it is
-    // reachable, nearestNode came back null and the man simply stayed idle — r1 was sat on three
-    // thousand wood with four peasants doing nothing because the realm had decided it wanted metal
-    // and there was no metal to be had.
-    const n=nearestNode(e,realmWant(o))||nextJob(e);if(n)gatherOrder(e,n);}
+  // b200: PUTTING IDLE MEN BACK TO WORK, WITHOUT DOING IT THIRTY TIMES A SECOND.
+  // The rest of the brain acts once a second — that is the gate a few lines below — but this sweep
+  // sat ABOVE it and so ran every sim step. At 1/30 that is 30 passes a second per realm, seven
+  // realms, each a full scan of the entity list; and for every idle worker it searched all the
+  // buildings for an untended farm with a scan of every entity nested inside that search. Measured
+  // on a soak at 332 units and 210 buildings the ai phase had become the most expensive thing in
+  // the sim at 2.92ms of a 7.35ms step, which at thirty steps a second is 88ms of every real second
+  // spent almost entirely here.
+  // Two changes, neither of which alters what the realm decides. It sweeps four times a second
+  // rather than thirty, so a man who finishes a job waits at most a quarter second to be given the
+  // next one — under noticing. And the untended farms are gathered ONCE per sweep instead of being
+  // searched out afresh for each idle worker, with the tended set built in a single pass rather
+  // than a scan per farm. The list is built lazily, so a realm with nobody standing about pays
+  // nothing for it at all.
+  if((ai.jobT=(ai.jobT||0)-dt)<=0){ ai.jobT=0.25;
+    let farms=null;
+    for(const e of ents){ if(e.owner!==o||e.type!=='worker'||e.cmd!=='idle')continue;
+      if(e.noWork&&elapsed<e.noWork)continue;
+      if(farms===null){ farms=[];
+        if(wantsFarmhand(o)){ const tended=new Set();
+          for(const t of ents)if(t.cmd==='tend'&&t.tendB)tended.add(t.tendB);
+          for(const q of blds)if(q.owner===o&&q.done&&q.type==='farm'&&!tended.has(q))farms.push(q); } }
+      const uf=farms.length?farms.pop():null;
+      if(uf){e.cmd='tend';e.tendB=uf;orderPath(e,uf.tx+(uf.w>>1),uf.ty+(uf.h>>1),uf.id);continue;}
+      // b183: and if there is no seam of the ONE thing realmWant asked for, fall back to whatever
+      // work exists rather than standing still. realmWant names a single resource; when none of it is
+      // reachable, nearestNode came back null and the man simply stayed idle — r1 was sat on three
+      // thousand wood with four peasants doing nothing because the realm had decided it wanted metal
+      // and there was no metal to be had.
+      const n=nearestNode(e,realmWant(o))||nextJob(e);if(n)gatherOrder(e,n);} }
   if(ai.t<1)return; ai.t=0;
   // b158: HOME DEFENCE, and it comes FIRST — the brain does one thing a second and works down a
   // list, so anything below the masonry never ran. A realm used to march its whole host across the
