@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b213</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b214</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3771,11 +3771,25 @@ function updateCitizens(dt){ for(const c of citizens){ c.wait-=dt;
       c.armL.rotation.x=s; c.armR.rotation.x=-s; c.legL.rotation.x=-s*0.85; c.legR.rotation.x=s*0.85; }
     else for(const l of[c.armL,c.armR,c.legL,c.legR]) l.rotation.x*=Math.max(0,1-dt*8); }
   c.mesh.position.set(c.x,heightAtWorld(c.x,c.z),c.z); } }
-function updateCorpses(dt){ for(const c of corpses){ c.t+=dt;
-  if(c.mixer){ c.mixer.update(dt); if(c.t>2.2)c.mesh.position.y-=dt*1.2; if(c.t>3.4){scene.remove(c.mesh);c.dead=true;} continue; }
-  if(c.t<0.5)c.mesh.rotation.z=Math.min(1.5,c.t*4);          // topple
-  else if(c.t>1.2)c.mesh.position.y-=dt*1.2;                 // sink away
-  if(c.t>2.4){scene.remove(c.mesh);c.dead=true;} }
+// b214: LET THE DEAD LIE. A man began sinking into the ground 2.2 seconds after he fell and was
+// gone by 3.4 — while a burnt barn beside him leaves rubble that smoulders for half a minute and
+// does not sink until seventy seconds. The land remembered a building for a minute and a man for
+// three seconds, so a field that had just been fought over looked like a field nobody had fought
+// over. Measured on a thirty-six man fight: twenty-six killed in a minute and never more than NINE
+// bodies on the ground at once, because they were leaving as fast as they arrived.
+// They now lie for thirteen seconds before they go. That is not free — a corpse is a skinned mesh —
+// so two things pay for it. The death clip clamps when it finishes, so past 2.4 seconds the mixer
+// is animating a pose that cannot change: it stops being updated, which is the expensive half.
+// And there is a hard ceiling of forty, oldest first, so a long battle cannot bury the frame.
+const CORPSE_LIE=13, CORPSE_SINK=2.2, CORPSE_CAP=40;
+function updateCorpses(dt){
+  if(corpses.length>CORPSE_CAP){ const over=corpses.length-CORPSE_CAP;
+    for(let i=0;i<over;i++){ const c=corpses[i]; if(c&&!c.dead){scene.remove(c.mesh);c.dead=true;} } }
+  for(const c of corpses){ c.t+=dt;
+    if(c.mixer){ if(c.t<2.4)c.mixer.update(dt); }              // clamped once it lands — stop paying for it
+    else if(c.t<0.5)c.mesh.rotation.z=Math.min(1.5,c.t*4);     // the old articulated bodies still topple
+    if(c.t>CORPSE_LIE)c.mesh.position.y-=dt*1.2;               // then he goes into the ground
+    if(c.t>CORPSE_LIE+CORPSE_SINK){scene.remove(c.mesh);c.dead=true;} }
   corpses=corpses.filter(c=>!c.dead); }
 // b205: powder smoke drifts and spreads. This is a musket-era game and a discharge left three small
 // puffs that hung exactly where they were made and then vanished at a constant size — the one effect
