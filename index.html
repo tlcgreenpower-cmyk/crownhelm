@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b165</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b166</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2352,13 +2352,21 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 // kind — four workers were found mining gold a hundred paces out while timber stood at the door,
 // and the town earned twelve gold in three minutes. He now takes the nearest work of any kind
 // unless more of what he was carrying is close to hand.
+// b166: and he weighs WHAT the realm is short of, not only what is nearest. Picking purely by
+// distance meant that once the woods were back at the door every worker chopped timber for ever —
+// a hands-off player finished six minutes with 2456 wood and not one extra food, iron or gold, and
+// so could never advance an Age. A stock the realm is short of is worth walking for; one it is
+// drowning in is not.
+const STOCK_OF={wood:'w',metal:'m',gold:'g',food:'f'};
+function jobPull(o,t){ const have=res[o]?res[o][STOCK_OF[t]]||0:0;
+  return have<250?0.45:have<600?0.7:have<1200?1:have<2500?1.7:2.8; }
+function jobScore(e,n,t){ if(!n)return 1e9;
+  return Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty))*jobPull(e.owner,t); }
 function nextJob(e,prefer){
-  const same=prefer?nearestNode(e,prefer):null;
-  const dist=n=>n?Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty)):1e9;
-  if(same&&dist(same)<=60)return same;
-  let best=same,bd=dist(same);
-  for(const t of ['wood','metal','gold','food']){ if(t===prefer)continue;
-    const n=nearestNode(e,t); const d=dist(n); if(n&&d<bd){bd=d;best=n;} }
+  let best=null,bs=1e9;
+  for(const t of ['wood','metal','gold','food']){ const n=nearestNode(e,t); if(!n)continue;
+    let s=jobScore(e,n,t); if(t===prefer)s*=0.85;        // a slight pull to stay at the work he knows
+    if(s<bs){bs=s;best=n;} }
   return best; }
 
 // ==================================================== UPDATE
@@ -2684,8 +2692,10 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       if(e.type==='worker'&&Math.random()<dt*2&&!(e.noWork&&elapsed<e.noWork)){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
         else{const f=Math.random()<0.5?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
           if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
-          else{ let best=null,bd=48;   // b93: idle peasants find their own work — nearest resource within ~12 tiles
-            for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(n.type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}
+          else{ let best=null,bd=48*2.8;   // b93: idle peasants find their own work — b166: weighed by what the realm is short of
+            for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(n.type==='wood'&&!chopReachable(n))continue;
+              const raw=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty)); if(raw>48)continue;
+              const d=raw*jobPull(e.owner,n.type); if(d<bd){bd=d;best=n;}}
             if(best)gatherOrder(e,best); } } }
       break;
     case 'attack':{const t=e.target;if(!t||t.hp<=0||!ents.includes(t)||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
