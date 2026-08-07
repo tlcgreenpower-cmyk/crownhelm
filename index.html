@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b171</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b172</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -322,6 +322,32 @@ function mergeSkinnedModel(root){ if(!BGU||!root)return root;
     for(const m of ms) m.parent.remove(m); }
   return root;
 }
+// b172 READABLE TROOPS: the soldier models are painted in genuinely dark cloth — the commonest
+// colour on an infantryman is #1e1e1e, with dark olive over it. Correct for a musket-era coat, and
+// completely unreadable at the distance this game is actually played from: on bright grass they
+// read as black blobs with no face, no uniform and no rank. This lifts the black point of a
+// character palette once, at load, so the darks come up off the floor while the whites stay put.
+// Art direction, not a bug fix — priorities 6 and 8 of the brief.
+const CHAR_BLACK=0.26, CHAR_GAMMA=0.78, CHAR_SAT=1.12;
+const _toneDone=new WeakSet();   // every attribute and material lifted exactly once, ever
+function _liftCh(c){ const v=CHAR_BLACK+(1-CHAR_BLACK)*Math.pow(lin2srgb(c),CHAR_GAMMA); return v; }
+function liftCharacterTone(root){ if(!root)return root;
+  const sat=(r,g,b)=>{ const lum=0.299*r+0.587*g+0.114*b;
+    return [lum+(r-lum)*CHAR_SAT,lum+(g-lum)*CHAR_SAT,lum+(b-lum)*CHAR_SAT]; };
+  root.traverse(o=>{
+    const g=o.geometry;
+    if(g&&g.attributes&&g.attributes.color&&!_toneDone.has(g.attributes.color)){
+      const a=g.attributes.color; _toneDone.add(a);
+      for(let i=0;i<a.count;i++){ const [r,gg,b]=sat(_liftCh(a.getX(i)),_liftCh(a.getY(i)),_liftCh(a.getZ(i)));
+        a.setXYZ(i,srgb2lin(r),srgb2lin(gg),srgb2lin(b)); }
+      a.needsUpdate=true; }
+    // …and the parts that carry no vertex colours at all, which is where the darkest cloth lives
+    const mats=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];
+    for(const m of mats){ if(!m||!m.color||_toneDone.has(m))continue; _toneDone.add(m);
+      if(m.vertexColors)continue;   // white carrier — leave it as the neutral multiplier
+      const [r,gg,b]=sat(_liftCh(m.color.r),_liftCh(m.color.g),_liftCh(m.color.b));
+      m.color.setRGB(srgb2lin(r),srgb2lin(gg),srgb2lin(b)); } });
+  return root; }
 // b139: Box3.setFromObject asks a SkinnedMesh for its POSED box, and a freshly cloned skeleton
 // has stale bone matrices — the animal pack came back ~85x too big, so every horse got scaled
 // down to a speck and the cavalry rode thin air. Measure the bind-pose geometry instead.
@@ -761,6 +787,7 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   // b92: one-time surgery on every character template — clones from here on carry far fewer skinned parts
   for(const k in lib){ _mergeTally.charBefore+=_countParts(lib[k].scene,true);
     mergeSkinnedModel(lib[k].scene);
+    if(!/^(Sheep|Horse)/.test(k))liftCharacterTone(lib[k].scene);   // b172: people, not livestock
     _mergeTally.charAfter+=_countParts(lib[k].scene,true); }
   console.log('b92 mesh-merge (characters): '+_mergeTally.charBefore+' skinned parts -> '+_mergeTally.charAfter);
   for(const k of ['WorkerM','WorkerF'])if(lib[k])deHardHat(lib[k].scene);   // b145: peasants, not site foremen
@@ -953,6 +980,13 @@ function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
     out.r=r<0?0:r>1?1:r; out.g=g<0?0:g>1?1:g; out.b=bb<0?0:bb>1?1:bb; }
   else if(spk<0.14&&e>1.45){ const r=out.r-0.035,g=out.g-0.035,bb=out.b-0.035;
     out.r=r<0?0:r; out.g=g<0?0:g; out.b=bb<0?0:bb; } }
+// linear working space back out to sRGB, through a table so the pixel loop stays cheap (the whole
+// point of b169 was not doing a pow per channel per pixel).
+const L2S=new Float32Array(4096);
+for(let i=0;i<4096;i++){ const c=i/4095; L2S[i]=c<=0.0031308?c*12.92:1.055*Math.pow(c,1/2.4)-0.055; }
+const lin2srgb=c=>L2S[c<=0?0:c>=1?4095:(c*4095)|0];
+const srgb2lin=c=>c<=0?0:c>=1?1:(c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4));
+const SAT_LIFT=1.14, BRIGHT_LIFT=1.0;   // gentler now that it works on properly encoded colour
 function buildGroundTexture(){   // painted ground: bright grass with grain + worn dirt roads
   const TW=1024, TH=Math.max(256,Math.round(1024*MAP_H/MAP_W));
   const cv=document.createElement('canvas');cv.width=TW;cv.height=TH;const c2=cv.getContext('2d');groundCv=cv;groundCtx=c2;
@@ -961,12 +995,18 @@ function buildGroundTexture(){   // painted ground: bright grass with grain + wo
   // HSL and back again just to lift the saturation and lightness — 1.6 seconds of the load, the
   // single biggest thing between the owner and their kingdom. The same lift is a few multiplies in
   // RGB: push each channel away from its own luminance, then brighten.
+  // b172: and it was writing the WRONG NUMBERS. terrainColor hands back working-space (linear)
+  // colour, because THREE.Color converts a hex on the way in — but this canvas is tagged as sRGB,
+  // so the GPU decoded it a second time. Grass meant to be (88,171,59) arrived as (6,104,2): black
+  // in the blue channel, which is why the fields were one flat poisonous green with no tone in
+  // them. The roads escaped it, being drawn with CSS rgba, which is why they burned so much
+  // brighter than the grass they crossed. Encode properly and both faults go at once.
   for(let py=0;py<TH;py++)for(let px=0;px<TW;px++){
     const wxp=(px/TW-0.5)*WORLD_W, wzp=(py/TH-0.5)*WORLD_H;
     const h=heightAtWorld(wxp,wzp)/HSCALE;
     terrainColor(h,wxp,wzp,_tc1);
-    const r=_tc1.r,g=_tc1.g,b=_tc1.b, lum=0.299*r+0.587*g+0.114*b;
-    let R=(lum+(r-lum)*1.22)*1.10, G=(lum+(g-lum)*1.22)*1.10, B=(lum+(b-lum)*1.22)*1.10;
+    const r=lin2srgb(_tc1.r),g=lin2srgb(_tc1.g),b=lin2srgb(_tc1.b), lum=0.299*r+0.587*g+0.114*b;
+    let R=(lum+(r-lum)*SAT_LIFT)*BRIGHT_LIFT, G=(lum+(g-lum)*SAT_LIFT)*BRIGHT_LIFT, B=(lum+(b-lum)*SAT_LIFT)*BRIGHT_LIFT;
     if(R<0)R=0;else if(R>1)R=1; if(G<0)G=0;else if(G>1)G=1; if(B<0)B=0;else if(B>1)B=1;
     const i=(py*TW+px)*4;
     d[i]=R*255;d[i+1]=G*255;d[i+2]=B*255;d[i+3]=255; }
