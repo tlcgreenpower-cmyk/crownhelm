@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b187</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b188</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2833,10 +2833,22 @@ function ungarrison(b){ if(!b.gar)return; for(const id of b.gar){ const u=ents.f
   const sp=spawnSpot(b,u.type); u.inGar=null; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
   b.gar=[]; SFX.cmd(); }
 const NOTABLE=new Set(['hall','castle','barracks','gunshop','range','stable','siege','tower','watch','market','church','armourer','dock']);
+let _newsT=-99;   // last time word of a rival war reached the player
 function destroyBuilding(b){ if(b.gar&&b.gar.length){ for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
     u.inGar=null; u.cmd='idle'; u.hp=Math.max(1,Math.round(u.hp*0.5));   // the garrison scrambles clear, battered
     u.x=b.cx+(Math.random()-.5)*4; u.z=b.cz+(Math.random()-.5)*4; u.mesh.visible=true; placeMesh(u); } b.gar=[]; }
-  if(b.owner!=='player'&&NOTABLE.has(b.type))flashMsg('⚔ '+realmName(b.owner)+' — their '+BLD[b.type].name+' is destroyed!');   // b144: every enemy loss is reported
+  // b144 reported EVERY notable enemy building lost, which was right when the player was the only
+  // thing on the map able to pull one down. b185 changed that: realms now genuinely sack each
+  // other's towns, so the same line was about to spend the game announcing battles the player did
+  // not fight, cannot see and may not know the realms of. A kill of the player's own is still
+  // called out every time. A rival sacking a rival is NEWS — it names both sides, it only reaches
+  // the player for realms they have actually found, and it waits twelve seconds between despatches
+  // so a town going down does not bury everything else under a column of messages.
+  if(b.owner!=='player'&&NOTABLE.has(b.type)){
+    if(b._hitBy==='player')flashMsg('⚔ '+realmName(b.owner)+' — their '+BLD[b.type].name+' is destroyed!');
+    else if(b._hitBy&&b._hitBy!==b.owner&&elapsed-_newsT>12&&realmKnown(b.owner)&&realmKnown(b._hitBy)){
+      _newsT=elapsed;
+      flashMsg('\u{1F4DC} '+realmName(b._hitBy)+' have sacked a '+BLD[b.type].name+' of '+realmName(b.owner)); } }
   removeBuildUI(b);if(Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<90)camShake=Math.min(1.6,camShake+1.0);const y=heightAtWorld(b.cx,b.cz)+3;for(let i=0;i<16;i++)spawnPart(b.cx,y,b.cz,'debris');
   stampScorch(b.cx,b.cz,Math.max(b.w,b.h)+1);spawnRubble(b);   // the land remembers the fire
   sfxWhere(b.cx,b.cz);SFX.boom();removeBuilding(b);}
@@ -3134,7 +3146,7 @@ function counterBonus(e,t){const U=UNIT[e.type],T=UNIT[t.type];let b=0;
 function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk||UNIT[e.type].ramOnly)return;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e)+counterBonus(e,t),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player'){sfxWhere(e.x,e.z);U.siege?SFX.boom():SFX.bow();}}
   else{t.hp-=effDmg(e)+counterBonus(e,t);t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
-function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;const mult=U.siege?6:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4;   // AoE2 pacing: fat buildings fall fast to siege, slowly to muskets
+function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;b._hitBy=e.owner;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;const mult=U.siege?6:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4;   // AoE2 pacing: fat buildings fall fast to siege, slowly to muskets
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player'){sfxWhere(e.x,e.z);SFX.boom();}}
   else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);}
   if(b.owner==='player'&&e.owner!=='player')pingAttack(b.cx,b.cz);
