@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b207</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b208</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -902,6 +902,39 @@ function ownerMats(o){ const key=o+'_'+faction[o]; if(_ownerMats[key])return _ow
     B:new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(0.55),roughness:.7,flatShading:true}),
     roof:new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(0.42),roughness:.85,flatShading:true})}; }
 const teamMat=o=>ownerMats(o).A;
+// b208: A STREET OF ROOFS, NOT ONE ROOF REPEATED. ownerMats hands back a single roof material a
+// realm, so every roof a kingdom owns is the same flat colour — and at the angle this game is played
+// the roof IS the building, which is the whole reason b194 went and put eaves and a ridge on them.
+// Photographed close on a grown town, a dozen houses read as one house stamped a dozen times.
+// Five shades either side of the realm's colour, picked by the tile the building stands on, so a
+// row of houses has the variation a row of houses has. Same hue throughout — whose town it is has
+// to stay readable at a glance, which is what the colour is FOR — and only lightness moves, by at
+// most sixteen per cent. Seeded from the tile like b190's rotation, so a saved town comes back
+// wearing the same roofs. Costs nothing: buildings are not batched, so two roofs are two draw calls
+// whether they share a material or not.
+const _roofPal={};
+function ownerRoof(o,seed){ const key=o+'_'+faction[o];
+  let pal=_roofPal[key];
+  if(!pal){ const base=new THREE.Color(FACTIONS[faction[o]].coat).multiplyScalar(0.42); pal=[];
+    for(let i=0;i<5;i++){ const c=base.clone().multiplyScalar(0.84+i*0.08);
+      pal.push(new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true})); }
+    _roofPal[key]=pal; }
+  return pal[Math.min(4,Math.floor(hashN(seed*1.7+3,53)*5))]; }
+// ...and that only reaches the buildings whose roofs this file BUILDS. Counted on a grown world, 3
+// meshes out of 149 buildings — the keep spire, a castle turret, a church steeple. Everything
+// numerous, the houses and barracks and storehouses, is a merged model out of the asset pack: one
+// mesh, one texture, no vertex colours, so its roof colour lives in the image and every copy of it
+// is identical down to the pixel. A street was the same house stamped along it.
+// So the same idea is applied to those as well, one step out: a seeded shade of the whole building
+// rather than of its roof alone, which on a textured model reads as weathering — one cottage a
+// little sun-bleached, its neighbour a little darker. Ten per cent either side and no hue shift, so
+// nothing about whose town it is changes. Five clones a source material, made once and shared, so
+// this does not multiply materials with the size of the kingdom.
+const _tintPal=new Map();
+function tintedMat(base,seed){ let pal=_tintPal.get(base);
+  if(!pal){ pal=[]; for(let i=0;i<5;i++){ const c=base.clone(); c.color.multiplyScalar(0.90+i*0.05); pal.push(c); }
+    _tintPal.set(base,pal); }
+  return pal[Math.min(4,Math.floor(hashN(seed*2.3+7,71)*5))]; }
 M.playerA=new THREE.MeshStandardMaterial({color:0x3f86c8,roughness:.55,flatShading:true});
 M.playerB=new THREE.MeshStandardMaterial({color:0x27567f,roughness:.7,flatShading:true});
 M.enemyA=new THREE.MeshStandardMaterial({color:0xc85142,roughness:.55,flatShading:true});
@@ -2274,7 +2307,7 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     const lan=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),LANTERN_MAT);lan.position.set(wpx*.34,2.1,hpx*.40);g.add(lan);
     const hbm=makeHealthBar();hbm.scale.setScalar(2.6);hbm.position.y=(box.max.y-box.min.y)*s+2;g.add(hbm);g.userData.hb=hbm;
     return g; }
-  const OM=ownerMats(owner),A=OM.A,roof=OM.roof;
+  const OM=ownerMats(owner),A=OM.A,roof=ownerRoof(owner,seed||0);
   if(type==='wall'&&NEUTRAL_LIB&&NEUTRAL_LIB.wall_straight){ const m=NEUTRAL_LIB.wall_straight.clone(true);
     const box=new THREE.Box3().setFromObject(m); const len=Math.max(box.max.x-box.min.x,box.max.z-box.min.z,.001);
     const s=(wpx*1.22)/len; m.scale.setScalar(s); m.position.y=-box.min.y*s;
@@ -2495,7 +2528,14 @@ const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   if(type==='farm')bl.crop=FARM_CROPS[farmCropIndex(farmSeed(tx,ty))].n;
-  bl.mesh=makeBldMesh(type,owner,farmSeed(tx,ty));
+  const _sd=farmSeed(tx,ty);
+  bl.mesh=makeBldMesh(type,owner,_sd);
+  // b208: weather the textured asset models a shade either way, seeded from the tile they stand on.
+  // Only meshes carrying a map — that is exactly the pack models — so the procedural masonry, which
+  // ownerRoof already varies, is left alone, and the health bars (depthTest off) are skipped.
+  bl.mesh.traverse(o=>{ if(!o.isMesh||!o.material||!o.material.map)return;
+    if(o.material.depthTest===false)return;
+    o.material=tintedMat(o.material,_sd); });
   // and the same for masonry. Counted across a built-up world only about one building mesh in five
   // received — a keep had eight of its forty parts taking shadow — so a tree's shadow stopped dead
   // at a wall and a tower never darkened the roof below it. Set once here rather than at each of
