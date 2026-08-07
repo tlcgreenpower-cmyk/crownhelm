@@ -63,7 +63,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b190</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b191</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2728,14 +2728,25 @@ function update(dt){elapsed+=dt;   // sea is static now — water is scenery and
   _t=_pt('separate',_t);
   for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
   _t=_pt('heal',_t);
+  // b191: PROFILED. At 191 buildings and 198 men this loop was the single most expensive thing in
+  // the step — 1.59ms of 4.95, more than every unit in the game put together — and all of it was
+  // repeated work. Every armed building scanned the WHOLE entity list for a target, and called
+  // ents.find once per man in its garrison on top, so thirty towers cost thirty full sweeps. The
+  // enemy list only changes when the world does, so it is built once per step and per owner, and
+  // only for owners that actually have something to shoot with; a realm at peace gets an empty
+  // list and its towers cost nothing at all.
+  const _foeOf={}, _byId=new Map(); let _idMapped=false;
+  const foesOf=o=>{ let a=_foeOf[o]; if(a)return a;
+    a=[]; for(const e of ents)if(!e.inGar&&isHostile(o,e.owner))a.push(e); return _foeOf[o]=a; };
+  const entById=id=>{ if(!_idMapped){ for(const e of ents)_byId.set(e.id,e); _idMapped=true; } return _byId.get(id); };
   for(const b of blds)if(b.done&&(b.type==='tower'||b.type==='castle'||b.type==='watch'||(b.gar&&b.gar.length))){b.cd-=dt;if(b.cd<=0){
     const isC=b.type==='castle',isW=b.type==='watch',isT=b.type==='tower';
     const rng=isC?30:isW?18:isT?TOWER_RANGE:20;
     let dm=isC?26:isW?9:isT?TOWER_DMG:0;
     if(isT&&b.up2)dm*=2.6;else if(isT&&b.up)dm*=2;
-    if(b.gar)for(const id of b.gar){const u=ents.find(t=>t.id===id);if(u)dm+=UNIT[u.type].ranged?effDmg(u)*0.5:3;}   // the garrison mans the loopholes
+    if(b.gar)for(const id of b.gar){const u=entById(id);if(u)dm+=UNIT[u.type].ranged?effDmg(u)*0.5:3;}   // the garrison mans the loopholes
     if(dm<=0){b.cd=0.5;continue;}
-    let tgt=null,bd=rng;for(const e of ents)if(isHostile(b.owner,e.owner)&&!e.inGar){const d=Math.hypot(b.cx-e.x,b.cz-e.z);if(d<bd){bd=d;tgt=e;}}
+    let tgt=null,bd=rng;for(const e of foesOf(b.owner)){const d=Math.hypot(b.cx-e.x,b.cz-e.z);if(d<bd){bd=d;tgt=e;}}
     if(tgt){b.cd=isC?0.6:isW?1.1:isT?((b.up||b.up2)?TOWER_CD*1.6:TOWER_CD):1.2;
       spawnProj(b.cx,heightAtWorld(b.cx,b.cz)+(isC?9:isW?5:isT?7:8),b.cz,tgt,dm,b.owner,(isC||(isT&&(b.up||b.up2)))?'ball':'arrow');}}}
   _t=_pt('towers',_t);
