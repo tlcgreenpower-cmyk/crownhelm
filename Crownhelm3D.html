@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b217</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b218</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -137,7 +137,7 @@
           <div><div class="aorKick">Controls</div><ul class="aorList">
             <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
             <li><b>WASD / arrows / edges</b> pan · <b>wheel</b> zoom · <b>hold wheel &amp; drag</b> look around · <b>Shift+wheel-drag</b> pan · <b>Q / E</b> rotate</li>
-            <li><b>F</b> attack-move · <b>R</b> patrol · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
+            <li><b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
             <li>Double-click a unit = select all of its kind on screen</li>
           </ul></div>
           <div><div class="aorKick">How to play</div><ul class="aorList">
@@ -2914,7 +2914,7 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   grp.add(fl);grp.position.set(-.35,0,-.35);
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
-function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege
+function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;if(u.stance==='defend')u.post={x,z};}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege
   // b118: real-army order — melee line front, muskets centre, cavalry next, guns & healers rear,
   // and every regiment stands TOGETHER (same types form contiguous blocks in the ranks)
   const rank=t=>{const U=UNIT[t];return (U.heal||U.noAtk)?5:(U.siege||U.ramOnly)?4:U.cav?2:U.ranged?1:0;};   // healers ALWAYS at the very back (owner rule)
@@ -2980,6 +2980,18 @@ function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostil
   // b212: remember what he was sent to pull down. e.target is overwritten the moment he breaks off
   // to shoot at somebody, so without this the order is simply forgotten — see acquireNext.
   e.cmd='attackb';e.target=b;e.siegeB=b;e.gather=null;e.build=null;e.patrol=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
+// ---- Stances: how far a man will go off his own bat -------------------------------
+// Aggressive is the game as it has always played and stays the default (an undefined stance
+// reads as aggressive everywhere, so nothing already alive changes). Defensive fights what
+// comes to it and then walks back to the post it was standing on. Stand Ground shoots what
+// is already inside its weapon's reach and does not take one step for anybody.
+const STANCE={aggro:{ic:'\u2694',name:'Aggressive',reach:1,tip:'Charges anything that comes near \u2014 the way the men have always fought'},
+              defend:{ic:'\u26E8',name:'Defensive',reach:0.45,tip:'Fights what comes to them, then walks back to the spot you left them on'},
+              hold:{ic:'\u26F0',name:'Stand Ground',reach:0,tip:'Shoots what is already in reach and does not move a step \u2014 for holding a wall or a gate'}};
+function setStance(list,k){ for(const e of list){ if(e.type==='worker')continue;
+    e.stance=k; e.post=(k==='defend')?{x:e.x,z:e.z}:null;
+    if(k==='hold'&&e.cmd==='attack'){const t=e.target; if(t&&Math.hypot(e.x-t.x,e.z-t.z)>UNIT[e.type].range+UNIT[t.type].r){e.target=null;e.cmd='idle';e.path=null;} } }
+  flashMsg(STANCE[k].ic+' '+STANCE[k].name+' \u2014 '+STANCE[k].tip); SFX.cmd(); refreshUI(); }
 // ---- Patrol: march the line between here and there, for ever, fighting what you meet ----
 // The leg is an ATTACK-march, so it uses the same formation and the same eyes as F. When a
 // patrol breaks off to fight, it goes idle when the fight is done — and the idle case sends it
@@ -3474,6 +3486,8 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     case 'amove':if(arrived){if(e.patrol)patrolFlip(e);else e.cmd='idle';}autoAcq(e,false);break;
     case 'idle':autoAcq(e,true);
       if(e.patrol&&!e.inGar&&e.cmd==='idle'){patrolGo(e);break;}   // the fight is over — back on the line
+      if(e.stance==='defend'&&e.post&&e.cmd==='idle'&&!e.inGar&&!e.path&&Math.hypot(e.x-e.post.x,e.z-e.post.z)>7){
+        e.cmd='move';orderPath(e,clamp(txFromW(e.post.x),0,MAP_W-1),clamp(tzFromW(e.post.z),0,MAP_H-1),0);break;}
       if(!e.inGar&&!e.path&&Math.random()<dt*0.045&&e.mesh.userData.cheerA)playOnce(e,Math.random()<0.6?'cheerA':'attackA');   // b134: idle folk stretch, wave, drill
       if(e.type==='worker'&&Math.random()<dt*2&&!(e.noWork&&elapsed<e.noWork)){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
         else{const f=(Math.random()<0.5&&wantsFarmhand(e.owner))?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
@@ -3489,7 +3503,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     // entity or every building, per man, per step, six of them across the command cases. With two
     // hundred and eighty men and two hundred buildings that is the same quadratic waste b191 and
     // b192 took out of the towers and the target acquisition, hiding in the commands.
-    case 'attack':{const t=e.target;if(!t||t.hp<=0||t._dead||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
+    case 'attack':{const t=e.target;if(!t||t.hp<=0||t._dead||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(e.stance==='hold'){e.target=null;e.path=null;e.cmd='idle';}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
     case 'attackb':{const b=e.target;if(!b||b.hp<=0||b._gone){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
     case 'hunt':{const s=e.hunt;
       if(!s||!sheep.includes(s)){ e.hunt=null; const n2=nearestNode(e,'food');
@@ -3620,8 +3634,11 @@ function acquireNext(e){ if(UNIT[e.type].noAtk)return false;
   if(e.siegeB&&!e.siegeB._gone&&e.siegeB.hp>0&&isHostile(e.owner,e.siegeB.owner)){
     attackBOrder(e,e.siegeB); return true; }
   return false;}
-function autoAcq(e,chase){if(e.type==='worker'||UNIT[e.type].noAtk||UNIT[e.type].ramOnly||e.stance==='hold'||e.cmd==='attack'||e.cmd==='attackb')return;
-  e.acqT=(e.acqT===undefined?(e.id%16)/60:e.acqT); if(e.acqT>0){e.acqT-=1/30;return;} e.acqT=0.26;let tgt=null,bd=UNIT[e.type].range+(UNIT[e.type].ranged?7:11);let bd2=bd*bd;
+// b218: 'hold' used to bail out here, which meant a man told to stand his ground also stopped
+// looking — he would let a musketeer shoot him at point-blank and never fire back. He looks now;
+// the STANCE reach below is what keeps him from leaving the spot.
+function autoAcq(e,chase){if(e.type==='worker'||UNIT[e.type].noAtk||UNIT[e.type].ramOnly||e.cmd==='attack'||e.cmd==='attackb')return;
+  e.acqT=(e.acqT===undefined?(e.id%16)/60:e.acqT); if(e.acqT>0){e.acqT-=1/30;return;} e.acqT=0.26;let tgt=null,bd=UNIT[e.type].range+(UNIT[e.type].ranged?7:11)*(e.stance?STANCE[e.stance].reach:1);let bd2=bd*bd;
   for(const o of foesOfOwner(e.owner)){if(o.hp<=0)continue;const dx=e.x-o.x,dz=e.z-o.z,d2=dx*dx+dz*dz;if(d2<bd2){bd2=d2;tgt=o;}}if(tgt){e.cmd='attack';e.target=tgt;}}
 function muzzleFX(e,U){ if(e.owner!=='player'&&!tileVis(e.x,e.z))return; const mx=e.x+Math.cos(e.dir)*1.3, mz=e.z+Math.sin(e.dir)*1.3, my=heightAtWorld(e.x,e.z)+1.6;
   spawnPart(mx,my,mz,'flash');
@@ -4643,6 +4660,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
       else if(selected.length||selBuilding){selected=[];selBuilding=null;refreshUI();}
       else if(running&&!gameOver)openGameMenu();}}}   // Esc with nothing to cancel = pause + game menu, like any standard game
   if(k==='f'&&selUnits().length){attackMove=true;patrolMode=false;canvas.style.cursor='crosshair';}
+  if(k==='z'){const s=selUnits().filter(e=>e.type!=='worker');if(s.length){const ks=Object.keys(STANCE);setStance(s,ks[(ks.indexOf(s[0].stance||'aggro')+1)%ks.length]);}}
   if(k==='r'&&selUnits().length){patrolMode=true;attackMove=false;canvas.style.cursor='crosshair';flashMsg('\uD83D\uDEA9 Patrol \u2014 click where the line should end');}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;e.march=null;e.slot=null;e.patrol=null;});flashMsg('\u{1F6D1} Halted — the men stand where they are');}
   if(k==='p')togglePause();
@@ -4739,6 +4757,7 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   h+=card('⚔','They quarrel among themselves','','Rival realms fall out with their nearest neighbours and make peace again, whether or not you are involved. Open the Realms panel to see who is fighting whom — but only for realms you have actually found. A neighbour busy with its own war is a neighbour with its back turned.');
   h+=card('🏰','They defend what is theirs','','Strike a realm anywhere and its nearest soldiers turn round and come home, however far off they were, and no fresh attack leaves while its town is burning. Their towers are manned too — two to a tower — so an assault costs more than it used to.');
   h+=card('🚩','They march properly','','An army crosses the map in stages rather than trying to plot the whole road at once, so a war declared on the far side of a large map will arrive. Your own regiments do the same: order them anywhere and they will get there.');
+  h+=card('⚔','Stances','Press Z, or the buttons','Aggressive men charge anything that comes near \u2014 that is how they have always fought, and it is still the default. Defensive men fight what comes to them and then walk back to the spot you left them on. Stand Ground men shoot what is already in reach and do not take one step for anybody, which is what you want on a wall or a gate.');
   h+=card('🚩','Patrolling','Press R, then click','The men walk back and forth between where they stand and the spot you click, weapons free, for ever. Break off to fight and they return to the line the moment it is done \u2014 the way you hold a border or a wood without watching it. X calls them off.');
   h+=card('🔔','The Town Bell','Press B','Every villager drops the axe and runs for the nearest tower, keep or castle with room. Ring it again and each one picks up the exact job they left \u2014 the same tree, the same wall, the same farm. It is how you survive a raid you did not see coming.');
   h+=card('🛑','Halting','Press X','X stops the selected men where they stand and forgets their orders entirely — including a long march that would otherwise carry on to the far side of the map.');
@@ -4841,7 +4860,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
       if(b.type==='market'){marketBtn(cmds,'💰 Sell Wood','−100🌲 +50💰',()=>trade('w',-100,50));marketBtn(cmds,'💰 Sell Food','−100🍖 +50💰',()=>trade('f',-100,50));marketBtn(cmds,'💰 Sell Metal','−100⛏️ +65💰',()=>trade('m',-100,65));marketBtn(cmds,'🛒 Buy Wood','−70💰 +100🌲',()=>trade('w',100,-70));marketBtn(cmds,'🛒 Buy Metal','−80💰 +100⛏️',()=>trade('m',100,-80));marketBtn(cmds,'🛒 Buy Food','−70💰 +100🍖',()=>trade('f',100,-70));}}}return;}
   const sel=selUnits();if(sel.length){const counts={};sel.forEach(e=>counts[e.type]=(counts[e.type]||0)+1);info.innerHTML=`<b>Selected (${sel.length})</b> <span style="color:#6f93a6;font-size:11px">(Esc clears)</span><br>`+Object.entries(counts).map(([t,n])=>`<span style="white-space:nowrap">${n}×${UNIT_IC[t]||''}${UNIT[t].name}</span>`).join(' · ');
-    if(sel.length===1)info.innerHTML+=`<br>HP ${Math.max(0,Math.round(sel[0].hp))}/${sel[0].maxHp}<br><span id="uDoing" style="color:#9fe8b0">${unitDoing(sel[0])}</span>`;
+    if(sel.length===1)info.innerHTML+=`<br>HP ${Math.max(0,Math.round(sel[0].hp))}/${sel[0].maxHp}<br><span id="uDoing" style="color:#9fe8b0">${unitDoing(sel[0])}</span>`+(sel[0].type!=='worker'?` <span style="color:#7fa8bd;font-size:11px">· ${STANCE[sel[0].stance||'aggro'].ic} ${STANCE[sel[0].stance||'aggro'].name}</span>`:'');
     else{const ws=sel.filter(e=>e.type==='worker');if(ws.length===sel.length){const dt2={};ws.forEach(e=>{const d=unitDoing(e);dt2[d]=(dt2[d]||0)+1;});
       info.innerHTML+='<br><span id="uDoing" style="color:#9fe8b0;font-size:12px">'+Object.entries(dt2).map(([d,n])=>n+'× '+d).join(' · ')+'</span>';}}
     if(sel.some(e=>e.type!=='worker')){ const fr=document.createElement('div');fr.style.cssText='display:flex;gap:4px;margin-top:6px;flex-wrap:wrap';
@@ -4854,6 +4873,11 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       sb2.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#f3e4be;background:#3a2c17;border:1px solid #c9a44a';
       sb2.onclick=()=>{formSpread=formSpread===1?2:1;flashMsg(formSpread===1?'▪▪ The men close ranks — shoulder to shoulder':'▪ ▪ The men spread out — cannon splash bites less');refreshUI();};
       fr.appendChild(sb2);
+      const cur=sel[0].stance||'aggro';
+      for(const k in STANCE){ const tb=document.createElement('button'); tb.textContent=STANCE[k].ic+' '+STANCE[k].name;
+        tb.title=STANCE[k].tip+' (Z cycles)';
+        tb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#dff0f9;background:'+(cur===k?'#2c5c7a':'#17303f')+';border:1px solid '+(cur===k?'#8fd4f0':'#2c5164');
+        tb.onclick=()=>setStance(sel.filter(e=>e.type!=='worker'),k); fr.appendChild(tb); }
       info.appendChild(fr); }
     if(sel.some(e=>e.type==='worker')){
       const CATS={
