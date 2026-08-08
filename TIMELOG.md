@@ -1,4 +1,4 @@
-# Tidefall — build time log
+# Crownhelm — build time log
 
 Lee wants to know the game's total build time. Every session gets a row when it ends;
 the TOTAL line is the whole game, all time. Historical rows (before this file existed)
@@ -23,3 +23,4 @@ is not counted.
 | 2026-08-06 | ~07:55–ongoing         | 0.5h+ | b93: 8 realms, map sizes, builder overhaul, idle-peasant fix, Menu button |
 
 **TOTAL: 26.7 hours** (as of 2026-08-06 08:20, morning session still running)
+| 2026-08-06 | Meiya rig + asset optimisation + Crownhelm rename | ~3h | rig (500k->20k tris, 18 bones, 5 clips), hut 17.4MB->0.58MB, rename+save migration, ported onto b215 |

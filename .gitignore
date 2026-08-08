@@ -21,3 +21,9 @@ WORKLOG.md
 !assets/med/neutral/wall_straight_gate.bin
 !assets/animals/Horse.glb
 !assets/animals/White Horse.glb
+
+assets/worker-Meiya_pbr.glb
+assets/woodcutter_hut.glb
+assets/*.exe
+*.blend
+*.blend1

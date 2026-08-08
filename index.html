@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tidefall — Flooded Britain (3D)</title>
+<title>Crownhelm</title>
 <style>
   *{box-sizing:border-box;} html,body{margin:0;padding:0;height:100%;background:#05101a;color:#cfe3f0;
     font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none;}
@@ -112,7 +112,7 @@
           </div>
         </div>
         <div>
-          <h1 style="font-family:'Cinzel',serif;font-weight:800;font-size:clamp(48px,5.5vw,86px);line-height:.92;margin:0;letter-spacing:.03em;color:#f1e4c4;text-shadow:0 2px 0 #4a3722,0 18px 40px rgba(0,0,0,.65);background:none;">Age of<br>Refuge</h1>
+          <h1 style="font-family:'Cinzel',serif;font-weight:800;font-size:clamp(48px,5.5vw,86px);line-height:.92;margin:0;letter-spacing:.03em;color:#f1e4c4;text-shadow:0 2px 0 #4a3722,0 18px 40px rgba(0,0,0,.65);background:none;">Crown<br>helm</h1>
           <div style="display:flex;align-items:center;gap:14px;margin-top:16px;">
             <div style="height:1px;width:88px;background:linear-gradient(90deg,#c9a24a,rgba(201,162,74,0));"></div>
             <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:.34em;text-transform:uppercase;color:#c9a24a;">A whole land to rule</div>
@@ -396,9 +396,9 @@ const MAPS={
   broadwood: {name:'The Broadwood',w:168,h:112,forest:2.4,clump:2.2,dep:2,depAmt:1.2,rivers:1,lakes:0.18,desc:'One endless forest, clearings to claim'},
   custom:    {name:'My Map',w:96,h:64,forest:1,clump:1,dep:1,depAmt:1,rivers:1,lakes:0.16,custom:true,desc:'Your own design from the Map Builder'},
 };
-let curMapId=localStorage.getItem('tidefall_map')||'heartlands'; if(!MAPS[curMapId])curMapId='heartlands';
+let curMapId=localStorage.getItem('crownhelm_map')||'heartlands'; if(!MAPS[curMapId])curMapId='heartlands';
 // custom map remembers its chosen size (b93)
-try{const _cm=JSON.parse(localStorage.getItem('tidefall_custom_map'));if(_cm&&_cm.w>=64){MAPS.custom.w=_cm.w;MAPS.custom.h=_cm.h||Math.round(_cm.w*2/3);if(_cm.name)MAPS.custom.name=_cm.name;}}catch(e){}
+try{const _cm=JSON.parse(localStorage.getItem('crownhelm_custom_map'));if(_cm&&_cm.w>=64){MAPS.custom.w=_cm.w;MAPS.custom.h=_cm.h||Math.round(_cm.w*2/3);if(_cm.name)MAPS.custom.name=_cm.name;}}catch(e){}
 let MAP_W,MAP_H,WORLD_W,WORLD_H,HALF_W,HALF_H,REALM_SITES;
 function areaScale(){return (MAP_W*MAP_H)/(96*64);}
 // up to 8 realms: 4 corners then 4 edge midpoints (b93)
@@ -434,7 +434,7 @@ let faction={player:'english',r1:'french',r2:'scottish',r3:'irish'};
 const DEFAULT_AI_FACS=['french','scottish','irish','chinese','sacred','english','french'];
 let AI_REALMS=['r1','r2','r3'];
 let REALMS=['player',...AI_REALMS];
-let playerCount=parseInt(localStorage.getItem('tidefall_players'))||4;
+let playerCount=parseInt(localStorage.getItem('crownhelm_players'))||4;
 if(!(playerCount>=2&&playerCount<=8))playerCount=4;
 function setRealmCount(n){ playerCount=Math.max(2,Math.min(8,n));
   AI_REALMS=[]; for(let i=1;i<playerCount;i++)AI_REALMS.push('r'+i);
@@ -535,7 +535,7 @@ const txFromW=x=>Math.floor((x+HALF_W)/TILE),tzFromW=z=>Math.floor((z+HALF_H)/TI
 // ==================================================== SOUND
 // b147: one master bus for everything, and a world-space gain so a battle across the map is
 // heard as a battle across the map. sfxWhere(x,z) sets the gain for the NEXT sound only.
-let masterGain=null,_sfxG=1,sfxVol=+(localStorage.getItem('tidefall_vol')||70)/100;
+let masterGain=null,_sfxG=1,sfxVol=+(localStorage.getItem('crownhelm_vol')||70)/100;
 function initAudio(){ if(actx)return; try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){audioOn=false;}
   if(actx&&!masterGain){ masterGain=actx.createGain(); masterGain.gain.value=sfxVol; masterGain.connect(actx.destination); } }
 function audOut(){ return masterGain||actx.destination; }
@@ -567,7 +567,7 @@ document.getElementById('muteBtn').onclick=()=>{audioOn=!audioOn;document.getEle
 { const vs=document.getElementById('volSlider'),vv=document.getElementById('volVal');
   if(vs){ vs.value=String(Math.round(sfxVol*100)); vv.textContent=Math.round(sfxVol*100)+'%';
     vs.oninput=()=>{ sfxVol=(+vs.value)/100; vv.textContent=vs.value+'%';
-      localStorage.setItem('tidefall_vol',vs.value); initAudio(); if(masterGain)masterGain.gain.value=sfxVol; };
+      localStorage.setItem('crownhelm_vol',vs.value); initAudio(); if(masterGain)masterGain.gain.value=sfxVol; };
     vs.onchange=()=>{ if(audioOn){initAudio(); sfxWhere(camTarget.x,camTarget.z); SFX.select();} }; } }
 
 // ==================================================== THREE CORE
@@ -575,7 +575,7 @@ const canvas=document.getElementById('view');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-let QUAL=localStorage.getItem('tidefall_quality')||'med';
+let QUAL=localStorage.getItem('crownhelm_quality')||'med';
 function applyQuality(){
   renderer.shadowMap.enabled=QUAL!=='low';
   renderer.setPixelRatio(Math.min(devicePixelRatio,QUAL==='high'?2:QUAL==='med'?1.5:1));
@@ -814,6 +814,7 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
     loader.load('assets/pirate/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
+  loader.load('assets/worker-Meiya_rigged.glb',g=>{lib['Meiya']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
   loader.load('assets/animals/Sheep.glb',g=>{lib['SheepA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
   loader.load('assets/animals/Horse.glb',g=>{lib['HorseA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
   loader.load('assets/animals/White Horse.glb',g=>{lib['HorseW']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
@@ -843,7 +844,27 @@ function refreshUnitModels(){ try{ if(!CHAR_LIB||typeof ents==='undefined')retur
     scene.remove(e.mesh); e.mesh=nm; scene.add(nm); if(e.rank)addRankPips(e); } }catch(err){} }
 
 // ---- professional medieval building models (KayKit Medieval Hexagon, CC0) ----
+// --- Crownhelm rename: adopt kingdoms saved under the old 'crownhelm_' keys (once) ---
+(function(){ try{
+  if(localStorage.getItem('crownhelm_migrated'))return;
+  for(const k of ['save','slot1','slot2','slot3','map','diff','fac','quality','quality_user','custom_map','players','vol']){
+    const oldK='tidefall_'+k, newK='crownhelm_'+k;
+    if(localStorage.getItem(newK)===null){ const v=localStorage.getItem(oldK); if(v!==null)localStorage.setItem(newK,v); }
+  }
+  localStorage.setItem('crownhelm_migrated','1');
+}catch(e){} })();
 let BLD_LIB=null,NATURE_LIB=null,NEUTRAL_LIB=null;
+// ---- Woodcutter Hut: visual only for the Storehouse; no gameplay/cost/placement change ----
+const WOODCUTTER_TYPE='storehouse';
+let WOODCUTTER_MODEL=null;
+(async()=>{ try{
+  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
+  const g=await new Promise((res,rej)=>new GLTFLoader().load('assets/woodcutter_hut_opt.glb',res,undefined,rej));
+  WOODCUTTER_MODEL=mergeStaticModel(g.scene);
+  for(const b of (typeof blds!=='undefined'?blds:[])){ if(b.type!==WOODCUTTER_TYPE||!b.done)continue;
+    const nm=makeBldMesh(b.type,b.owner); nm.position.copy(b.mesh.position); nm.rotation.copy(b.mesh.rotation);
+    scene.remove(b.mesh); b.mesh=nm; scene.add(nm); }
+}catch(e){ /* keep the lumbermill */ } })();
 const FACTION_TEAMCOL={english:'red',french:'blue',irish:'green',scottish:'yellow',chinese:'green',sacred:'blue'};
 const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacksmith',church:'church',market:'market',mill:'windmill',storehouse:'lumbermill',tower:'tower_A',watch:'tower_B',siege:'tower_catapult',dock:'watermill',castle:'castle',range:'barracks'};
 (async()=>{ try{
@@ -962,7 +983,7 @@ function genMap(){
   if(MM.rivers>=2)for(let x=0;x<MAP_W;x++){const cy=MAP_H/2+Math.sin(x*0.15/wS)*8*hS+Math.sin(x*0.04/wS)*5*hS;   // second river, east-west
     for(let y=0;y<MAP_H;y++)if(Math.abs(y-cy)<2.0)elev[ti(x,y)]=Math.min(elev[ti(x,y)],0.32+Math.abs(y-cy)*0.15);}
   // b93: painted terrain from the Map Builder — plains flatten, hills rise, water drowns
-  const CUST=MM.custom?(()=>{try{return JSON.parse(localStorage.getItem('tidefall_custom_map'))}catch(e){return null}})():null;
+  const CUST=MM.custom?(()=>{try{return JSON.parse(localStorage.getItem('crownhelm_custom_map'))}catch(e){return null}})():null;
   if(CUST){ const app=(arr,fn)=>{for(const i of arr||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y))fn(x,y);}};
     app(CUST.lo,(x,y)=>{elev[ti(x,y)]=2.0;});
     app(CUST.hi,(x,y)=>{elev[ti(x,y)]=Math.max(elev[ti(x,y)],3.3);});
@@ -1935,7 +1956,7 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'GoldKnight',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
+const UNIT_CHAR={hero:'Meiya',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
 // b148: weapons. Shaft materials are shared, so a whole army of pikes costs a handful of draws
 // once the merge/instancing has done its work. Every piece is built around the grip at the origin.
 // one material family for all of it — same roughness, same metalness — so the merge can fold a
@@ -2000,7 +2021,9 @@ function weaponMesh(kind){ if(_wCache[kind]!==undefined)return _wCache[kind];
   let w=mk(); w.updateMatrixWorld(true);
   const m=mergeStaticModel(w); m.traverse(o=>{if(o.isMesh)o.castShadow=true;});
   return _wCache[kind]=m; }
-function armUnit(g,type){ const a=ARMS[type]; if(!a)return; const src=weaponMesh(a[0]); if(!src)return;
+function armUnit(g,type){ const a=ARMS[type]; if(!a)return;
+  if(type==='hero'&&UNIT_CHAR.hero==='Meiya')return;   // her weapons are sculpted into the model
+  const src=weaponMesh(a[0]); if(!src)return;
   const w=src.clone(true); w.position.set(a[1],a[2],a[3]); w.rotation.x=a[4]; w.rotation.z=a[5];
   g.add(w); g.userData.weapon=w; }
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
@@ -2319,6 +2342,17 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
   if(type==='farm'){ const fg=makeFarmField(seed||0);
     const hbf=makeHealthBar();hbf.scale.setScalar(1.4);hbf.position.y=3;fg.add(hbf);fg.userData.hb=hbf;
     return fg; }
+  // Woodcutter Hut — auto-scaled to match the other buildings, base seated on the ground
+  if(type===WOODCUTTER_TYPE&&WOODCUTTER_MODEL){
+    const m=WOODCUTTER_MODEL.clone(true);
+    const box=new THREE.Box3().setFromObject(m);
+    const fw=box.max.x-box.min.x,fd=box.max.z-box.min.z;
+    const s=(Math.min(wpx,hpx)*1.3)/Math.max(fw,fd,0.001);
+    m.scale.setScalar(s); m.position.y=-box.min.y*s;
+    m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+    g.add(m);
+    const hbW=makeHealthBar();hbW.scale.setScalar(2.6);hbW.position.y=(box.max.y-box.min.y)*s+2;g.add(hbW);g.userData.hb=hbW;
+    return g; }
   // professional model where one exists for this building type
   const teamCol=FACTION_TEAMCOL[faction[owner]],mdl=BLD_CHAR[type];
   if(BLD_LIB&&mdl&&BLD_LIB[teamCol]&&BLD_LIB[teamCol][mdl]){
@@ -3942,7 +3976,7 @@ function declareWar(o,by){ if(!diplo[o])return; if(diplo[o].stance!=='war'){ dip
   for(const f of AI_REALMS)if(f!==o&&isFriend(f)&&!aiWars[warKey(f,o)]){ aiWars[warKey(f,o)]=true;
     setTimeout(()=>flashMsg('🤝 '+realmName(f)+' joins your war against '+realmName(o)+'!'),1800); }
   refreshUI(); } }
-let difficulty=localStorage.getItem('tidefall_diff')||'normal';
+let difficulty=localStorage.getItem('crownhelm_diff')||'normal';
 const DIFF={ easy:  {drip:0.6, wave:0.6, aggro:0.5, cap:70},
              normal:{drip:1.8, wave:1.0, aggro:1.0, cap:110},
              hard:  {drip:4.0, wave:1.5, aggro:1.7, cap:130} };
@@ -4890,7 +4924,7 @@ function renderForces(){const p=$('forces');if(p.classList.contains('hidden'))re
       else selected=ids;
       finish(); };
     p.appendChild(row); } }
-document.getElementById('qualBtn').onclick=()=>{QUAL=QUAL==='med'?'low':QUAL==='low'?'high':'med';localStorage.setItem('tidefall_quality',QUAL);localStorage.setItem('tidefall_quality_user','1');applyQuality();
+document.getElementById('qualBtn').onclick=()=>{QUAL=QUAL==='med'?'low':QUAL==='low'?'high':'med';localStorage.setItem('crownhelm_quality',QUAL);localStorage.setItem('crownhelm_quality_user','1');applyQuality();
   flashMsg('⚙ Graphics: '+(QUAL==='high'?'High — full shadows':QUAL==='med'?'Medium — balanced':'Fast — smoothest, no shadows'));};
 applyQuality();
 if(location.protocol==='file:')document.getElementById('wrongDoor').style.display='block';
@@ -5095,7 +5129,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
-function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key=key||'tidefall_save';
+function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key=key||'crownhelm_save';
   const s={v:1,hpv:2,players:REALMS.length,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),name:name||undefined,fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     // b189: a realm's taste in building goes in the save. newGame re-rolls it, so without this a
@@ -5108,7 +5142,7 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,pitch:camPitch,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
   catch(err){flashMsg('Save failed: '+err.message);} }
-function loadGame(key){ const raw=localStorage.getItem(key||'tidefall_save'); if(!raw){flashMsg('No saved kingdom');return;}
+function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); if(!raw){flashMsg('No saved kingdom');return;}
   document.getElementById('slots').classList.add('hidden');
   let s; try{s=JSON.parse(raw);}catch(e){flashMsg('Save file corrupted');return;}
   $('overlay').classList.add('hidden'); setGameUI(true); initAudio(); resize();
@@ -5173,10 +5207,10 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     else aa.style.display='none'; }
   drawMini();if(composer&&QUAL!=='low')composer.render();else renderer.render(scene,camera);
   _fc++;const _nw=performance.now();if(_nw-_ft>1000){lastFps=_fc;_fc=0;_ft=_nw;
-    if(running&&!gameOver&&!document.hidden&&QUAL!=='low'&&!localStorage.getItem('tidefall_quality_user')){
+    if(running&&!gameOver&&!document.hidden&&QUAL!=='low'&&!localStorage.getItem('crownhelm_quality_user')){
       if(lastFps>0&&lastFps<26)_qBad++;else _qBad=0;
       if(_qBad>=6&&_nw-_qCool>15000){ _qCool=_nw;_qBad=0;
-        QUAL=QUAL==='high'?'med':'low'; localStorage.setItem('tidefall_quality',QUAL); applyQuality();
+        QUAL=QUAL==='high'?'med':'low'; localStorage.setItem('crownhelm_quality',QUAL); applyQuality();
         flashMsg('⚙ Graphics eased to '+(QUAL==='med'?'Medium':'Fast')+' for smooth play — use the ⚙ button to change'); } } }
   requestAnimationFrame(loop);}
 let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.Vector3();
@@ -5238,7 +5272,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
   const KEYS=['f','m','g','w2','hi','lo'];
   let BW=96,BH=64,cell=8,szi=0,brush='f',bsize=2,mirror=0,painting=false;
   let sets={}; for(const k of KEYS)sets[k]=new Set();
-  try{const s=JSON.parse(localStorage.getItem('tidefall_custom_map'));
+  try{const s=JSON.parse(localStorage.getItem('crownhelm_custom_map'));
     if(s){ if(s.w>=64){BW=s.w;BH=s.h||Math.round(s.w*2/3);} for(const k of KEYS)sets[k]=new Set(s[k]||[]); } }catch(e){}
   szi=SIZES.findIndex(z=>z[1]===BW); if(szi<0)szi=0;
   const bc=document.getElementById('bCanvas'),bx=bc.getContext('2d');
@@ -5308,19 +5342,19 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
   document.getElementById('bClear').onclick=()=>{ for(const k of KEYS)sets[k].clear(); draw(); };
   document.getElementById('bSave').onclick=()=>{ const out={w:BW,h:BH};
     for(const k of KEYS)out[k]=[...sets[k]];
-    localStorage.setItem('tidefall_custom_map',JSON.stringify(out));
+    localStorage.setItem('crownhelm_custom_map',JSON.stringify(out));
     MAPS.custom.w=BW;MAPS.custom.h=BH; if(curMapId==='custom')setMap('custom');
     addCustomMapBtn(); document.getElementById('builder').style.display='none';
     flashMsg('🛠 Map saved — '+SIZES[szi][0]+' '+BW+'×'+BH+' — pick “My Map” and march!'); };
 })();
 function addCustomMapBtn(){ const sel=document.getElementById('mapSel');
-  if(!sel||!localStorage.getItem('tidefall_custom_map'))return;
+  if(!sel||!localStorage.getItem('crownhelm_custom_map'))return;
   const m=MAPS.custom;
   let o=sel.querySelector('option[value=custom]');
   if(!o){ o=document.createElement('option'); o.value='custom'; sel.appendChild(o); }
   o.textContent=m.name+' ('+m.w+'×'+m.h+')';
   if(curMapId==='custom')sel.value='custom'; }
-document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('tidefall_fac')||'english');
+document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('crownhelm_fac')||'english');
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
   const tx0=ph.tx+(ph.w>>1), ty0=ph.ty+ph.h+3; let col=0,row=0;
   for(const t in UNIT){ if(UNIT[t].dom!=='land')continue;
@@ -5347,22 +5381,22 @@ function updateSetupBlurb(){const bl=document.getElementById('setupBlurb');if(!b
     const o=document.createElement('option'); o.value=id; o.textContent=m.name+' ('+m.w+'×'+m.h+')'; mapSel.appendChild(o); }
   addCustomMapBtn();
   mapSel.value=curMapId; if(mapSel.value!==curMapId){setMap('heartlands');mapSel.value='heartlands';}
-  mapSel.onchange=()=>{setMap(mapSel.value);localStorage.setItem('tidefall_map',mapSel.value);updateSetupBlurb();updateStartSummary();};
+  mapSel.onchange=()=>{setMap(mapSel.value);localStorage.setItem('crownhelm_map',mapSel.value);updateSetupBlurb();updateStartSummary();};
   diffSel.value=difficulty;
-  diffSel.onchange=()=>{difficulty=diffSel.value;localStorage.setItem('tidefall_diff',difficulty);updateStartSummary();};
+  diffSel.onchange=()=>{difficulty=diffSel.value;localStorage.setItem('crownhelm_diff',difficulty);updateStartSummary();};
   plSel.value=String(playerCount);
-  plSel.onchange=()=>{setRealmCount(+plSel.value);localStorage.setItem('tidefall_players',playerCount);updateSetupBlurb();updateStartSummary();};
-  selFac=localStorage.getItem('tidefall_fac')||'english'; if(!FACTIONS[selFac])selFac='english';
+  plSel.onchange=()=>{setRealmCount(+plSel.value);localStorage.setItem('crownhelm_players',playerCount);updateSetupBlurb();updateStartSummary();};
+  selFac=localStorage.getItem('crownhelm_fac')||'english'; if(!FACTIONS[selFac])selFac='english';
   facSel.value=selFac;
-  facSel.onchange=()=>{selFac=facSel.value;localStorage.setItem('tidefall_fac',selFac);updateSetupBlurb();updateStartSummary();};
+  facSel.onchange=()=>{selFac=facSel.value;localStorage.setItem('crownhelm_fac',selFac);updateSetupBlurb();updateStartSummary();};
   updateSetupBlurb();updateStartSummary(); }
 document.getElementById('marchBtn').onclick=()=>{
-  try{ const raw=localStorage.getItem('tidefall_save'); if(raw){ const m=(JSON.parse(raw).meta)||{};
+  try{ const raw=localStorage.getItem('crownhelm_save'); if(raw){ const m=(JSON.parse(raw).meta)||{};
     if((m.t||0)>180&&!window.confirm('You already have a kingdom in progress ('+slotDesc(JSON.parse(raw))+').\nStarting a new campaign overwrites the Autosave.\nKingdoms in Slots 1-3 are safe. Start anyway?'))return; } }catch(e){}
   start(selFac); };
 {const mb=document.getElementById('menuBuild');if(mb)mb.textContent='BUILD '+document.getElementById('ver').textContent;}
 // ---- save slots panel ----
-const SLOT_KEYS=[['tidefall_save','⏱ Autosave'],['tidefall_slot1','🏰 Slot 1'],['tidefall_slot2','🏰 Slot 2'],['tidefall_slot3','🏰 Slot 3']];
+const SLOT_KEYS=[['crownhelm_save','⏱ Autosave'],['crownhelm_slot1','🏰 Slot 1'],['crownhelm_slot2','🏰 Slot 2'],['crownhelm_slot3','🏰 Slot 3']];
 const FAC_NAME={scottish:'Black Watch',english:'Red Coats',irish:'Green Coats',french:'Blue Coats',chinese:'Imperial Army',sacred:'Sacred Band'};
 function slotDesc(s){ const m=s&&s.meta; if(!m)return 'older save';
   const mins=Math.floor((m.t||0)/60), d=new Date(m.when||0);
@@ -5373,7 +5407,7 @@ function renderSlots(){ const rows=document.getElementById('slotRows'); rows.inn
     const txt=document.createElement('div'); txt.style.flex='1';
     txt.innerHTML='<b style="color:#dff0f9">'+label+'</b><br><span style="color:'+(s?'#9fc0d2':'#546b7a')+';font-size:11.5px">'+(s?slotDesc(s):'— empty —')+'</span>';
     row.appendChild(txt);
-    if(key!=='tidefall_save'){
+    if(key!=='crownhelm_save'){
       const nameIn=document.createElement('input'); nameIn.type='text'; nameIn.maxLength=24;
       nameIn.placeholder='name this kingdom…'; nameIn.value=(s&&s.meta&&s.meta.name)||'';
       nameIn.style.cssText='width:120px;background:#0d2230;border:1px solid #2c5164;color:#f3e4be;border-radius:6px;padding:3px 8px;font-size:12px';
@@ -5396,7 +5430,7 @@ document.getElementById('loadMenuBtn').onclick=openSlots;
 document.getElementById('saveBtn').onclick=()=>{closeGameMenu();saveGame(true);openSlots();};
 document.getElementById('menuBtn').onclick=()=>{ if(running&&!gameOver&&!paradeMode){ if(!window.confirm('Return to the main menu?\nYour kingdom is saved to the Autosave slot first.'))return; saveGame(true); } location.reload(); };
 const _cont=document.getElementById('contBtn');
-if(localStorage.getItem('tidefall_save'))_cont.style.display='';
+if(localStorage.getItem('crownhelm_save'))_cont.style.display='';
 if(SLOT_KEYS.some(([k])=>localStorage.getItem(k)))document.getElementById('loadMenuBtn').style.display='';
 _cont.onclick=()=>loadGame();
 resize();requestAnimationFrame(loop);
