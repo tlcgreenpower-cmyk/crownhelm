@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b228</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b229</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4635,7 +4635,7 @@ function updateTeamRings(){
     const tx=txFromW(e.x),tz=tzFromW(e.z);
     if(e.owner!=='player'&&(!inB(tx,tz)||visNow[ti(tx,tz)]!==1))continue;   // and never through the fog
     const u=UNIT[e.type]||{r:1};
-    const rr=(u.r||1)*(u.cav?0.95:0.72);
+    const rr=(u.r||1)*(u.cav?0.95:0.72)*MAN_SCALE;   // b229: and the team ring under him
     // Sit the ring above the HIGHEST ground it spans, not the ground under the man's boots — a flat
     // ring pinned to the centre height buries its uphill edge and reads as a broken arc. Floating a
     // hair above a slope is far less noticeable than half a ring, and it keeps depth testing on, so
@@ -5251,7 +5251,10 @@ const rallyLine=new THREE.Line(rallyLineGeo,new THREE.LineDashedMaterial({color:
 rallyLine.renderOrder=996; rallyLine.visible=false; scene.add(rallyLine);
 function updateRings(){let need=0;
   const place=(x,z,s)=>{let r=rings[need];if(!r){r=new THREE.Mesh(ringGeo,ringMat);r.renderOrder=998;scene.add(r);rings.push(r);}r.visible=true;r.scale.setScalar(s);r.position.set(x,heightAtWorld(x,z)+0.12,z);need++;};
-  for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;place(e.x,e.z,UNIT[e.type].r*2);}
+  // b229: the ring is a marker on the MAN, so it comes down with him. His collision radius is
+  // deliberately unchanged - men still hold the same ground and stand the same distance apart -
+  // but a full-size ring round a three-quarter-size soldier reads as a loose hoop on the grass.
+  for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;place(e.x,e.z,UNIT[e.type].r*2*MAN_SCALE);}
   if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)place(b.cx,b.cz,Math.max(b.w,b.h)*TILE*0.6);}
   for(let i=need;i<rings.length;i++)rings[i].visible=false;
   let rb=null; if(selBuilding){const b=blds.find(x=>x.id===selBuilding); if(b&&b.owner==='player'&&b.done&&b.rally)rb=b;}
@@ -5671,7 +5674,7 @@ document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('hear
   for(const t in UNIT){ if(UNIT[t].dom!=='land')continue;
     const u=spawnUnit(t,'player',tx0-8+col*2,ty0+row*3); if(u){u.dir=Math.PI;u.disp=Math.PI;}
     col++; if(col>8){col=0;row++;} }
-  camTarget.set(ph.cx,0,ph.cz+18); camDist=16;
+  camTarget.set(ph.cx,0,ph.cz+18*MAN_SCALE); camDist=16*MAN_SCALE;   // b229: hold the men at the same size on parade
   flashMsg('🎖 The regiment on parade — wheel to zoom, Q/E to walk the line. Esc pauses; reload the page to leave.'); };
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
