@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b221</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b222</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2963,6 +2963,14 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
       :'⚔ Attack! Your men charge the '+(UNIT[eu.type].name)+(mk.length?' \u2014 the holy men preach to him':''));
     SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
+  // right-click your own DAMAGED building with workers = mend it
+  { const rtx=txFromW(x),rty=tzFromW(z),rid=inB(rtx,rty)?buildGrid[ti(rtx,rty)]:0;
+    const rb=blds.find(q=>q.id===rid&&q.owner==='player'&&q.done&&q.hp<q.maxHp);
+    const crew=rb?workers0:[];
+    if(rb&&crew.length){ crew.forEach(w=>repairOrder(w,rb));
+      spawnMoveMark(rb.cx,rb.cz,0xf3d55a);
+      flashMsg('\uD83D\uDD27 '+crew.length+(crew.length===1?' worker mends':' workers mend')+' the '+BLD[rb.type].name+' \u2014 '+Math.round(rb.hp/rb.maxHp*100)+'% standing');
+      const rest=list.filter(e=>!crew.includes(e)); if(rest.length)commandMove(rest,x,z); SFX.cmd(); return; } }
   // right-click your own tower/keep/castle with soldiers = garrison them inside
   { const gtx=txFromW(x),gty=tzFromW(z),gid=inB(gtx,gty)?buildGrid[ti(gtx,gty)]:0;
     const gb=blds.find(q=>q.id===gid&&q.owner==='player'&&q.done&&GAR_CAP[q.type]);
@@ -2988,6 +2996,14 @@ function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostil
   // b212: remember what he was sent to pull down. e.target is overwritten the moment he breaks off
   // to shoot at somebody, so without this the order is simply forgotten — see acquireNext.
   e.cmd='attackb';e.target=b;e.siegeB=b;e.gather=null;e.build=null;e.patrol=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
+// ---- Repair ----------------------------------------------------------------------------
+// There was no way to mend anything. A raid that took a Keep to a sliver left it on a sliver for
+// the rest of the game, so every attack was permanent and walls were worth building once. Repair
+// costs half the pro-rata build cost in materials, which is what stops it being a free undo.
+function repairTime(b){ const c=COST[b.type]; return Math.max(18,(c&&c.time?c.time:40)*1.2); }
+function repairOrder(e,b){ if(e.type!=='worker'||!b||b.owner!==e.owner||!b.done||b.hp>=b.maxHp)return false;
+  e.cmd='repair'; e.repB=b; e.gather=null; e.build=null; e.tendB=null; e.target=null; e._repMsg=0;
+  orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); return true; }
 // ---- Conversion: a monk talks a man out of his own army --------------------------------
 // The progress lives on the MONK, not on the target: break off, walk out of range or lose him
 // and the work is lost, which is what makes conversion a thing you have to commit to rather
@@ -3597,6 +3613,22 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
         b.gar.push(e.id); e.inGar=b.id; e.garB=null; e.mesh.visible=false; e.path=null; e.cmd='inside';
         selected=selected.filter(id=>id!==e.id); refreshUI(); }
       else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
+    case 'repair':{ const b=e.repB;
+      if(!b||b._gone||!b.done||b.hp>=b.maxHp){e.repB=null;e.cmd='idle';break;}
+      const drp=Math.hypot(e.x-b.cx,e.z-b.cz), reach=Math.max(b.w,b.h)*TILE*0.5+TILE*1.4;
+      if(drp>reach){ if(arrived||(!e.path&&Math.random()<dt*4))orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break; }
+      e.path=null; e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);
+      const gain=b.maxHp*dt/repairTime(b), frac=gain/b.maxHp, c=COST[b.type]||{}, rr=res[e.owner];
+      const nw=(c.w||0)*frac*0.5, nm=(c.m||0)*frac*0.5, ng=(c.g||0)*frac*0.5;
+      if(rr.w<nw||rr.m<nm||rr.g<ng){
+        if(e.owner==='player'&&!e._repMsg){e._repMsg=1;flashMsg('\uD83D\uDD27 The materials for the repair have run out');}
+        break; }
+      rr.w-=nw; rr.m-=nm; rr.g-=ng; e._repMsg=0;
+      b.hp=Math.min(b.maxHp,b.hp+gain);
+      if(Math.random()<dt*3)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.6,b.cz,'chip');
+      if(b.hp>=b.maxHp){ e.cmd='idle'; e.repB=null;
+        if(e.owner==='player')flashMsg('\uD83D\uDD27 The '+BLD[b.type].name+' is sound again'); }
+      break;}
     case 'convert':{ const t=e.target,U=UNIT[e.type];
       if(!t||t.hp<=0||t._dead||t.inGar||t.owner===e.owner||UNIT[t.type].noConv){e.convT=0;e.target=null;e.cmd='idle';break;}
       if((e.faith===undefined?1:e.faith)<1){ e.convT=0;
@@ -4722,7 +4754,8 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 function selUnits(){return selected.map(id=>ents.find(e=>e.id===id)).filter(e=>e&&!e.inGar);}
-function unitDoing(e){ if(e.cmd==='convert')return '🙏 Preaching';
+function unitDoing(e){ if(e.cmd==='repair')return '🔧 Repairing';
+  if(e.cmd==='convert')return '🙏 Preaching';
   if(UNIT[e.type].conv&&e.faith!==undefined&&e.faith<1)return '🙏 Faith '+Math.round(e.faith*100)+'%';
   if(e.type!=='worker')return e.cmd==='attack'||e.cmd==='attackb'?'⚔ Fighting':e.patrol?'🚩 On patrol':e.cmd==='amove'?'⚔ Attack-marching':e.cmd==='move'?'Marching':e.cmd==='gar'?'Heading to garrison':e.cmd==='inside'?'⛨ Garrisoned':e.cmd==='hunt'?'Hunting game':'Standing ready';
   switch(e.cmd){
@@ -4731,6 +4764,7 @@ function unitDoing(e){ if(e.cmd==='convert')return '🙏 Preaching';
     case 'build': return '🔨 Building '+(e.build?BLD[e.build.type].name:'');
     case 'tend': return '👨‍🌾 Tending the farm';
     case 'hunt': return '🔫 Hunting game';
+    case 'repair': return '🔧 Repairing';
     case 'gar': return 'Heading to garrison';
     case 'inside': return '⛨ Garrisoned';
     case 'move': return 'Walking';
@@ -4805,6 +4839,7 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   h+=card('⚔','They quarrel among themselves','','Rival realms fall out with their nearest neighbours and make peace again, whether or not you are involved. Open the Realms panel to see who is fighting whom — but only for realms you have actually found. A neighbour busy with its own war is a neighbour with its back turned.');
   h+=card('🏰','They defend what is theirs','','Strike a realm anywhere and its nearest soldiers turn round and come home, however far off they were, and no fresh attack leaves while its town is burning. Their towers are manned too — two to a tower — so an assault costs more than it used to.');
   h+=card('🚩','They march properly','','An army crosses the map in stages rather than trying to plot the whole road at once, so a war declared on the far side of a large map will arrive. Your own regiments do the same: order them anywhere and they will get there.');
+  h+=card('\uD83D\uDD27','Repair','Workers, right-click a damaged building','Nothing used to mend: a raid that took your Keep to a sliver left it on a sliver for the rest of the game. Now any worker will rebuild a damaged building back to full, and several together do it faster. It costs half of what that part of the building cost to raise, so it is a real decision after a raid rather than a free undo.');
   h+=card('\u2696\uFE0F','The Market','Prices move','Selling drops the price of that commodity and buying lifts it, so dumping a surplus pays less each time and cornering a shortage costs more \u2014 you cannot farm gold by selling wood on a loop. Prices drift back toward par over a couple of minutes, so a market you have flattened will recover if you leave it alone.');
   h+=card('\uD83D\uDE4F','Conversion','Right-click an enemy with a holy man selected','Monks, Priests and Cardinals do not fight \u2014 they preach. Right-click an enemy soldier and your holy man walks into range and starts working on him; keep him there and the man changes sides, armour and all. Walk out of range or lose sight and the work is lost, so it is something you commit to. Afterwards his faith is spent and takes about half a minute to return. A King cannot be converted.');
   h+=card('⚔','Stances','Press Z, or the buttons','Aggressive men charge anything that comes near \u2014 that is how they have always fought, and it is still the default. Defensive men fight what comes to them and then walk back to the spot you left them on. Stand Ground men shoot what is already in reach and do not take one step for anybody, which is what you want on a wall or a gate.');
@@ -4905,6 +4940,11 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
           :'<br><span style="color:#e0a878;font-size:11px">🍞 No flour — needs a Wheat or Barley farm with a Mill within 34 paces</span>'; }
       if(b.rschK)info.innerHTML+='<br><span id="bRschLine" style="color:#9fe8b0">🔨 Upgrading — '+Math.ceil(b.rschT)+'s</span>'
         +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="bRschBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#2f8a3a,#9fe8b0);width:'+Math.round((1-b.rschT/(b.rschTot||35))*100)+'%"></div></div>';
+      if(b.done&&b.hp<b.maxHp){
+        const crew=selUnits().filter(e=>e.type==='worker');
+        info.innerHTML+='<br><span style="color:#e8a86a">\uD83D\uDD27 Damaged \u2014 '+Math.round(b.hp/b.maxHp*100)+'% standing</span>'
+          +'<span style="color:#6f93a8;font-size:11px"> \u2014 select workers and right-click it to mend it</span>';
+        if(crew.length)techBtn(cmds,'\uD83D\uDD27','Repair',crew.length+(crew.length===1?' worker':' workers'),true,()=>{crew.forEach(w=>repairOrder(w,b));SFX.cmd();refreshUI();}); }
       if(GAR_CAP[b.type]){const gn=(b.gar||[]).length;
         info.innerHTML+='<br>⛨ Garrison '+gn+'/'+GAR_CAP[b.type]+(gn?'':' <span style="color:#6f93a8;font-size:11px">— right-click here with soldiers selected</span>');
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
@@ -5388,7 +5428,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
-      trade,mktSell,mktBuy,mktDrift,get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
+      newGame,trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
