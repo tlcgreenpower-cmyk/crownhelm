@@ -58,13 +58,14 @@
     <button id="gmenuBtn" title="Game menu — sound, graphics, saves & more (pauses the game)" style="cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:4px 16px;font-size:13px;font-weight:600;">☰ Menu</button>
     <div class="spacer"></div>
     <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤⚒️ <span id="idleN">0</span> <span style="font-size:10px;color:#8fa7bc">workers</span></button>
+    <button id="idleMilBtn" title="Select every soldier standing idle (´ or \ key) — the men who are not marching, fighting or garrisoned" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🛡 <span id="idleMilN">0</span> <span style="font-size:10px;color:#8fa7bc">idle</span></button>
     <button id="bellBtn" title="Town Bell (B) — every villager drops their work and shelters in the nearest garrison. Ring again to send them back." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔔 <span id="bellLbl">Bell</span></button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
     <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b227</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b228</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -137,7 +138,7 @@
           <div><div class="aorKick">Controls</div><ul class="aorList">
             <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
             <li><b>WASD / arrows / edges</b> pan · <b>wheel</b> zoom · <b>hold wheel &amp; drag</b> look around · <b>Shift+wheel-drag</b> pan · <b>Q / E</b> rotate</li>
-            <li><b>C</b> standard view · <b>M</b> man size · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
+            <li><b>C</b> standard view · <b>\</b> idle soldiers · <b>M</b> man size · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
             <li>Double-click a unit = select all of its kind on screen</li>
           </ul></div>
           <div><div class="aorKick">How to play</div><ul class="aorList">
@@ -4831,6 +4832,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
   if(k==='c'&&running){standardView();}
   if(k==='m'&&running){setManScale(MAN_SCALE===1);}
+  if((k==='\\'||k==='#')&&running)selectIdleMil();
   if(k==='.'&&running)selectIdle();
   if(k==='b'&&running)townBell();
   if(k===' '&&running&&atkPing.t<45){ev.preventDefault();camTarget.set(atkPing.x,0,atkPing.z);}
@@ -4856,6 +4858,18 @@ function unitDoing(e){ if(e.cmd==='repair')return '🔧 Repairing';
     case 'move': return 'Walking';
     default: return '💤 Idle — needs a job'; } }
 let idleCycle=0;
+// b228: the same round-up for SOLDIERS. An army does not sit in one place - men finish a fight,
+// finish a march, come out of a garrison and then stand wherever they happened to stop, and there
+// was no way to find them except to sweep the map by eye.
+function idleMilitary(){ return ents.filter(e=>e.owner==='player'&&e.type!=='worker'&&!e.inGar
+  &&e.cmd==='idle'&&!e.patrol&&!e.target&&!UNIT[e.type].noAtk); }
+function selectIdleMil(){ const im=idleMilitary();
+  if(!im.length){flashMsg('🛡 No idle soldiers — every man has his orders');return;}
+  selected=im.map(e=>e.id); selBuilding=null;
+  const c=im.reduce((a,e)=>{a.x+=e.x;a.z+=e.z;return a;},{x:0,z:0});
+  camTarget.set(c.x/im.length,0,c.z/im.length);
+  SFX.select(); refreshUI();
+  flashMsg('🛡 '+im.length+' idle soldier'+(im.length>1?'s':'')+' called up — give them an order'); }
 function idleWorkers(){return ents.filter(e=>e.owner==='player'&&e.type==='worker'&&e.cmd==='idle');}
 function selectIdle(){const iw=idleWorkers();
   if(!iw.length){flashMsg('💤 No lazy workers — everyone is grafting!');return;}
@@ -4864,6 +4878,7 @@ function selectIdle(){const iw=idleWorkers();
   SFX.select();refreshUI();flashMsg('💤 '+iw.length+' lazy worker'+(iw.length>1?'s':'')+' rounded up — right-click a resource to put them to work');}
 document.getElementById('idleBtn').onclick=()=>{if(running)selectIdle();};
 document.getElementById('bellBtn').onclick=()=>townBell();
+document.getElementById('idleMilBtn').onclick=()=>{if(running)selectIdleMil();};
 // ---- the ☰ game menu: sound / graphics / saves / quit, pausing the game while open ----
 let _gmPaused=false;
 function closeGameMenu(){ const gm=document.getElementById('gameMenu'); if(!gm||gm.classList.contains('hidden'))return;
@@ -5141,6 +5156,9 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
   if(!$('forces').classList.contains('hidden')&&Math.random()<0.08)renderForces();
   $('idleN').textContent=nIdle;const ib=$('idleBtn');
   ib.style.borderColor=nIdle?'#c9a44a':'#2c5164';ib.style.color=nIdle?'#f3e4be':'#5f7f92';ib.style.opacity=nIdle?'1':'.6';
+  { const nm=idleMilitary().length, mb=$('idleMilBtn');
+    if(mb){ $('idleMilN').textContent=nm;
+      mb.style.borderColor=nm?'#c9a44a':'#2c5164'; mb.style.color=nm?'#f3e4be':'#5f7f92'; mb.style.opacity=nm?'1':'.6'; } }
   const bb=$('bellBtn'); if(bb){ bb.style.borderColor=bellRung?'#e0554a':'#2c5164'; bb.style.color=bellRung?'#ffd9d3':'#dff0f9';
     bb.style.background=bellRung?'#4a1c18':'#17303f'; $('bellLbl').textContent=bellRung?'Back to work':'Bell'; }
   $('age').textContent=tech.player.ageTimer>0?'Advancing… '+Math.ceil(tech.player.ageTimer)+'s':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
