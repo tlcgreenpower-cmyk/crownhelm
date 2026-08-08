@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b223</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b224</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -78,7 +78,7 @@
     </div>
   </div>
   <div id="atkArrow" style="display:none;position:absolute;z-index:25;font-size:36px;pointer-events:none;text-shadow:0 0 10px #ff2010,0 0 3px #000;transform:translate(-50%,-50%);">⚔️</div>
-  <div id="nodeTip" style="display:none;position:fixed;z-index:30;background:rgba(10,24,34,.94);border:1px solid #2c5164;border-radius:6px;padding:4px 10px;font-size:12px;color:#dff0f9;pointer-events:none;"></div>
+  <div id="nodeTip" style="display:none;position:fixed;z-index:30;background:rgba(10,24,34,.96);border:1px solid #2c5164;border-radius:7px;padding:6px 11px;font-size:12px;line-height:1.35;color:#dff0f9;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.5);"></div>
   <div id="stage">
     <canvas id="view"></canvas>
     <script>document.getElementById('stage').appendChild(document.getElementById('atkArrow'));</script>
@@ -3068,6 +3068,32 @@ function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather
 function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my&&!e.inGar){const d=Math.hypot(x-e.x,z-e.z);if(d<bd+UNIT[e.type].r){bd=d;best=e;}}return best;}
 function bldAt(x,z,my){const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;if(!id)return null;const b=blds.find(b=>b.id===id);return(b&&b.owner!==my)?b:null;}
 function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes,meatNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
+// ---- What am I looking at? -------------------------------------------------------------
+// The hover tip used to read "\uD83C\uDF32 Timber: 240" and nothing else, which tells you a number
+// but never what the thing IS, how much of it you have already taken, or why your men will not
+// work it. Owner asked for the name; while it is open it may as well answer all four.
+const RES_INFO={
+  wood: {ic:'\uD83C\uDF32',name:'Forest',res:'WOOD',   col:'#7fd08a',verb:'fell it',      unit:'timber'},
+  gold: {ic:'\uD83D\uDCB0',name:'Gold vein',res:'GOLD', col:'#f3d55a',verb:'mine it',      unit:'gold'},
+  metal:{ic:'\u26CF\uFE0F',name:'Iron seam',res:'METAL',col:'#c4d2dc',verb:'work it',      unit:'ore'},
+  food: {ic:'\uD83C\uDF56',name:'Carcass',  res:'FOOD', col:'#ff9a6a',verb:'butcher it',   unit:'meat'}};
+function resTipHTML(n){ const I=RES_INFO[n.type]||RES_INFO.wood;
+  const left=Math.max(0,Math.round(n.amount)), full=Math.max(left,Math.round(n.a0||n.amount));
+  const pct=full?Math.round(left/full*100):100;
+  const deep=(n.type==='wood'&&!chopReachable(n));
+  const bar='<div style="margin-top:3px;width:150px;height:6px;border:1px solid #2c5164;border-radius:4px;background:#0a1822;overflow:hidden">'
+    +'<div style="height:100%;width:'+pct+'%;background:'+I.col+'"></div></div>';
+  return '<b style="color:'+I.col+'">'+I.ic+' '+I.name+'</b> <span style="color:#7fa8bd">\u2014 '+I.res+'</span>'
+    +'<br><span style="font-size:11px;color:#bcd6e6">'+left+' of '+full+' '+I.unit+' left ('+pct+'%)</span>'
+    +bar
+    +'<br><span style="font-size:11px;color:'+(deep?'#e8a86a':'#6f93a8')+'">'
+    +(deep?'Too deep in the wood \u2014 your men can only cut from the edge'
+          :'Right-click with workers selected to '+I.verb)+'</span>'; }
+function beastAt(x,z){ for(const s of sheep){ if(Math.hypot(x-s.x,z-s.z)<2.6)return s; } return null; }
+function beastTipHTML(s){ const nm=s.kind==='boar'?'\uD83D\uDC17 Wild boar':s.kind==='deer'?'\uD83E\uDD8C Deer':s.kind==='rabbit'?'\uD83D\uDC07 Rabbit':'\uD83D\uDC11 Sheep';
+  return '<b style="color:#ff9a6a">'+nm+'</b> <span style="color:#7fa8bd">\u2014 FOOD, on the hoof</span>'
+    +'<br><span style="font-size:11px;color:#bcd6e6">'+(s.meat||90)+' meat once it is down</span>'
+    +'<br><span style="font-size:11px;color:#6f93a8">Right-click with workers selected to hunt it</span>'; }
 function nearestDrop(e){let best=null,bd=1e9;for(const b of blds)if(b.owner===e.owner&&b.done&&BLD[b.type].drop){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}return best;}
 function chopReachable(n){ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy; if(inB(x,y)&&passable(x,y,0,'land'))return true; } return false; }   // only forest-EDGE trees can be worked
 function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
@@ -4679,18 +4705,19 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
     camTarget.x=clamp(panDrag.cx-(dxp*rgt[0]+dyp*fwd[0])*f,-HALF_W,HALF_W);
     camTarget.z=clamp(panDrag.cz-(dxp*rgt[1]+dyp*fwd[1])*f,-HALF_H,HALF_H); }const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
   updateGarHint();   // so the garrison ring and its tip answer the very first flick of the mouse
-  { const tip=document.getElementById('nodeTip'); const nd=(running&&!placing&&!dragging&&!rDrag)?nodeAt(g.x,g.z):null;
-    if(nd){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
-      tip.textContent=(nd.type==='wood'?'🌲 Timber: ':nd.type==='gold'?'💰 Gold left: ':nd.type==='food'?'🐑 Meat left: ':'⛏️ Iron left: ')+Math.max(0,Math.round(nd.amount)); }
+  { const tip=document.getElementById('nodeTip'); const free=(running&&!placing&&!dragging&&!rDrag);
+    const nd=free?nodeAt(g.x,g.z):null, bs=(free&&!nd)?beastAt(g.x,g.z):null;
+    if(nd||bs){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
+      tip.innerHTML=nd?resTipHTML(nd):beastTipHTML(bs); }
     // b167: what grows in a field is decided by the ground it stands on, so say so BEFORE it is
     // built. Otherwise siting a Mill and a Bakery is a guess — as it was for me, laying four farms
     // in a row and getting four vegetable plots with a Bakery next door that could bake nothing.
     else if(placing==='farm'&&running){ const c=FARM_CROPS[farmCropIndex(farmSeed(hoverTile.tx,hoverTile.ty))];
       const kind=CROP_KIND[c.n]||'veg';
       tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
-      tip.textContent='🌱 '+c.n+(kind==='grain'?' — grain, wants a Mill within 30':kind==='flax'?' — linen, wants a Market':' — feeds the town straight from the row'); }
+      tip.innerHTML='🌱 '+c.n+(kind==='grain'?' — grain, wants a Mill within 30':kind==='flax'?' — linen, wants a Market':' — feeds the town straight from the row'); }
     else if(garHintB){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
-      tip.textContent='⛨ Right-click to man the '+BLD[garHintB.type].name+' — '+(garHintB.gar||[]).length+'/'+GAR_CAP[garHintB.type]; }
+      tip.innerHTML='⛨ Right-click to man the '+BLD[garHintB.type].name+' — '+(garHintB.gar||[]).length+'/'+GAR_CAP[garHintB.type]; }
     else tip.style.display='none'; }
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}
   if(rDrag){ const dx=g.x-rDrag.gx,dz=g.z-rDrag.gz,d=Math.hypot(dx,dz);
@@ -5449,7 +5476,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
-      newGame,trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
+      newGame,trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
