@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b220</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b221</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3177,6 +3177,7 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   _t=_pt('units',_t);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
   _t=_pt('separate',_t);
+  mktDrift(dt);
   for(const e of ents)if(UNIT[e.type].heal){healNearby(e,dt);
     if(UNIT[e.type].conv&&e.faith!==undefined&&e.faith<1){e.faith=Math.min(1,e.faith+dt/CONV_REST);if(e.faith>=1)e._faithMsg=0;}}
   _t=_pt('heal',_t);
@@ -4804,6 +4805,7 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   h+=card('⚔','They quarrel among themselves','','Rival realms fall out with their nearest neighbours and make peace again, whether or not you are involved. Open the Realms panel to see who is fighting whom — but only for realms you have actually found. A neighbour busy with its own war is a neighbour with its back turned.');
   h+=card('🏰','They defend what is theirs','','Strike a realm anywhere and its nearest soldiers turn round and come home, however far off they were, and no fresh attack leaves while its town is burning. Their towers are manned too — two to a tower — so an assault costs more than it used to.');
   h+=card('🚩','They march properly','','An army crosses the map in stages rather than trying to plot the whole road at once, so a war declared on the far side of a large map will arrive. Your own regiments do the same: order them anywhere and they will get there.');
+  h+=card('\u2696\uFE0F','The Market','Prices move','Selling drops the price of that commodity and buying lifts it, so dumping a surplus pays less each time and cornering a shortage costs more \u2014 you cannot farm gold by selling wood on a loop. Prices drift back toward par over a couple of minutes, so a market you have flattened will recover if you leave it alone.');
   h+=card('\uD83D\uDE4F','Conversion','Right-click an enemy with a holy man selected','Monks, Priests and Cardinals do not fight \u2014 they preach. Right-click an enemy soldier and your holy man walks into range and starts working on him; keep him there and the man changes sides, armour and all. Walk out of range or lose sight and the work is lost, so it is something you commit to. Afterwards his faith is spent and takes about half a minute to return. A King cannot be converted.');
   h+=card('⚔','Stances','Press Z, or the buttons','Aggressive men charge anything that comes near \u2014 that is how they have always fought, and it is still the default. Defensive men fight what comes to them and then walk back to the spot you left them on. Stand Ground men shoot what is already in reach and do not take one step for anybody, which is what you want on a wall or a gate.');
   h+=card('🚩','Patrolling','Press R, then click','The men walk back and forth between where they stand and the spot you click, weapons free, for ever. Break off to fight and they return to the line the moment it is done \u2014 the way you hold a border or a wood without watching it. X calls them off.');
@@ -4906,7 +4908,12 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       if(GAR_CAP[b.type]){const gn=(b.gar||[]).length;
         info.innerHTML+='<br>⛨ Garrison '+gn+'/'+GAR_CAP[b.type]+(gn?'':' <span style="color:#6f93a8;font-size:11px">— right-click here with soldiers selected</span>');
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
-      if(b.type==='market'){marketBtn(cmds,'💰 Sell Wood','−100🌲 +50💰',()=>trade('w',-100,50));marketBtn(cmds,'💰 Sell Food','−100🍖 +50💰',()=>trade('f',-100,50));marketBtn(cmds,'💰 Sell Metal','−100⛏️ +65💰',()=>trade('m',-100,65));marketBtn(cmds,'🛒 Buy Wood','−70💰 +100🌲',()=>trade('w',100,-70));marketBtn(cmds,'🛒 Buy Metal','−80💰 +100⛏️',()=>trade('m',100,-80));marketBtn(cmds,'🛒 Buy Food','−70💰 +100🍖',()=>trade('f',100,-70));}}}return;}
+      if(b.type==='market'){
+        for(const k of ['w','f','m'])marketBtn(cmds,'\uD83D\uDCB0 Sell '+MKT_BASE[k].name,'\u2212100'+MKT_BASE[k].ic+' +'+mktSell(k)+'\uD83D\uDCB0',()=>trade(k,-1));
+        for(const k of ['w','f','m'])marketBtn(cmds,'\uD83D\uDED2 Buy '+MKT_BASE[k].name,'\u2212'+mktBuy(k)+'\uD83D\uDCB0 +100'+MKT_BASE[k].ic,()=>trade(k,1));
+        info.innerHTML+='<br><span style="font-size:11px;color:#9fc0d2">\u2696\uFE0F Prices move as you trade '
+          +['w','f','m'].map(k=>MKT_BASE[k].ic+' '+Math.round(mkt[k]*100)+'%').join(' \u00b7 ')
+          +' \u2014 100% is par, and they drift back to it in time</span>';}}}return;}
   const sel=selUnits();if(sel.length){const counts={};sel.forEach(e=>counts[e.type]=(counts[e.type]||0)+1);info.innerHTML=`<b>Selected (${sel.length})</b> <span style="color:#6f93a6;font-size:11px">(Esc clears)</span><br>`+Object.entries(counts).map(([t,n])=>`<span style="white-space:nowrap">${n}×${UNIT_IC[t]||''}${UNIT[t].name}</span>`).join(' · ');
     if(sel.length===1)info.innerHTML+=`<br>HP ${Math.max(0,Math.round(sel[0].hp))}/${sel[0].maxHp}<br><span id="uDoing" style="color:#9fe8b0">${unitDoing(sel[0])}</span>`+(sel[0].type!=='worker'?` <span style="color:#7fa8bd;font-size:11px">· ${stOf(sel[0]).ic} ${stOf(sel[0]).name}</span>`:'');
     else{const ws=sel.filter(e=>e.type==='worker');if(ws.length===sel.length){const dt2={};ws.forEach(e=>{const d=unitDoing(e);dt2[d]=(dt2[d]||0)+1;});
@@ -4974,7 +4981,26 @@ function rschLineHTML(){ const T=tech.player; if(!T.rsch)return '';
     +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="rschBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#2f8a3a,#9fe8b0);width:'+Math.round((1-T.rsch.t/T.rsch.total)*100)+'%"></div></div>'; }
 function techBtn(cmds,ic,label,cost,en,fn,maxed){const btn=document.createElement('div');btn.className='btn'+(en&&!maxed?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${maxed?label.replace(/\d+$/,'MAX'):label}<small>${maxed?'maxed':cost}</small>`;btn.onclick=()=>{if(maxed){flashMsg('Maxed');return;}if(!en){flashMsg('Not enough resources');return;}fn();};cmds.appendChild(btn);}
 function marketBtn(cmds,label,cost,fn){const btn=document.createElement('div');btn.className='btn';btn.innerHTML=`${label}<small>${cost}</small>`;btn.onclick=fn;cmds.appendChild(btn);}
-function trade(k,amt,gold){const r=res.player;if(amt<0&&r[k]<-amt){flashMsg('Not enough to sell');return;}if(gold<0&&r.g<-gold){flashMsg('Not enough gold');return;}r[k]+=amt;r.g+=gold;SFX.cmd();updateHUD();refreshUI();}
+// ---- The commodity market (AoE2) -------------------------------------------------------
+// A market with fixed prices is not a market, it is a vending machine: sell wood at 50 for ever
+// and wood stops being a resource and becomes a slow tap of gold. Every hundred you sell drops
+// that commodity 3.5% and every hundred you buy lifts it, so dumping a surplus pays less each
+// time and cornering a shortage costs more. Unlike AoE2 the price does creep back toward par
+// (half-life about two minutes) \u2014 an hours-long game would otherwise leave the market dead.
+const MKT_BASE={w:{sell:50,buy:70,ic:'\uD83C\uDF32',name:'wood'},f:{sell:50,buy:70,ic:'\uD83C\uDF56',name:'food'},m:{sell:65,buy:80,ic:'\u26CF\uFE0F',name:'metal'}};
+const MKT_STEP=0.035, MKT_MIN=0.30, MKT_MAX=2.50;
+let mkt={w:1,f:1,m:1};
+function mktSell(k){ return Math.max(4,Math.round(MKT_BASE[k].sell*mkt[k])); }
+function mktBuy(k){ return Math.max(6,Math.round(MKT_BASE[k].buy*mkt[k])); }
+function mktDrift(dt){ for(const k in mkt)mkt[k]+=(1-mkt[k])*dt*0.006; }
+function trade(k,dir){ const r=res.player,B=MKT_BASE[k];
+  if(dir<0){ if(r[k]<100){flashMsg('You have not 100 '+B.name+' to sell');return;}
+    const g=mktSell(k); r[k]-=100; r.g+=g; mkt[k]=Math.max(MKT_MIN,mkt[k]-MKT_STEP);
+    flashMsg('\u2696\uFE0F Sold 100 '+B.ic+' '+B.name+' for '+g+'\uD83D\uDCB0 \u2014 the price falls to '+Math.round(mkt[k]*100)+'% of par'); }
+  else { const g=mktBuy(k); if(r.g<g){flashMsg('Not enough gold \u2014 100 '+B.name+' costs '+g+'\uD83D\uDCB0 today');return;}
+    r.g-=g; r[k]+=100; mkt[k]=Math.min(MKT_MAX,mkt[k]+MKT_STEP);
+    flashMsg('\uD83D\uDED2 Bought 100 '+B.ic+' '+B.name+' for '+g+'\uD83D\uDCB0 \u2014 the price rises to '+Math.round(mkt[k]*100)+'% of par'); }
+  SFX.cmd();updateHUD();refreshUI(); }
 function flashMsg(t){const m=$('msg');m.textContent=t;m.style.opacity=1;clearTimeout(flashMsg._t);flashMsg._t=setTimeout(()=>m.style.opacity=0,2400);}
 function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').textContent=Math.floor(res.player.w);$('metal').textContent=Math.floor(res.player.m);$('gold').textContent=Math.floor(res.player.g);
   const pu=popUsed('player'),pc=popCap('player'),pq=popQueued('player');
@@ -5262,6 +5288,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
+  mkt={w:1,f:1,m:1};   // a new kingdom opens at par
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
 function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key=key||'crownhelm_save';
@@ -5274,6 +5301,7 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
     blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,rk:b.rschK||0,rt:Math.round(b.rschT||0),la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
     ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
+    mkt:{...mkt},
     cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,pitch:camPitch,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
   catch(err){flashMsg('Save failed: '+err.message);} }
@@ -5288,6 +5316,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
   for(const e of ents)scene.remove(e.mesh); ents=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
   res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed; statKills=s.kills||0;
+  mkt={w:1,f:1,m:1}; if(s.mkt)for(const k in mkt)if(typeof s.mkt[k]==='number')mkt[k]=s.mkt[k];   // pre-b221 saves start at par
   if(s.taste)for(const o in s.taste)if(realmAI[o]&&s.taste[o])realmAI[o].taste=s.taste[o];   // b189: they keep their character
   const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0){if(arr[i].mesh)arr[i].mesh.visible=false;else if(arr[i].tim)setTreeK(arr[i],0);}}});};
   restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);rebuildTreeGrid();
@@ -5359,6 +5388,8 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
+      trade,mktSell,mktBuy,mktDrift,get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
+
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
       fellTree,get fallingTrees(){return fallingTrees;},drawMini,drawMiniTerrain,viewQuad,
