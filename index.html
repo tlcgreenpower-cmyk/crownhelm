@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b231</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b232</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4344,6 +4344,35 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   // made a war of attrition unloseable: every ram hit against a rival was permanent, so you could
   // grind a town to rubble one raid at a time and never face a wall that had been put back up.
   // Two masons at most, and only on the worst building, so it cannot strip its own economy.
+  // b232: a realm rings its own TOWN BELL. The player has had one since b216; a raided realm just
+  // watched its villagers cut down at the tree line, which made raiding it far too cheap. Three a
+  // tick into the nearest shelter with room, and back to the exact job they dropped once the
+  // ground is clear - the same bargain the player's bell makes.
+  if(!ai.blT||elapsed>ai.blT){ ai.blT=elapsed+6;
+    const hallB=blds.find(b=>b.owner===o&&b.done&&b.type==='hall');
+    if(hallB){ let threat=false;
+      for(const f of foesOfOwner(o)){ if(UNIT[f.type].noAtk)continue;
+        if(Math.hypot(f.x-hallB.cx,f.z-hallB.cz)<34){threat=true;break;} }
+      if(threat){ let sent=0;
+        for(const e of ents){ if(sent>=3)break;
+          if(e.owner!==o||e.type!=='worker'||e.inGar||e.cmd==='gar')continue;
+          // 40 was too tight to matter: measured, villagers settle 12-14 from the keep at the
+          // start but are well past 40 within twenty seconds, so a raid at any normal point in
+          // the game called in nobody at all. 70 covers the working ring around a town.
+          if(Math.hypot(e.x-hallB.cx,e.z-hallB.cz)>70)continue;
+          let sh=null,sd=1e9;
+          for(const b of blds){ if(b.owner!==o||!b.done||!GAR_CAP[b.type])continue;
+            if((b.gar||[]).length>=GAR_CAP[b.type])continue;
+            const d=Math.hypot(b.cx-e.x,b.cz-e.z); if(d<sd){sd=d;sh=b;} }
+          if(sh){ e.bellJob={cmd:e.cmd,gather:e.gather,build:e.build,tendB:e.tendB};
+            e.cmd='gar'; e.garB=sh; e.target=null; e.gather=null; e.build=null; e.tendB=null;
+            orderPath(e,sh.tx+(sh.w>>1),sh.ty+sh.h,sh.id); sent++; } }
+        if(sent)return; }
+      else { for(const e of ents){ if(e.owner!==o||!e.bellJob||e.inGar)continue; resumeBellJob(e); }
+        for(const b of blds){ if(b.owner!==o||!b.gar||!b.gar.length)continue;
+          b.gar=b.gar.filter(id=>{ const u=ents.find(t=>t.id===id); if(!u||!u.bellJob)return true;
+            const sp=spawnSpot(b,u.type); u.inGar=null; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5;
+            u.mesh.visible=true; placeMesh(u); resumeBellJob(u); return false; }); } } } }
   if(!ai.repT||elapsed>ai.repT){ ai.repT=elapsed+7;
     let worst=null,wf=0.9;
     for(const b of blds){ if(b.owner!==o||!b.done)continue; const f=b.hp/b.maxHp; if(f<wf){wf=f;worst=b;} }
@@ -5036,7 +5065,7 @@ mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();cons
 const $=id=>document.getElementById(id);
 for(const k in COST){if(COST[k].time)COST[k].time=Math.round(COST[k].time*1.4);}
 const UNIT_IC={worker:'⚒',spear:'🛡',archer:'🏹',infantry:'🔫',grenadier:'🧨',dragoon:'🐴',knight:'🐎',hero:'👑',monk:'🙏',priest:'✝️',doctor:'➕',cardinal:'⛪',catapult:'⊙',ram:'🐑',chukonu:'🐉',hoplite:'🏳️‍🌈',cannon:'💣',howitzer:'🎆',warboat:'⛵',privateer:'🏴‍☠️',viking:'⚔️',samurai:'🗡️',highlander:'🎖',grenguard:'💂',wolfrider:'🐺',cuirassier:'🛡️'};
-const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock','range','stable']);
+const TRAINERS=new Set(['hall','barracks','gunshop','church','castle','siege','dock','range','stable','market']);   // b232: the Market trains trade carts, so it gets the queue line too
 function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Idle — click a unit button to train</span>';
   const q0=b.queue[0]; let s='⚒ <b>Training '+(UNIT_IC[q0.type]||'')+' '+UNIT[q0.type].name+'</b> — '+Math.max(1,Math.ceil(q0.t))+'s';
   if(b.queue.length>1){const rest=b.queue.slice(1,7).map(q=>UNIT_IC[q.type]||UNIT[q.type].name).join(' ');
