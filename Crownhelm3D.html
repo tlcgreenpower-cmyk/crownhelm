@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b219</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b220</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -460,11 +460,11 @@ const UNIT={
   knight:{hp:195,speed:19,range:2.8,dmg:20,cd:.9,r:1.2,vis:9,dom:'land',color:0xe0894d,name:'Knight',cav:true},
   cannon:{hp:120,speed:7,range:30,dmg:26,cd:3.2,r:1.7,vis:10,dom:'land',color:0x44444c,name:'Cannon',siege:true,ranged:true},
   howitzer:{hp:110,speed:6.5,range:35,dmg:22,cd:3.8,r:1.7,vis:10,dom:'land',color:0x55554a,name:'Howitzer',siege:true,ranged:true,arc:true},
-  hero:{hp:470,speed:15,range:3,dmg:34,cd:.7,r:1.5,vis:12,dom:'land',color:0xf2d24a,name:'King',coat:true},
-  monk:{hp:60,speed:11,range:0,dmg:0,cd:1,r:1.0,vis:9,dom:'land',color:0x7a5a34,name:'Monk',heal:5,healrad:7,noAtk:true},
-  priest:{hp:72,speed:11,range:0,dmg:0,cd:1,r:1.0,vis:9,dom:'land',color:0xe8e2d0,name:'Priest',heal:8,healrad:7,noAtk:true},
+  hero:{hp:470,speed:15,range:3,dmg:34,cd:.7,r:1.5,vis:12,dom:'land',color:0xf2d24a,name:'King',coat:true,noConv:true},   // a King does not change his colours
+  monk:{hp:60,speed:11,range:0,dmg:0,cd:1,r:1.0,vis:9,dom:'land',color:0x7a5a34,name:'Monk',heal:5,healrad:7,noAtk:true,conv:true,convrad:8,convt:7},
+  priest:{hp:72,speed:11,range:0,dmg:0,cd:1,r:1.0,vis:9,dom:'land',color:0xe8e2d0,name:'Priest',heal:8,healrad:7,noAtk:true,conv:true,convrad:9,convt:6},
   doctor:{hp:66,speed:12,range:0,dmg:0,cd:1,r:1.0,vis:8,dom:'land',color:0xf2f2f2,name:'Doctor',heal:12,healrad:6,noAtk:true},
-  cardinal:{hp:220,speed:11,range:0,dmg:0,cd:1,r:1.25,vis:11,dom:'land',color:0xc23a3a,name:'Cardinal',heal:14,healrad:12,aura:true,noAtk:true},
+  cardinal:{hp:220,speed:11,range:0,dmg:0,cd:1,r:1.25,vis:11,dom:'land',color:0xc23a3a,name:'Cardinal',heal:14,healrad:12,aura:true,noAtk:true,conv:true,convrad:11,convt:5},
   highlander:{hp:290,speed:13,range:2.8,dmg:32,cd:.9,r:1.25,vis:9,dom:'land',color:0xcccccc,name:'Highlander Charger',coat:true,uniq:true},
   grenguard:{hp:165,speed:12,range:18,dmg:22,cd:1.5,r:1.1,vis:10,dom:'land',color:0xcccccc,name:'Grenadier Guard',coat:true,ranged:true,uniq:true},
   wolfrider:{hp:225,speed:23,range:2.8,dmg:24,cd:.8,r:1.2,vis:11,dom:'land',color:0xcccccc,name:'Wolfhound Rider',coat:true,uniq:true,cav:true},
@@ -2953,7 +2953,15 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
     if(fb){ const free=ents.some(u=>u.cmd==='tend'&&u.tendB===fb)?[]:[workers0[0]];   // one farmhand per farm
       free.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;orderPath(w,fb.tx+(fb.w>>1),fb.ty+(fb.h>>1),fb.id);});
       flashMsg(free.length?'\u{1F468}\u200D\u{1F33E} A farmhand takes the field \u2014 the farm will feed you now':'\u{1F468}\u200D\u{1F33E} That farm already has its farmhand');SFX.cmd();return; } }
-  const eu=entAt(x,z,'player');if(eu){list.forEach(e=>attackOrder(e,eu));spawnMoveMark(eu.x,eu.z,0xff4632);flashMsg('⚔ Attack! Your men charge the '+(UNIT[eu.type].name));SFX.cmd();return;}
+  const eu=entAt(x,z,'player');if(eu){
+    const mk=UNIT[eu.type].noConv?[]:list.filter(e=>UNIT[e.type].conv);
+    for(const e of mk)convertOrder(e,eu);
+    for(const e of list)if(!mk.includes(e))attackOrder(e,eu);
+    spawnMoveMark(eu.x,eu.z,mk.length&&mk.length===list.length?0x9ff0b0:0xff4632);
+    flashMsg(mk.length&&mk.length===list.length
+      ?'\uD83D\uDE4F Preach to the '+UNIT[eu.type].name+' \u2014 keep him in reach and he will come over'
+      :'⚔ Attack! Your men charge the '+(UNIT[eu.type].name)+(mk.length?' \u2014 the holy men preach to him':''));
+    SFX.cmd();return;}
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
   // right-click your own tower/keep/castle with soldiers = garrison them inside
   { const gtx=txFromW(x),gty=tzFromW(z),gid=inB(gtx,gty)?buildGrid[ti(gtx,gty)]:0;
@@ -2980,6 +2988,29 @@ function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostil
   // b212: remember what he was sent to pull down. e.target is overwritten the moment he breaks off
   // to shoot at somebody, so without this the order is simply forgotten — see acquireNext.
   e.cmd='attackb';e.target=b;e.siegeB=b;e.gather=null;e.build=null;e.patrol=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
+// ---- Conversion: a monk talks a man out of his own army --------------------------------
+// The progress lives on the MONK, not on the target: break off, walk out of range or lose him
+// and the work is lost, which is what makes conversion a thing you have to commit to rather
+// than a slow-acting poison. Afterwards the monk's faith is spent and takes CONV_REST to come
+// back, so one monk cannot roll up a whole regiment on his own.
+const CONV_REST=26;
+function convertOrder(e,t){ const U=UNIT[e.type];
+  if(!U.conv||!t||t.owner===e.owner||UNIT[t.type].noConv)return false;
+  if(e.owner==='player'&&t.owner!=='player'&&!isHostile('player',t.owner))declareWar(t.owner,'player');
+  e.cmd='convert'; e.target=t; e.convT=0; e.gather=null; e.build=null; e.patrol=null;
+  orderPath(e,txFromW(t.x),tzFromW(t.z),0); return true; }
+function convertUnit(m,t){ const from=t.owner,to=m.owner;
+  t.owner=to; t.cmd='idle'; t.target=null; t.path=null; t.gather=null; t.build=null;
+  t.patrol=null; t.post=null; t.stance='aggro'; t.march=null; t.slot=null; t.siegeB=null;
+  selected=selected.filter(id=>id!==t.id);
+  scene.remove(t.mesh);
+  t.mesh=makeUnitMesh(t.type,to);   // new colours, new coat, new banner-less start
+  t.mesh.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.depthTest===false))o.receiveShadow=true;});
+  scene.add(t.mesh); placeMesh(t);
+  for(let i=0;i<16;i++)spawnPart(t.x+(Math.random()-.5)*1.8,heightAtWorld(t.x,t.z)+0.8+Math.random()*2.4,t.z+(Math.random()-.5)*1.8,'heal');
+  m.faith=0; m.convT=0; m.target=null; m.cmd='idle'; m._faithMsg=0;
+  if(to==='player'){SFX.cmd();flashMsg('\uD83D\uDE4F Converted \u2014 the '+UNIT[t.type].name+' takes your colours');}
+  else if(from==='player')flashMsg('\uD83D\uDE4F '+realmName(to)+' has turned your '+UNIT[t.type].name+' against you!'); }
 // ---- Stances: how far a man will go off his own bat -------------------------------
 // Aggressive is the game as it has always played and stays the default (an undefined stance
 // reads as aggressive everywhere, so nothing already alive changes). Defensive fights what
@@ -3146,7 +3177,8 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   _t=_pt('units',_t);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
   _t=_pt('separate',_t);
-  for(const e of ents)if(UNIT[e.type].heal)healNearby(e,dt);
+  for(const e of ents)if(UNIT[e.type].heal){healNearby(e,dt);
+    if(UNIT[e.type].conv&&e.faith!==undefined&&e.faith<1){e.faith=Math.min(1,e.faith+dt/CONV_REST);if(e.faith>=1)e._faithMsg=0;}}
   _t=_pt('heal',_t);
   // b191: PROFILED. At 191 buildings and 198 men this loop was the single most expensive thing in
   // the step — 1.59ms of 4.95, more than every unit in the game put together — and all of it was
@@ -3564,6 +3596,18 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
         b.gar.push(e.id); e.inGar=b.id; e.garB=null; e.mesh.visible=false; e.path=null; e.cmd='inside';
         selected=selected.filter(id=>id!==e.id); refreshUI(); }
       else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
+    case 'convert':{ const t=e.target,U=UNIT[e.type];
+      if(!t||t.hp<=0||t._dead||t.inGar||t.owner===e.owner||UNIT[t.type].noConv){e.convT=0;e.target=null;e.cmd='idle';break;}
+      if((e.faith===undefined?1:e.faith)<1){ e.convT=0;
+        if(e.owner==='player'&&!e._faithMsg){e._faithMsg=1;flashMsg('\uD83D\uDE4F His faith is spent \u2014 the monk must rest before he can preach again');}
+        e.cmd='idle'; break; }
+      const dcv=Math.hypot(e.x-t.x,e.z-t.z);
+      if(dcv>U.convrad){ e.convT=Math.max(0,(e.convT||0)-dt*1.5);
+        if(arrived||(!e.path&&Math.random()<dt*4)||Math.random()<dt*0.8)orderPath(e,txFromW(t.x),tzFromW(t.z),0); break; }
+      e.path=null; e.dir=Math.atan2(t.z-e.z,t.x-e.x); e.convT=(e.convT||0)+dt;
+      if(Math.random()<dt*7)spawnPart(t.x+(Math.random()-.5)*1.3,heightAtWorld(t.x,t.z)+0.9+Math.random()*1.8,t.z+(Math.random()-.5)*1.3,'heal');
+      if(e.convT>=U.convt)convertUnit(e,t);
+      break;}
     case 'inside':break;   // safe behind the walls — the building does the fighting
     case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;break;}
       if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;break;}   // one farmhand per farm — extras step off
@@ -4677,7 +4721,9 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 function selUnits(){return selected.map(id=>ents.find(e=>e.id===id)).filter(e=>e&&!e.inGar);}
-function unitDoing(e){ if(e.type!=='worker')return e.cmd==='attack'||e.cmd==='attackb'?'⚔ Fighting':e.patrol?'🚩 On patrol':e.cmd==='amove'?'⚔ Attack-marching':e.cmd==='move'?'Marching':e.cmd==='gar'?'Heading to garrison':e.cmd==='inside'?'⛨ Garrisoned':e.cmd==='hunt'?'Hunting game':'Standing ready';
+function unitDoing(e){ if(e.cmd==='convert')return '🙏 Preaching';
+  if(UNIT[e.type].conv&&e.faith!==undefined&&e.faith<1)return '🙏 Faith '+Math.round(e.faith*100)+'%';
+  if(e.type!=='worker')return e.cmd==='attack'||e.cmd==='attackb'?'⚔ Fighting':e.patrol?'🚩 On patrol':e.cmd==='amove'?'⚔ Attack-marching':e.cmd==='move'?'Marching':e.cmd==='gar'?'Heading to garrison':e.cmd==='inside'?'⛨ Garrisoned':e.cmd==='hunt'?'Hunting game':'Standing ready';
   switch(e.cmd){
     case 'gather': return e.gather?({wood:'🌲 Chopping timber',metal:'⛏️ Mining iron',gold:'💰 Mining gold',food:'🍖 Butchering meat'})[e.gather.type]||'Gathering':'Gathering';
     case 'return': return '🎒 Hauling '+Math.round(e.carry)+' '+(e.carryType==='wood'?'timber':e.carryType||'goods')+' home';
@@ -4758,6 +4804,7 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   h+=card('⚔','They quarrel among themselves','','Rival realms fall out with their nearest neighbours and make peace again, whether or not you are involved. Open the Realms panel to see who is fighting whom — but only for realms you have actually found. A neighbour busy with its own war is a neighbour with its back turned.');
   h+=card('🏰','They defend what is theirs','','Strike a realm anywhere and its nearest soldiers turn round and come home, however far off they were, and no fresh attack leaves while its town is burning. Their towers are manned too — two to a tower — so an assault costs more than it used to.');
   h+=card('🚩','They march properly','','An army crosses the map in stages rather than trying to plot the whole road at once, so a war declared on the far side of a large map will arrive. Your own regiments do the same: order them anywhere and they will get there.');
+  h+=card('\uD83D\uDE4F','Conversion','Right-click an enemy with a holy man selected','Monks, Priests and Cardinals do not fight \u2014 they preach. Right-click an enemy soldier and your holy man walks into range and starts working on him; keep him there and the man changes sides, armour and all. Walk out of range or lose sight and the work is lost, so it is something you commit to. Afterwards his faith is spent and takes about half a minute to return. A King cannot be converted.');
   h+=card('⚔','Stances','Press Z, or the buttons','Aggressive men charge anything that comes near \u2014 that is how they have always fought, and it is still the default. Defensive men fight what comes to them and then walk back to the spot you left them on. Stand Ground men shoot what is already in reach and do not take one step for anybody, which is what you want on a wall or a gate.');
   h+=card('🚩','Patrolling','Press R, then click','The men walk back and forth between where they stand and the spot you click, weapons free, for ever. Break off to fight and they return to the line the moment it is done \u2014 the way you hold a border or a wood without watching it. X calls them off.');
   h+=card('🔔','The Town Bell','Press B','Every villager drops the axe and runs for the nearest tower, keep or castle with room. Ring it again and each one picks up the exact job they left \u2014 the same tree, the same wall, the same farm. It is how you survive a raid you did not see coming.');
