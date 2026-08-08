@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b226</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b227</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2931,7 +2931,7 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
       st.geometry.translate(.85,0,0); st.position.y=(1.05/2)-(i+0.5)*(1.05/6); st.castShadow=i===0; fl.add(st); }); }
   else { const cloth=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.05,.06),new THREE.MeshStandardMaterial({color:f.coat,roughness:.75}));cloth.geometry.translate(.85,0,0);cloth.castShadow=true;fl.add(cloth); }
   const trim=new THREE.Mesh(new THREE.BoxGeometry(1.7,.2,.07),new THREE.MeshStandardMaterial({color:f.trim,roughness:.6}));trim.geometry.translate(.85,0,0);trim.position.y=-.42;fl.add(trim);
-  grp.add(fl);grp.position.set(-.35,0,-.35);
+  grp.add(fl);grp.position.set(-.35*MAN_SCALE,0,-.35*MAN_SCALE);grp.scale.setScalar(MAN_SCALE);   // b227: and so does the standard
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
 function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;if(u.stance==='defend')u.post={x,z};}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege
@@ -4680,7 +4680,10 @@ function updateUnitLOD(){
     const dx=e.x-camTarget.x,dz=e.z-camTarget.z;
     const far=(dx*dx+dz*dz)>L2 && n<IMP_CAP && !(selSet&&selSet.has(e.id));
     if(far){ if(e.mesh.visible)e.mesh.visible=false;
-      _impM.makeTranslation(e.x,heightAtWorld(e.x,e.z),e.z); impMesh.setMatrixAt(n,_impM);
+      // b227: the instanced far rank is a stand-in for the MAN, so it has to be the same size as
+      // him. b226 shrank the models and left this at the old scale, which put a step-change in
+      // every soldier exactly where the LOD swaps - the one place it is most obvious.
+      _impM.makeScale(MAN_SCALE,MAN_SCALE,MAN_SCALE); _impM.setPosition(e.x,heightAtWorld(e.x,e.z),e.z); impMesh.setMatrixAt(n,_impM);
       _impC.copy(impColour(e.owner)); impMesh.setColorAt(n,_impC); n++; }
     else { if(!e.mesh.visible)e.mesh.visible=true; nFull++; } }
   impMesh.count=n; impMesh.instanceMatrix.needsUpdate=true; if(impMesh.instanceColor)impMesh.instanceColor.needsUpdate=true;
