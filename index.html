@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b224</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b225</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -137,7 +137,7 @@
           <div><div class="aorKick">Controls</div><ul class="aorList">
             <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
             <li><b>WASD / arrows / edges</b> pan · <b>wheel</b> zoom · <b>hold wheel &amp; drag</b> look around · <b>Shift+wheel-drag</b> pan · <b>Q / E</b> rotate</li>
-            <li><b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
+            <li><b>C</b> standard view · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
             <li>Double-click a unit = select all of its kind on screen</li>
           </ul></div>
           <div><div class="aorKick">How to play</div><ul class="aorList">
@@ -4517,7 +4517,20 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
   if(!crew.length)flashMsg('Placed — no workers available!');else SFX.cmd();if(!(keys['shift']||keys['control'])){placing=null;updateGhost();}refreshUI();}
 
 // ==================================================== CAMERA + INPUT
-let camYaw=0,camPitch=0.92,camDist=80,camTarget=new THREE.Vector3(0,0,0),camShake=0;
+// ---- THE STANDARD VIEW (b225) ----------------------------------------------------------
+// Owner: "make the game the same as Age of Empires in regards to how we see the people and
+// buildings clearly without having to zoom in". So it was measured rather than guessed.
+// AoE2 at 1280x720 draws a tile about 96px wide, a Town Centre about 287px, and shows roughly
+// 19 tiles across the screen. The old default here (dist 80, pitch 53 degrees) gave a 37px tile,
+// a 146px Keep and 35 tiles across - not quite half AoE's size, which is exactly why everything
+// had to be zoomed in on to be read.
+// dist 45 / pitch 0.62 measures 66px a tile, a 259px Keep and 19.5 tiles across: AoE2's layout
+// almost exactly. The men come out larger than AoE's 40px sprites because this game's models are
+// big against its tiles - that is model scale, not camera, and it errs the readable way.
+const VIEW_DIST=45, VIEW_PITCH=0.62;
+let camYaw=0,camPitch=VIEW_PITCH,camDist=VIEW_DIST,camTarget=new THREE.Vector3(0,0,0),camShake=0;
+function standardView(quiet){ camDist=VIEW_DIST; camPitch=VIEW_PITCH; camYaw=0;
+  if(!quiet)flashMsg('\uD83C\uDFA5 Standard view \u2014 the Age of Empires layout (C brings it back any time)'); }
 const keys={};let hoverTile={tx:0,ty:0},hoverWorld=new THREE.Vector3();const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2();
 let mouseSX=0,mouseSY=0,dragStartSX=0,dragStartSY=0,dragging=false,vw=1280,vh=640;
 let rDrag=null,panDrag=null,orbitDrag=null;   // right-drag aims; middle-drag pans; alt-drag orbits (yaw+pitch)
@@ -4793,6 +4806,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
   if(k==='+'||k==='=')setSpeed(gameSpeed+1);
   if(k==='-'||k==='_')setSpeed(gameSpeed-1);
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
+  if(k==='c'&&running){standardView();}
   if(k==='.'&&running)selectIdle();
   if(k==='b'&&running)townBell();
   if(k===' '&&running&&atkPing.t<45){ev.preventDefault();camTarget.set(atkPing.x,0,atkPing.z);}
@@ -4887,6 +4901,7 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   h+=card('⚔','They quarrel among themselves','','Rival realms fall out with their nearest neighbours and make peace again, whether or not you are involved. Open the Realms panel to see who is fighting whom — but only for realms you have actually found. A neighbour busy with its own war is a neighbour with its back turned.');
   h+=card('🏰','They defend what is theirs','','Strike a realm anywhere and its nearest soldiers turn round and come home, however far off they were, and no fresh attack leaves while its town is burning. Their towers are manned too — two to a tower — so an assault costs more than it used to.');
   h+=card('🚩','They march properly','','An army crosses the map in stages rather than trying to plot the whole road at once, so a war declared on the far side of a large map will arrive. Your own regiments do the same: order them anywhere and they will get there.');
+  h+=card('\uD83C\uDFA5','The standard view','Press C','The game opens at the Age of Empires layout: about 19 tiles across the screen, a Keep roughly 260 pixels wide, seen from 36 degrees. It was measured against AoE2 rather than guessed \u2014 the old default sat almost twice as far out, which is why men and buildings had to be zoomed in on before you could read them. The wheel still zooms wherever you like; C puts it back.');
   h+=card('\uD83D\uDD27','Repair','Workers, right-click a damaged building','Nothing used to mend: a raid that took your Keep to a sliver left it on a sliver for the rest of the game. Now any worker will rebuild a damaged building back to full, and several together do it faster. It costs half of what that part of the building cost to raise, so it is a real decision after a raid rather than a free undo.');
   h+=card('\u2696\uFE0F','The Market','Prices move','Selling drops the price of that commodity and buying lifts it, so dumping a surplus pays less each time and cornering a shortage costs more \u2014 you cannot farm gold by selling wood on a loop. Prices drift back toward par over a couple of minutes, so a market you have flattened will recover if you leave it alone.');
   h+=card('\uD83D\uDE4F','Conversion','Right-click an enemy with a holy man selected','Monks, Priests and Cardinals do not fight \u2014 they preach. Right-click an enemy soldier and your holy man walks into range and starts working on him; keep him there and the man changes sides, armour and all. Walk out of range or lose sight and the work is lost, so it is something you commit to. Afterwards his faith is spent and takes about half a minute to return. A King cannot be converted.');
@@ -5372,7 +5387,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
     addBuilding('hall',hx,hy,o,true);
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
     spawnUnit('spear',o,hx+3,hy+3); spawnUnit('infantry',o,hx-2,hy+3); }
-  const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);camYaw=0;camPitch=0.92;camDist=80;
+  const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);standardView(true);
   for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal
   computeVision();for(let dy=-13;dy<=13;dy++)for(let dx=-13;dx<=13;dx++)if(dx*dx+dy*dy<=169){const x=ph.tx+dx,y=ph.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;}
@@ -5431,7 +5446,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
   rebuildRoads('player');   // b151: a restored kingdom gets the proper street network laid over it
   for(const o of AI_REALMS){ const seen=blds.some(b=>b.owner===o&&explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))]);
     if(seen)rebuildRoads(o); }
-  camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;camPitch=s.cam.pitch||0.92;camDist=s.cam.dist;
+  camTarget.set(s.cam.x,0,s.cam.z);camYaw=s.cam.yaw;standardView(true);   // b225: every save holds the old far-off camera, so open on the standard view
   running=true;gameOver=false;computeVision();refreshUI();flashMsg('👑 Kingdom restored — welcome back.'); }
 let autosaveT=40,_loadThin=false;
 window.addEventListener('beforeunload',()=>{try{saveGame(true);}catch(e){}});
@@ -5476,7 +5491,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
-      newGame,trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
+      newGame,standardView,VIEW_DIST,VIEW_PITCH,trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
