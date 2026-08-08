@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b229</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b231</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -417,7 +417,7 @@ const COST={
   knight:{f:70,m:60,pop:3,time:14,age:2}, catapult:{w:120,m:100,pop:4,time:20,age:2}, ram:{w:110,m:40,pop:3,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:2,time:11,age:2}, hoplite:{f:80,m:60,g:30,pop:3,time:14,age:2},
   cannon:{w:100,m:120,pop:4,time:20,age:2}, howitzer:{w:130,m:140,pop:4,time:22,age:2},
   hero:{f:150,w:80,m:150,pop:5,time:24,age:1},
-  monk:{f:60,pop:2,time:10,age:1}, priest:{f:90,pop:2,time:12,age:1}, doctor:{f:70,w:20,pop:2,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:4,time:20,age:2},
+  tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:2,time:10,age:1}, priest:{f:90,pop:2,time:12,age:1}, doctor:{f:70,w:20,pop:2,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:4,time:20,age:2},
   warboat:{w:80,m:50,pop:3,time:13,age:2}, privateer:{f:80,m:60,g:40,pop:3,time:14,age:2}, viking:{f:60,w:30,pop:2,time:9,age:1}, samurai:{f:90,m:70,g:50,pop:3,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},gate:{w:30,m:20},
@@ -453,6 +453,7 @@ const isFriend=o=>diplo[o]&&diplo[o].stance!=='war'&&diplo[o].score>=60;
 function realmName(o){return o==='player'?'You':FACTIONS[faction[o]].name;}
 const UNIT={
   worker:{hp:45,speed:9,range:2.4,dmg:3,cd:.8,r:.9,vis:8,dom:'land',color:0xd7dee2,name:'Worker'},
+  tradecart:{hp:110,speed:9,range:0,dmg:0,cd:1,r:1.1,vis:7,dom:'land',color:0xc9a44a,name:'Trade Cart',noAtk:true,noConv:true},
   spear:{hp:105,speed:12,range:2.6,dmg:11,cd:.9,r:1.05,vis:8,dom:'land',color:0x9aa6b0,name:'Pikeman',coat:true},
   archer:{hp:62,speed:13,range:17,dmg:9,cd:1.1,r:1.0,vis:10,dom:'land',color:0x7ac8e0,name:'Skirmisher'},
   infantry:{hp:110,speed:12,range:16,dmg:13,cd:1.5,r:1.05,vis:9,dom:'land',color:0xcccccc,name:'Infantry',coat:true,ranged:true},
@@ -2151,6 +2152,23 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(u.coat&&!unitMat[coatKey])unitMat[coatKey]=new THREE.MeshStandardMaterial({color:fac.coat,roughness:.55,flatShading:true});
   const bodyMat=u.coat?unitMat[coatKey]:unitMat[type];const trimMat=new THREE.MeshStandardMaterial({color:fac.trim,roughness:.5,metalness:.3});
   const anim=new THREE.Group();g.add(anim);g.userData.anim=anim;
+  if(type==='tradecart'){   // b230: a cart, not a man in a gold coat - it falls through to the
+    // articulated-soldier body otherwise, which would put a musketeer on the trade road
+    const bed=new THREE.Mesh(new THREE.BoxGeometry(1.15,.55,1.75),M.wood);bed.position.y=.86;bed.castShadow=true;anim.add(bed);
+    const load=new THREE.Mesh(new THREE.BoxGeometry(.85,.5,1.15),new THREE.MeshStandardMaterial({color:fac.coat,roughness:.8}));
+    load.position.y=1.38;load.castShadow=true;anim.add(load);
+    const hoop=new THREE.Mesh(new THREE.TorusGeometry(.5,.05,5,10,Math.PI),new THREE.MeshStandardMaterial({color:fac.trim,roughness:.6}));
+    hoop.position.set(0,1.4,0);hoop.rotation.y=Math.PI/2;anim.add(hoop);
+    const wheelGeo=new THREE.TorusGeometry(.42,.09,5,12);
+    for(const[wx0,wz0]of[[-.62,.55],[.62,.55],[-.62,-.6],[.62,-.6]]){
+      const wl=new THREE.Mesh(wheelGeo,M.trunk);wl.position.set(wx0,.42,wz0);wl.rotation.y=Math.PI/2;wl.castShadow=true;anim.add(wl);}
+    const shaft=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,1.1),M.wood);shaft.position.set(0,.8,1.4);anim.add(shaft);
+    const ox=new THREE.Mesh(new THREE.BoxGeometry(.7,.7,1.5),new THREE.MeshStandardMaterial({color:0x6b4a30,roughness:.9,flatShading:true}));
+    ox.position.set(0,.85,2.3);ox.castShadow=true;anim.add(ox);
+    const oxh=new THREE.Mesh(new THREE.BoxGeometry(.42,.42,.5),new THREE.MeshStandardMaterial({color:0x5a3e28,roughness:.9,flatShading:true}));
+    oxh.position.set(0,.95,3.1);anim.add(oxh);
+    anim.scale.setScalar(MAN_SCALE);
+    const hbt=makeHealthBar();hbt.position.y=2.6*MAN_SCALE;g.add(hbt);g.userData.hb=hbt;g.userData.noBob=true;return g;}
   if(type==='warboat'){
     if(PIRATE_SHIP_L||PIRATE_SHIP){ const s=(PIRATE_SHIP_L||PIRATE_SHIP).clone(true);
       const box=new THREE.Box3().setFromObject(s),len=Math.max(box.max.z-box.min.z,box.max.x-box.min.x)||1;
@@ -3017,6 +3035,26 @@ function attackBOrder(e,b){ if(e.owner==='player'&&b.owner!=='player'&&!isHostil
   // b212: remember what he was sent to pull down. e.target is overwritten the moment he breaks off
   // to shoot at somebody, so without this the order is simply forgotten — see acquireNext.
   e.cmd='attackb';e.target=b;e.siegeB=b;e.gather=null;e.build=null;e.patrol=null;orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);}
+// ---- Trade carts -----------------------------------------------------------------------
+// A market that only barters is a closed room: you can shuffle what you already have, but nothing
+// new ever comes in. In Age of Empires the long-run gold is TRADE, and the point of it is that the
+// pay is proportional to the distance run - a partner across the map is worth several times one
+// next door, so where you site the market is a real decision and the route is worth defending.
+// You cannot trade with a realm you are at war with, so the carts also give a war a cost you feel
+// in the treasury the moment it is declared.
+const TRADE_RATE=0.11;      // gold per world unit, one way
+function tradePartner(o){ let best=null,bd=0;
+  for(const b of blds){ if(!b.done||b.type!=='market')continue;
+    if(b.owner===o)continue;
+    if(isHostile(o,b.owner))continue;                       // no trading with a realm you are fighting
+    const home=homeMarket(o); if(!home)continue;
+    const d=Math.hypot(b.cx-home.cx,b.cz-home.cz); if(d>bd){bd=d;best=b;} }
+  return best; }
+function homeMarket(o){ let best=null;
+  for(const b of blds)if(b.owner===o&&b.done&&b.type==='market'){best=b;break;}
+  return best; }
+function tradeSend(e,to){ e.tradeTo=to; e.cmd='trade';
+  orderPath(e,to.tx+(to.w>>1),to.ty+to.h,to.id); }
 // ---- Repair ----------------------------------------------------------------------------
 // There was no way to mend anything. A raid that took a Keep to a sliver left it on a sliver for
 // the rest of the game, so every attack was permanent and walls were worth building once. Repair
@@ -3485,7 +3523,8 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
         flashMsg('🏠 Population full — the muster waits until you raise more Houses');} }
     else if(b.queue[0].t<=0){b.qHold=false;const type=b.queue.shift().type;const sp=spawnSpot(b,type);const u=spawnUnit(type,b.owner,txFromW(sp.x),tzFromW(sp.z));if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.train();}
     u.x+=((u.id%5)-2)*0.6; u.z+=(((u.id*3)%5)-2)*0.6;
-    if(b.rally){ const nd2=type==='worker'?nodeAt(b.rally.x,b.rally.z):null;
+    if(type==='tradecart'){ const to=tradePartner(b.owner); if(to)tradeSend(u,to); }
+    else if(b.rally){ const nd2=type==='worker'?nodeAt(b.rally.x,b.rally.z):null;
       if(nd2&&nd2.amount>0)gatherOrder(u,nd2);   // rally on a tree/vein = straight to work
       else{u.cmd='move';orderPath(u,txFromW(b.rally.x),tzFromW(b.rally.z),0);} }else if(b.owner!=='player'&&type==='worker'){
       const uf=wantsFarmhand(b.owner)?blds.find(q=>q.owner===b.owner&&q.done&&q.type==='farm'&&!ents.some(t=>t.cmd==='tend'&&t.tendB===q)):null;
@@ -3660,6 +3699,33 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
         b.gar.push(e.id); e.inGar=b.id; e.garB=null; e.mesh.visible=false; e.path=null; e.cmd='inside';
         selected=selected.filter(id=>id!==e.id); refreshUI(); }
       else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
+    case 'trade':{ const to=e.tradeTo;
+      const home=homeMarket(e.owner);
+      if(!home){ e.cmd='idle'; e.tradeTo=null; break; }                 // market razed: the run is over
+      if(!to||to._gone||!to.done||isHostile(e.owner,to.owner)){         // war closed the route
+        const nt=tradePartner(e.owner);
+        if(nt)tradeSend(e,nt); else { e.cmd='idle'; e.tradeTo=null;
+          if(e.owner==='player'&&!e._tmsg){e._tmsg=1;flashMsg('\uD83D\uDED2 The trade cart has nowhere to trade \u2014 you need a Market you are not at war with');} }
+        break; }
+      e._tmsg=0;
+      // b230a: a market is ringed by its own yard and its own traffic, so a cart routinely cannot
+      // path right up to the wall - it parks a few tiles short and, on a tight tolerance, waits
+      // there for ever. Measured: it settled 16 units out against a 9.6 reach. So the dock is wide,
+      // and a cart that stops getting closer for eight seconds counts as arrived rather than
+      // standing in the road holding the whole trade route.
+      const dst=Math.hypot(e.x-to.cx,e.z-to.cz), reach=Math.max(to.w,to.h)*TILE*0.5+TILE*4;
+      if(dst>reach){
+        if(e._tdst===undefined||dst<e._tdst-0.5){e._tdst=dst;e._tstall=0;} else e._tstall=(e._tstall||0)+dt;
+        if(e._tstall<8){ if(arrived||(!e.path&&Math.random()<dt*4)||Math.random()<dt*0.5)orderPath(e,to.tx+(to.w>>1),to.ty+to.h,to.id); break; } }
+      e._tdst=undefined; e._tstall=0;
+      // arrived: pay out for the leg just run, then turn round
+      const leg=Math.hypot(to.cx-home.cx,to.cz-home.cz);
+      const paid=Math.max(2,Math.round(leg*TRADE_RATE));
+      res[e.owner].g+=paid;
+      if(e.owner==='player'){ spawnPart(e.x,heightAtWorld(e.x,e.z)+1.6,e.z,'spark');
+        if(!e._paidOnce){e._paidOnce=1;flashMsg('\uD83D\uDED2 Your first trade run pays '+paid+'\uD83D\uDCB0 \u2014 the further the partner, the bigger the purse');} }
+      tradeSend(e,(to===home)?(tradePartner(e.owner)||home):home);      // shuttle: partner, home, partner...
+      break;}
     case 'repair':{ const b=e.repB;
       if(!b||b._gone||!b.done||b.hp>=b.maxHp){e.repB=null;e.cmd='idle';break;}
       const drp=Math.hypot(e.x-b.cx,e.z-b.cz), reach=Math.max(b.w,b.h)*TILE*0.5+TILE*1.4;
@@ -4842,7 +4908,8 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 function selUnits(){return selected.map(id=>ents.find(e=>e.id===id)).filter(e=>e&&!e.inGar);}
-function unitDoing(e){ if(e.cmd==='repair')return '🔧 Repairing';
+function unitDoing(e){ if(e.cmd==='trade')return '🛒 On the trade road';
+  if(e.cmd==='repair')return '🔧 Repairing';
   if(e.cmd==='convert')return '🙏 Preaching';
   if(UNIT[e.type].conv&&e.faith!==undefined&&e.faith<1)return '🙏 Faith '+Math.round(e.faith*100)+'%';
   if(e.type!=='worker')return e.cmd==='attack'||e.cmd==='attackb'?'⚔ Fighting':e.patrol?'🚩 On patrol':e.cmd==='amove'?'⚔ Attack-marching':e.cmd==='move'?'Marching':e.cmd==='gar'?'Heading to garrison':e.cmd==='inside'?'⛨ Garrisoned':e.cmd==='hunt'?'Hunting game':'Standing ready';
@@ -4852,6 +4919,7 @@ function unitDoing(e){ if(e.cmd==='repair')return '🔧 Repairing';
     case 'build': return '🔨 Building '+(e.build?BLD[e.build.type].name:'');
     case 'tend': return '👨‍🌾 Tending the farm';
     case 'hunt': return '🔫 Hunting game';
+    case 'trade': return '🛒 On the trade road';
     case 'repair': return '🔧 Repairing';
     case 'gar': return 'Heading to garrison';
     case 'inside': return '⛨ Garrisoned';
@@ -4942,6 +5010,7 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   h+=card('🚩','They march properly','','An army crosses the map in stages rather than trying to plot the whole road at once, so a war declared on the far side of a large map will arrive. Your own regiments do the same: order them anywhere and they will get there.');
   h+=card('\uD83C\uDFA5','The standard view','Press C','The game opens at the Age of Empires layout: about 19 tiles across the screen, a Keep roughly 260 pixels wide, seen from 36 degrees. It was measured against AoE2 rather than guessed \u2014 the old default sat almost twice as far out, which is why men and buildings had to be zoomed in on before you could read them. The wheel still zooms wherever you like; C puts it back.');
   h+=card('\uD83D\uDD27','Repair','Workers, right-click a damaged building','Nothing used to mend: a raid that took your Keep to a sliver left it on a sliver for the rest of the game. Now any worker will rebuild a damaged building back to full, and several together do it faster. It costs half of what that part of the building cost to raise, so it is a real decision after a raid rather than a free undo.');
+  h+=card('\uD83D\uDED2','Trade carts','Built at the Market, Age 2','A market that only barters is a closed room - you shuffle what you already have and nothing new comes in. A trade cart runs between your Market and another realm\'s and brings back gold, and the pay is proportional to the DISTANCE, so a partner across the map is worth several times one next door. You cannot trade with a realm you are at war with, which means declaring one now costs you in the treasury from the moment you do it.');
   h+=card('\u2696\uFE0F','The Market','Prices move','Selling drops the price of that commodity and buying lifts it, so dumping a surplus pays less each time and cornering a shortage costs more \u2014 you cannot farm gold by selling wood on a loop. Prices drift back toward par over a couple of minutes, so a market you have flattened will recover if you leave it alone.');
   h+=card('\uD83D\uDE4F','Conversion','Right-click an enemy with a holy man selected','Monks, Priests and Cardinals do not fight \u2014 they preach. Right-click an enemy soldier and your holy man walks into range and starts working on him; keep him there and the man changes sides, armour and all. Walk out of range or lose sight and the work is lost, so it is something you commit to. Afterwards his faith is spent and takes about half a minute to return. A King cannot be converted.');
   h+=card('⚔','Stances','Press Z, or the buttons','Aggressive men charge anything that comes near \u2014 that is how they have always fought, and it is still the default. Defensive men fight what comes to them and then walk back to the spot you left them on. Stand Ground men shoot what is already in reach and do not take one step for anybody, which is what you want on a wall or a gate.');
@@ -5051,6 +5120,11 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         info.innerHTML+='<br>⛨ Garrison '+gn+'/'+GAR_CAP[b.type]+(gn?'':' <span style="color:#6f93a8;font-size:11px">— right-click here with soldiers selected</span>');
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
       if(b.type==='market'){
+        trainBtn(cmds,b,'tradecart','\uD83D\uDED2','Trade Cart',can);
+        { const to=tradePartner('player');
+          info.innerHTML+='<br><span style="font-size:11px;color:#9fc0d2">\uD83D\uDED2 '
+            +(to?('Trading with '+realmName(to.owner)+' \u2014 '+Math.max(2,Math.round(Math.hypot(to.cx-b.cx,to.cz-b.cz)*TRADE_RATE))+'\uD83D\uDCB0 a run')
+                :'No partner \u2014 you need another realm\'s Market, and peace with them')+'</span>'; }
         for(const k of ['w','f','m'])marketBtn(cmds,'\uD83D\uDCB0 Sell '+MKT_BASE[k].name,'\u2212100'+MKT_BASE[k].ic+' +'+mktSell(k)+'\uD83D\uDCB0',()=>trade(k,-1));
         for(const k of ['w','f','m'])marketBtn(cmds,'\uD83D\uDED2 Buy '+MKT_BASE[k].name,'\u2212'+mktBuy(k)+'\uD83D\uDCB0 +100'+MKT_BASE[k].ic,()=>trade(k,1));
         info.innerHTML+='<br><span style="font-size:11px;color:#9fc0d2">\u2696\uFE0F Prices move as you trade '
