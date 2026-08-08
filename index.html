@@ -58,12 +58,13 @@
     <button id="gmenuBtn" title="Game menu — sound, graphics, saves & more (pauses the game)" style="cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:4px 16px;font-size:13px;font-weight:600;">☰ Menu</button>
     <div class="spacer"></div>
     <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤⚒️ <span id="idleN">0</span> <span style="font-size:10px;color:#8fa7bc">workers</span></button>
+    <button id="bellBtn" title="Town Bell (B) — every villager drops their work and shelters in the nearest garrison. Ring again to send them back." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔔 <span id="bellLbl">Bell</span></button>
     <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
     <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b215</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b216</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3255,6 +3256,42 @@ function updateRubble(dt){ for(const r of rubblePiles){ r.t+=dt; if(r.t>70)r.g.p
 function ungarrison(b){ if(!b.gar)return; for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
   const sp=spawnSpot(b,u.type); u.inGar=null; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
   b.gar=[]; SFX.cmd(); }
+// ---- Town Bell (Age of Empires' finest panic button) --------------------------------
+// Ring it: every villager abandons the field and runs for the nearest tower, keep or castle
+// with a space free. Ring it again: they file out and pick up EXACTLY the job they dropped —
+// the tree they were felling, the wall they were raising, the farm they were tending. Without
+// that second half a bell is a punishment, not a rescue.
+let bellRung=false;
+function bellShelter(x,z,pend){ let best=null,bd=1e9;
+  for(const b of blds){ if(b.owner!=='player'||!b.done||!GAR_CAP[b.type])continue;
+    if(((b.gar||[]).length+(pend[b.id]||0))>=GAR_CAP[b.type])continue;
+    const d=Math.hypot(b.cx-x,b.cz-z); if(d<bd){bd=d;best=b;} }
+  return best; }
+function resumeBellJob(e){ const j=e.bellJob; e.bellJob=null; e.garB=null; e.path=null; e.cmd='idle';
+  if(!j)return;
+  if(j.gather&&j.gather.amount>0){gatherOrder(e,j.gather);return;}
+  if(j.build&&!j.build._gone&&!j.build.done){e.cmd='build';e.build=j.build;orderPath(e,j.build.tx+(j.build.w>>1),j.build.ty+j.build.h,j.build.id);return;}
+  if(j.tendB&&!j.tendB._gone&&j.tendB.done){e.cmd='tend';e.tendB=j.tendB;orderPath(e,j.tendB.tx+(j.tendB.w>>1),j.tendB.ty+(j.tendB.h>>1),j.tendB.id);return;} }
+function townBell(){ if(!running||gameOver)return;
+  if(bellRung){ let n=0;
+    for(const b of blds){ if(!b.gar||!b.gar.length)continue;
+      // any villager the bell put here — and any villager at all, so a garrison that outlived a
+      // save still empties on the all-clear rather than holding its farmhands forever
+      b.gar=b.gar.filter(id=>{ const u=ents.find(t=>t.id===id); if(!u||(!u.bellJob&&u.type!=='worker'))return true;
+        const sp=spawnSpot(b,u.type); u.inGar=null; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5;
+        u.mesh.visible=true; placeMesh(u); resumeBellJob(u); n++; return false; }); }
+    for(const e of ents)if(e.bellJob&&!e.inGar){resumeBellJob(e);n++;}   // still running when the all-clear sounded
+    bellRung=false; SFX.cmd(); refreshUI();
+    flashMsg('\uD83D\uDD14 All clear \u2014 '+n+' villager'+(n===1?'':'s')+' back to work'); return; }
+  const pend={}; let n=0, homeless=0;
+  for(const e of ents){ if(e.owner!=='player'||e.type!=='worker'||e.inGar)continue;
+    const b=bellShelter(e.x,e.z,pend); if(!b){homeless++;continue;}
+    e.bellJob={cmd:e.cmd,gather:e.gather,build:e.build,tendB:e.tendB};
+    e.cmd='gar'; e.garB=b; e.target=null; e.gather=null; e.build=null; e.tendB=null;
+    pend[b.id]=(pend[b.id]||0)+1; orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); n++; }
+  bellRung=true; SFX.cmd(); refreshUI();
+  flashMsg(n?'\uD83D\uDD14 THE TOWN BELL! '+n+' villager'+(n===1?'':'s')+' run for shelter'+(homeless?' \u2014 '+homeless+' found no room':'')+' \u2014 ring again to send them back'
+            :'\uD83D\uDD14 The bell tolls, but there is not a garrison space in the realm'); }
 const NOTABLE=new Set(['hall','castle','barracks','gunshop','range','stable','siege','tower','watch','market','church','armourer','dock']);
 let _newsT=-99;   // last time word of a rival war reached the player
 function destroyBuilding(b){ if(b.gar&&b.gar.length){ for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
@@ -4593,6 +4630,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
   if(k==='-'||k==='_')setSpeed(gameSpeed-1);
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
   if(k==='.'&&running)selectIdle();
+  if(k==='b'&&running)townBell();
   if(k===' '&&running&&atkPing.t<45){ev.preventDefault();camTarget.set(atkPing.x,0,atkPing.z);}
   if(k==='v'&&running){const fp=$('forces');fp.classList.toggle('hidden');renderForces();}
   if(k==='t'&&selUnits().some(e=>e.type!=='worker')){const ks=Object.keys(FORMS);formation=ks[(ks.indexOf(formation)+1)%ks.length];flashMsg('Formation: '+FORMS[formation].name);refreshUI();}
@@ -4619,6 +4657,7 @@ function selectIdle(){const iw=idleWorkers();
   const e=iw[idleCycle%iw.length];idleCycle++;camTarget.set(e.x,0,e.z);
   SFX.select();refreshUI();flashMsg('💤 '+iw.length+' lazy worker'+(iw.length>1?'s':'')+' rounded up — right-click a resource to put them to work');}
 document.getElementById('idleBtn').onclick=()=>{if(running)selectIdle();};
+document.getElementById('bellBtn').onclick=()=>townBell();
 // ---- the ☰ game menu: sound / graphics / saves / quit, pausing the game while open ----
 let _gmPaused=false;
 function closeGameMenu(){ const gm=document.getElementById('gameMenu'); if(!gm||gm.classList.contains('hidden'))return;
@@ -4855,6 +4894,8 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
   if(!$('forces').classList.contains('hidden')&&Math.random()<0.08)renderForces();
   $('idleN').textContent=nIdle;const ib=$('idleBtn');
   ib.style.borderColor=nIdle?'#c9a44a':'#2c5164';ib.style.color=nIdle?'#f3e4be':'#5f7f92';ib.style.opacity=nIdle?'1':'.6';
+  const bb=$('bellBtn'); if(bb){ bb.style.borderColor=bellRung?'#e0554a':'#2c5164'; bb.style.color=bellRung?'#ffd9d3':'#dff0f9';
+    bb.style.background=bellRung?'#4a1c18':'#17303f'; $('bellLbl').textContent=bellRung?'Back to work':'Bell'; }
   $('age').textContent=tech.player.ageTimer>0?'Advancing… '+Math.ceil(tech.player.ageTimer)+'s':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
   if(tech.player.ageTimer>0){const T2=tech.player,tot2=T2.ageTo===3?AGE3.time:AGE2.time;
     const al=document.getElementById('ageLine'); if(al)al.textContent='⏫ Advancing to Age '+(T2.ageTo||T2.age+1)+' — '+Math.ceil(T2.ageTimer)+'s';
