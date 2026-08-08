@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b222</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b223</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3621,8 +3621,8 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       const gain=b.maxHp*dt/repairTime(b), frac=gain/b.maxHp, c=COST[b.type]||{}, rr=res[e.owner];
       const nw=(c.w||0)*frac*0.5, nm=(c.m||0)*frac*0.5, ng=(c.g||0)*frac*0.5;
       if(rr.w<nw||rr.m<nm||rr.g<ng){
-        if(e.owner==='player'&&!e._repMsg){e._repMsg=1;flashMsg('\uD83D\uDD27 The materials for the repair have run out');}
-        break; }
+        if(e.owner==='player'){ if(!e._repMsg){e._repMsg=1;flashMsg('\uD83D\uDD27 The materials for the repair have run out');} break; }
+        e.cmd='idle'; e.repB=null; break; }   // a realm's mason goes back to earning instead of waiting
       rr.w-=nw; rr.m-=nm; rr.g-=ng; e._repMsg=0;
       b.hp=Math.min(b.maxHp,b.hp+gain);
       if(Math.random()<dt*3)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.6,b.cz,'chip');
@@ -4227,6 +4227,27 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
         for(const e of idle){ if(e.garB||e.inGar)continue; const d=Math.hypot(e.x-t.cx,e.z-t.cz); if(d<bd){bd=d;best=e;} }
         if(best){ best.cmd='gar'; best.garB=t; best.slot=null;
           orderPath(best,t.tx+(t.w>>1),t.ty+t.h,t.id); return; } } } }
+  // b223: a realm MENDS what you knock down. Repair shipped for the player only, which quietly
+  // made a war of attrition unloseable: every ram hit against a rival was permanent, so you could
+  // grind a town to rubble one raid at a time and never face a wall that had been put back up.
+  // Two masons at most, and only on the worst building, so it cannot strip its own economy.
+  if(!ai.repT||elapsed>ai.repT){ ai.repT=elapsed+7;
+    let worst=null,wf=0.9;
+    for(const b of blds){ if(b.owner!==o||!b.done)continue; const f=b.hp/b.maxHp; if(f<wf){wf=f;worst=b;} }
+    if(worst&&ents.filter(e=>e.owner===o&&e.cmd==='repair'&&e.repB===worst).length<2){
+      let best=null,bd=120;
+      for(const e of ents){ if(e.owner!==o||e.type!=='worker'||e.cmd==='build'||e.cmd==='repair')continue;
+        const d=Math.hypot(e.x-worst.cx,e.z-worst.cz); if(d<bd){bd=d;best=e;} }
+      if(best&&repairOrder(best,worst))return; } }
+  // b223: and its holy men PREACH. The player could walk a monk into a rival army and turn it a man
+  // at a time while that realm's own monks stood in the square healing scratches. Now it answers.
+  if(!ai.cnvT||elapsed>ai.cnvT){ ai.cnvT=elapsed+5;
+    for(const e of ents){ if(e.owner!==o||!UNIT[e.type].conv||e.cmd==='convert')continue;
+      if(e.faith!==undefined&&e.faith<1)continue;
+      let tgt=null,bd=UNIT[e.type].convrad*1.6;
+      for(const t of foesOfOwner(o)){ if(t.inGar||UNIT[t.type].noConv)continue;
+        const d=Math.hypot(e.x-t.x,e.z-t.z); if(d<bd){bd=d;tgt=t;} }
+      if(tgt&&convertOrder(e,tgt))return; } }
   for(const b of blds)if(b.owner===o&&!b.done){const bs=ents.filter(e=>e.owner===o&&e.cmd==='build'&&e.build===b).length;if(bs<2){const free=ents.find(e=>e.owner===o&&e.type==='worker'&&e.cmd!=='build');if(free){free.cmd='build';free.build=b;orderPath(free,b.tx+(b.w>>1),b.ty+b.h,b.id);}}}
   // b184: ABANDON A SITE THAT IS GOING NOWHERE. A realm may only have a few foundations open at
   // once — max(2, workers/2, capped at 5) — and an unfinished one holds its slot for ever. So a
