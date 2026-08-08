@@ -64,7 +64,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b225</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b226</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -137,7 +137,7 @@
           <div><div class="aorKick">Controls</div><ul class="aorList">
             <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
             <li><b>WASD / arrows / edges</b> pan · <b>wheel</b> zoom · <b>hold wheel &amp; drag</b> look around · <b>Shift+wheel-drag</b> pan · <b>Q / E</b> rotate</li>
-            <li><b>C</b> standard view · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
+            <li><b>C</b> standard view · <b>M</b> man size · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
             <li>Double-click a unit = select all of its kind on screen</li>
           </ul></div>
           <div><div class="aorKick">How to play</div><ul class="aorList">
@@ -2022,10 +2022,29 @@ function weaponMesh(kind){ if(_wCache[kind]!==undefined)return _wCache[kind];
   let w=mk(); w.updateMatrixWorld(true);
   const m=mergeStaticModel(w); m.traverse(o=>{if(o.isMesh)o.castShadow=true;});
   return _wCache[kind]=m; }
+// ---- MAN SCALE (b226) ------------------------------------------------------------------
+// b197 measured a foot soldier at 2.28 world units and a tile is 4, so a man here stands 0.57 of
+// a tile. An Age of Empires villager is a 40px sprite on a 96px tile: 0.42. Ours were therefore
+// about a third too big for AoE's proportions, which is what made the map read as crowded and the
+// buildings look small next to their own garrison.
+// 0.75 puts a man at 0.43 of a tile - AoE's proportion almost exactly. Buildings and ships are
+// deliberately NOT scaled: they are already right against the tile grid, and it is the men that
+// were out. Press M to flip back to the old size and compare; the choice is remembered.
+const MAN_AOE=0.75;
+let MAN_SCALE=(localStorage.getItem('crownhelm_manscale')==='classic')?1:MAN_AOE;
+function setManScale(aoe){ MAN_SCALE=aoe?MAN_AOE:1;
+  try{localStorage.setItem('crownhelm_manscale',aoe?'aoe':'classic');}catch(e){}
+  if(typeof ents!=='undefined')for(const e of ents){   // rebuild every man on the field at the new size
+    const nm=makeUnitMesh(e.type,e.owner); nm.position.copy(e.mesh.position); nm.rotation.copy(e.mesh.rotation);
+    scene.remove(e.mesh); e.mesh=nm; scene.add(nm);
+    nm.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.depthTest===false))o.receiveShadow=true;}); }
+  flashMsg(aoe?'\uD83D\uDC64 Men at Age of Empires size \u2014 0.43 of a tile (M switches back)'
+              :'\uD83D\uDC64 Men at the old Crownhelm size (M switches back)'); }
 function armUnit(g,type){ const a=ARMS[type]; if(!a)return;
   if(type==='hero'&&UNIT_CHAR.hero==='Meiya')return;   // her weapons are sculpted into the model
   const src=weaponMesh(a[0]); if(!src)return;
-  const w=src.clone(true); w.position.set(a[1],a[2],a[3]); w.rotation.x=a[4]; w.rotation.z=a[5];
+  const w=src.clone(true); w.position.set(a[1]*MAN_SCALE,a[2]*MAN_SCALE,a[3]*MAN_SCALE); w.scale.setScalar(MAN_SCALE);
+  w.rotation.x=a[4]; w.rotation.z=a[5];
   g.add(w); g.userData.weapon=w; }
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // mounted cavalry: real animated horse with a rider seated on top
@@ -2035,7 +2054,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const hsrc=CHAR_LIB.lib[HORSE_OF[type]];
     const horse=CHAR_LIB.clone(hsrc.scene);
     const hbox=modelBox(horse), hlen=Math.max(hbox.max.z-hbox.min.z,hbox.max.x-hbox.min.x)||1;
-    const hs=3.4/hlen; horse.scale.setScalar(hs); horse.position.y=-hbox.min.y*hs;
+    const hs=3.4*MAN_SCALE/hlen; horse.scale.setScalar(hs); horse.position.y=-hbox.min.y*hs;
     horse.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';}); g.add(horse);
     const mixer=new THREE.AnimationMixer(horse);
     const hf=re=>hsrc.clips.find(c=>re.test(c.name)&&!/\|/.test(c.name));
@@ -2053,7 +2072,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     // soldier stands 2.28 and a rider spanned 1.68. Worse, armUnit hangs the weapon off the GROUP,
     // not off the rider, so a lance sized for a 2.4 man was being carried by a 1.9 one — that is
     // where the comically long pike came from. One number fixes both.
-    rider.scale.setScalar(2.4/rh);
+    rider.scale.setScalar(2.4*MAN_SCALE/rh);
     // seat him on the actual spine, not on a guess off the head-high bounding box
     let saddleY=0; horse.updateMatrixWorld(true);
     horse.traverse(o=>{ if(o.isBone&&/^(back|spine|torso)$/i.test(o.name)){ const bp=new THREE.Vector3(); o.getWorldPosition(bp); if(bp.y>saddleY)saddleY=bp.y; } });
@@ -2067,13 +2086,13 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const sit=rsrc.clips.find(c=>/sit/i.test(c.name))||rsrc.clips.find(c=>/idle/i.test(c.name));
     if(sit){rmix.clipAction(sit).play();rmix.update(0.85);}   // frozen mid-sit — a posed rider, no per-frame cost
     g.add(rider);
-    armUnit(g,type); if(g.userData.weapon)g.userData.weapon.position.y+=saddleY+0.35;   // b148: a horseman carries his too
+    armUnit(g,type); if(g.userData.weapon)g.userData.weapon.position.y+=saddleY+0.35*MAN_SCALE;   // b148: a horseman carries his too
     g.userData.noBob=true;
     // Health bars draw with depthTest off, so this does not hide behind the man — it paints across
     // him. At 3.4 it was already crossing the old rider's helmet (top 3.57); with a full-size rider
     // topping out at 4.02 it sat over his face. Foot units clear their heads by about half a unit
     // (bar 2.8 over a 2.28 body) and mounted men now get the same margin.
-    const hbc2=makeHealthBar();hbc2.position.y=4.55;g.add(hbc2);g.userData.hb=hbc2;
+    const hbc2=makeHealthBar();hbc2.position.y=4.55*MAN_SCALE;g.add(hbc2);g.userData.hb=hbc2;
     return g; }
   // b148 MILITARY SILHOUETTES: the character packs ship their people UNARMED — a pikeman, a
   // musketeer and a monk were the same shape from above, which is why an army read as a crowd.
@@ -2088,7 +2107,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const HOLY_TINT={monk:0xa8845c,cardinal:0xd95c4a};
     if(HOLY_TINT[type])ch.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(HOLY_TINT[type]);}});
     const box=modelBox(ch),hgt=box.max.y-box.min.y||2;
-    ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)/hgt);
+    ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)*MAN_SCALE/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
     armUnit(g,type);   // b148: and give the man something to fight with
     if(type==='worker'){ let hand=null; ch.traverse(o=>{if(o.isBone&&o.name==='FistR')hand=o;}); g.userData.hand=hand;   // tools ride the real hand bone
@@ -2125,7 +2144,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     deSync(g.userData);
     if(g.userData.idleA)g.userData.idleA.play();
     g.userData.noBob=true;
-    const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8);g.add(hbk);g.userData.hb=hbk;
+    const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
     return g; }
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
   if(u.coat&&!unitMat[coatKey])unitMat[coatKey]=new THREE.MeshStandardMaterial({color:fac.coat,roughness:.55,flatShading:true});
@@ -2145,7 +2164,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(type==='cannon'||type==='howitzer'){
     if(PIRATE_CANNON){ const c=PIRATE_CANNON.clone(true);
       const box=new THREE.Box3().setFromObject(c),len=Math.max(box.max.z-box.min.z,box.max.x-box.min.x)||1;
-      c.scale.setScalar((type==='howitzer'?2.6:3.2)/len); c.position.y=0.1;
+      c.scale.setScalar((type==='howitzer'?2.6:3.2)*MAN_SCALE/len); c.position.y=0.1;
       // b176: the gun points where it SHOOTS. b144 said it fixed this and did not — the barrel was
       // still ninety degrees out, laid across the line of fire rather than along it. The model is
       // built down its X axis (1.48 long against 1.04 across) while every unit in the game is
@@ -2159,15 +2178,16 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     for(const sx of[-.85,.85]){const wl=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.24,10),M.stoneD);wl.rotation.z=Math.PI/2;wl.position.set(sx,.7,0);wl.castShadow=true;anim.add(wl);}
     const barrel=new THREE.Mesh(new THREE.CylinderGeometry(type==='howitzer'?.42:.3,type==='howitzer'?.5:.34,type==='howitzer'?1.5:2.6,12),unitMat[type]);
     barrel.rotation.x=type==='howitzer'?-1.0:Math.PI/2;barrel.position.set(0,type==='howitzer'?1.4:1.25,type==='howitzer'?0:.5);barrel.castShadow=true;anim.add(barrel);
-    const hbc=makeHealthBar();hbc.position.y=3.4;g.add(hbc);g.userData.hb=hbc;g.userData.noBob=true;return g;}
-  if(u.heal){const robe=new THREE.Mesh(new THREE.ConeGeometry(u.r*.85,u.r*2.3,10),unitMat[type]);robe.position.y=u.r+.35;robe.castShadow=true;anim.add(robe);
+    const hbc=makeHealthBar();hbc.position.y=3.4*MAN_SCALE;g.add(hbc);g.userData.hb=hbc;g.userData.noBob=true;return g;}
+  if(u.heal){anim.scale.setScalar(MAN_SCALE);   // the holy orders build straight into anim, which nothing had scaled
+    const robe=new THREE.Mesh(new THREE.ConeGeometry(u.r*.85,u.r*2.3,10),unitMat[type]);robe.position.y=u.r+.35;robe.castShadow=true;anim.add(robe);
     const head=new THREE.Mesh(new THREE.SphereGeometry(u.r*.4,8,7),M.skin);head.position.y=u.r*2.1+.35;anim.add(head);
     if(type==='priest'||type==='cardinal'){const cv=new THREE.Mesh(new THREE.BoxGeometry(.12,.75,.12),M.gold);cv.position.set(0,u.r+1.0,u.r*.7);anim.add(cv);const cb=new THREE.Mesh(new THREE.BoxGeometry(.44,.12,.12),M.gold);cb.position.set(0,u.r+1.15,u.r*.7);anim.add(cb);}
     if(type==='cardinal'){const hat=new THREE.Mesh(new THREE.ConeGeometry(u.r*.55,.55,5),unitMat.cardinal);hat.position.y=u.r*2.5+.5;anim.add(hat);}
     else if(type==='monk'){const hood=new THREE.Mesh(new THREE.SphereGeometry(u.r*.5,8,6,0,6.28,0,1.7),unitMat.monk);hood.position.y=u.r*2.1+.4;anim.add(hood);}
-    const hbh=makeHealthBar();hbh.position.y=u.r*2.7+.6;g.add(hbh);g.userData.hb=hbh;return g;}
+    const hbh=makeHealthBar();hbh.position.y=(u.r*2.7+.6)*MAN_SCALE;g.add(hbh);g.userData.hb=hbh;return g;}
   // ---- articulated musket-era soldier bodies (coat-coloured, marching limbs) ----
-  anim.scale.setScalar(u.r*1.16);
+  anim.scale.setScalar(u.r*1.16*MAN_SCALE);
   const artic=()=>{ const legL=new THREE.Mesh(new THREE.BoxGeometry(.24,.76,.28),M.stoneD);legL.geometry.translate(0,-.38,0);legL.position.set(-.18,.86,0);legL.castShadow=true;anim.add(legL);
     const legR=legL.clone();legR.position.x=.20;anim.add(legR);
     const torso=new THREE.Mesh(new THREE.CylinderGeometry(.35,.47,1.0,8),bodyMat);torso.position.y=1.36;torso.castShadow=true;anim.add(torso);
@@ -4807,6 +4827,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
   if(k==='-'||k==='_')setSpeed(gameSpeed-1);
   if(k==='h'){const hall=blds.find(b=>b.owner==='player'&&b.type==='hall');if(hall)camTarget.set(hall.cx,0,hall.cz);}
   if(k==='c'&&running){standardView();}
+  if(k==='m'&&running){setManScale(MAN_SCALE===1);}
   if(k==='.'&&running)selectIdle();
   if(k==='b'&&running)townBell();
   if(k===' '&&running&&atkPing.t<45){ev.preventDefault();camTarget.set(atkPing.x,0,atkPing.z);}
@@ -5491,7 +5512,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
-      newGame,standardView,VIEW_DIST,VIEW_PITCH,trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
+      newGame,standardView,VIEW_DIST,VIEW_PITCH,setManScale,get MAN_SCALE(){return MAN_SCALE;},trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
