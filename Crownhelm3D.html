@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b237</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b238</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1392,11 +1392,22 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
   const name=VILLAGE_NAMES[villages.indexOf(v)%VILLAGE_NAMES.length];
   if(owner==='player'){ SFX.age(); flashMsg('🏘 The village of '+name+' joins your realm! (+6 pop, +1 worker, +30 gold)'); }
   else if(u){ const n=nearestNode(u,realmWant(owner)); if(n)gatherOrder(u,n); } }
+// The gold node was a solid butter-yellow ball - the single loudest wrong note on the map. It is a
+// gold-BEARING OUTCROP now: the same slab formation as the iron, cut in warm ochre stone with the
+// bright gold worked into seams across it. The owner's rule from b62 still holds - gold reads gold
+// and stone reads grey at a glance - it just reads as a mine rather than a cheese.
+const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xb8964a,roughness:.72,metalness:.10,flatShading:true});
+const GOLD_STONE_D=new THREE.MeshStandardMaterial({color:0x977a3c,roughness:.80,metalness:.08,flatShading:true});
 function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
-  const goldRock=new THREE.MeshStandardMaterial({color:0xc9a23a,roughness:.55,metalness:.35,flatShading:true});
-  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.6,0),goldRock);r.position.y=.95;r.castShadow=true;r.rotation.set(hashN(n.tx,3),hashN(n.ty,4),hashN(n.tx,n.ty));g.add(r);
-  const r2=new THREE.Mesh(new THREE.DodecahedronGeometry(.9,0),goldRock);r2.position.set(1.3,.5,.4);r2.castShadow=true;r2.rotation.set(hashN(n.ty,5),hashN(n.tx,6),1);g.add(r2);
-  for(const[dx,dz,s]of[[.6,.3,.5],[-.45,.6,.42],[.15,-.6,.46],[-.7,-.3,.38],[1.3,.4,.34]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),M.gold);v.position.set(dx,1.5+dz*.3,dz);v.castShadow=true;g.add(v);}
+  g.add(rockSlab(GOLD_STONE,1.25,1.60,1.10, 0,1.25,0, n.tx+21));
+  g.add(rockSlab(GOLD_STONE_D,0.92,1.05,0.88, 1.20,0.80,0.40, n.ty+22));
+  g.add(rockSlab(GOLD_STONE,0.78,0.90,1.00, -1.10,0.68,-0.35, n.tx+n.ty+23));
+  for(const[dx,dz,sc,sd]of[[1.60,-0.85,0.40,24],[-1.55,0.90,0.34,25],[0.25,1.62,0.38,26]])
+    g.add(rockSlab(GOLD_STONE_D,sc,sc*0.72,sc,dx,sc*0.55,dz,n.tx+sd));
+  // the seams: more of them than before and spread over the whole formation, not clustered on top
+  for(const[dx,dy,dz,sc]of[[.55,1.95,.28,.44],[-.42,1.75,.55,.38],[.14,2.25,-.55,.40],
+                           [-.66,1.35,-.28,.34],[1.22,1.30,.36,.30],[.05,1.55,.95,.32]]){
+    const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.gold);v.position.set(dx,dy,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c,0x86c05a,0x549e3e].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
 const PINE_MATS=[0x338549,0x3a9553,0x2e7742].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.9,flatShading:true}));
@@ -1504,10 +1515,30 @@ function buildTreesInstanced(){
     n.mesh=null; setTreeK(n,1); } }
 const ironGrey=new THREE.MeshStandardMaterial({color:0x7d8288,roughness:.9,flatShading:true});
 const ironGreyD=new THREE.MeshStandardMaterial({color:0x5c6167,roughness:.95,flatShading:true});
+// b238 STAGE 3 - ROCK FORMATIONS, NOT LUMPS.
+// A single dodecahedron the size of a house reads as a ball however it is rotated: every facet is
+// the same size and the silhouette is a circle. The reference builds an outcrop out of several
+// ANGULAR SLABS of different sizes leaning against each other, tallest at the back, with rubble
+// round the foot of it. That is what these do now.
+// The contract is unchanged and load-bearing: still a Group at scale 2, still returned, still
+// added to decorGroup, so n.s0/setScalar shrink-as-mined, visibility and every index still work.
+function rockSlab(mat,sx,sy,sz,px,py,pz,seed){
+  const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1,0),mat);
+  m.scale.set(sx,sy,sz); m.position.set(px,py,pz);
+  m.rotation.set((hashN(seed,11)-0.5)*0.7, hashN(seed,13)*6.28, (hashN(seed,17)-0.5)*0.7);
+  m.castShadow=true; return m; }
 function addRock(n){const g=new THREE.Group();g.scale.setScalar(2);
-  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(1.7,0),ironGrey);r.position.y=1.0;r.castShadow=true;r.rotation.set(hashN(n.tx,1),hashN(n.ty,2),hashN(n.tx,n.ty));g.add(r);
-  const r2=new THREE.Mesh(new THREE.DodecahedronGeometry(1.0,0),ironGreyD);r2.position.set(-1.3,.55,.5);r2.castShadow=true;r2.rotation.set(1,hashN(n.tx,7),0);g.add(r2);
-  for(const[dx,dz,s]of[[.6,.35,.5],[-.4,-.55,.44],[.1,.7,.4]]){const v=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),M.ore);v.position.set(dx,1.7+dz*.3,dz);v.castShadow=true;g.add(v);}
+  const s=hashN(n.tx,n.ty);
+  // the main mass: a tall leaning slab with two smaller ones shouldered into it
+  g.add(rockSlab(ironGrey,1.30,1.75,1.15, 0,1.35,0, n.tx+1));
+  g.add(rockSlab(ironGreyD,0.95,1.15,0.90, -1.25,0.85,0.45, n.ty+2));
+  g.add(rockSlab(ironGrey,0.80,0.95,1.05, 1.15,0.72,-0.40, n.tx+n.ty));
+  // rubble round the foot, so it grows out of the ground instead of resting on it
+  for(const[dx,dz,sc,sd]of[[1.55,0.95,0.42,3],[-1.70,-0.75,0.36,4],[0.35,-1.65,0.40,5],[-0.55,1.60,0.30,6]])
+    g.add(rockSlab(ironGreyD,sc,sc*0.72,sc,dx,sc*0.55,dz,n.tx+sd));
+  // the ore itself, still bright enough to name the node at a glance
+  for(const[dx,dz,sc]of[[.55,.30,.42],[-.35,-.50,.36],[.05,.62,.34]]){
+    const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.ore);v.position.set(dx,2.05+dz*.3,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 
 // ==================================================== AMBIENT LIFE (grass, flowers, bushes, birds, clouds)
