@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b274</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b276</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3933,9 +3933,10 @@ function spawnSpot(b,type){const dom=UNIT[type].dom;for(let r=0;r<9;r++)for(cons
 let sepFlip=false,animFrame=0;
 function separateUnits(){ const cell=3, grid=new Map();
   for(const e of ents){ if(e.inGar)continue; const k=((e.x/cell)|0)*4096+((e.z/cell)|0); let a=grid.get(k); if(!a){a=[];grid.set(k,a);} a.push(e); }
-  for(const e of ents){ const cx=(e.x/cell)|0, cz=(e.z/cell)|0;
+  for(const e of ents){ if(e._onDeck)continue;   // b275: a farmhand up on his own plot is not in the crowd
+    const cx=(e.x/cell)|0, cz=(e.z/cell)|0;
     for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){ const arr=grid.get((cx+dx)*4096+(cz+dz)); if(!arr)continue;
-      for(const o of arr){ if(o.id<=e.id)continue; if(UNIT[e.type].dom!==UNIT[o.type].dom)continue;
+      for(const o of arr){ if(o.id<=e.id)continue; if(o._onDeck)continue; if(UNIT[e.type].dom!==UNIT[o.type].dom)continue;
         const rr=(UNIT[e.type].r+UNIT[o.type].r)*0.95, ddx=o.x-e.x, ddz=o.z-e.z;
         if(Math.abs(ddx)>rr||Math.abs(ddz)>rr)continue; const d=Math.hypot(ddx,ddz);
         if(d>1e-4&&d<rr){ const push=Math.min(0.13,(rr-d)*0.4), nx=ddx/d, nz=ddz/d;   // capped nudge — no more mosh-pit jolts
@@ -4156,7 +4157,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       if(e.convT>=U.convt)convertUnit(e,t);
       break;}
     case 'inside':break;   // safe behind the walls — the building does the fighting
-    case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;e._onDeck=false;break;}
+    case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;e._onDeck=false;e._tendTo=null;break;}
       if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;e._onDeck=false;break;}   // one farmhand per farm — extras step off
       // and a man already in the field walks off it once the granary is full, or the realm would
       // simply keep the hands it had before the surplus built up
@@ -4165,7 +4166,13 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       // b248: and if he has ended up off the field entirely - a failed path, a shove from the crowd,
       // a plot rebuilt around him - walk him back. Without this he works an empty patch of road.
       const dTend=Math.hypot(e.x-b.cx,e.z-b.cz), reachTend=Math.max(b.w,b.h)*TILE*0.5+TILE*1.7;
-      if(dTend>reachTend){ e._onDeck=false; if(arrived||!e.path)tendSpot(e,b); break; }
+      if(dTend>reachTend){ e._onDeck=false; e._tendTo=null; if(arrived||!e.path)tendSpot(e,b); break; }
+      // b275b: he is at his field. A man up on the bed is WORKING, not travelling - any path left
+      // on him walks him off his own plot and then b251's clamp snaps him back, which is the
+      // bouncing. Measured: drifting to 1.9 units outside the plot and teleporting back, every
+      // twenty-five frames. Clear it every tick so the working walk below is the only thing
+      // moving him.
+      if(e._onDeck)e.path=null;
       // he has reached his field: step up onto the bed and work the rows
       if(arrived){ e.path=null;
         // separateUnits runs every other step and will happily shove him off the bed while he is
@@ -4174,10 +4181,16 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
         if(e._onDeck){
           const hw=b.w*TILE*0.5-0.9, hh=b.h*TILE*0.5-0.9;
           e.x=clamp(e.x,b.cx-hw,b.cx+hw); e.z=clamp(e.z,b.cz-hh,b.cz+hh); }
-        if(!e._onDeck||e.tendT<=0){
-          const inx=b.cx+(Math.random()-0.5)*(b.w*TILE-1.6), inz=b.cz+(Math.random()-0.5)*(b.h*TILE-1.6);
-          e.x=inx; e.z=inz; e._onDeck=true;
-          e.dir=Math.atan2(b.cz-e.z,b.cx-e.x); }
+        // b275: pick a ROW to work and WALK to it. This used to assign e.x and e.z outright,
+        // so every few seconds the man was cut and pasted to a random corner of his own field.
+        if(!e._onDeck||!e._tendTo||e.tendT<=0){
+          if(!e._tendTo||e.tendT<=0||Math.hypot(e.x-e._tendTo.x,e.z-e._tendTo.z)<0.4)
+            e._tendTo={x:b.cx+(Math.random()-0.5)*(b.w*TILE-1.6),z:b.cz+(Math.random()-0.5)*(b.h*TILE-1.6)};
+          e._onDeck=true; }
+        if(e._tendTo){ const tdx=e._tendTo.x-e.x, tdz=e._tendTo.z-e.z, td=Math.hypot(tdx,tdz);
+          if(td>0.08){ const st=Math.min(td,UNIT[e.type].speed*0.42*dt);   // a working pace, not a march
+            e.x+=tdx/td*st; e.z+=tdz/td*st; e.dir=Math.atan2(tdz,tdx); }
+          else e.dir=Math.atan2(b.cz-e.z,b.cx-e.x); }
         if(e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
           if(Math.random()<0.8)spawnPart(e.x,Math.max(farmSurfaceY(b,e.x,e.z),heightAtWorld(e.x,e.z))+0.7,e.z,'chip'); } }
       break;}
