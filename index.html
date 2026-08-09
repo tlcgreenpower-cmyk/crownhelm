@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b239</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b240</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1173,6 +1173,29 @@ function buildGroundTexture(){   // painted ground: bright grass with grain + wo
     for(const k of ks){const dd=Math.hypot(v.tx-k[0],v.ty-k[1]);if(dd<bd){bd=dd;best=k;}}
     road([v.tx,v.ty],best); }
   const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=16; groundTex=tex; return tex; }
+// b240: the detail tile. Value noise at three scales, kept tight around mid grey so it modulates
+// the painted colour rather than repainting it - it has to read as turf grain close to and vanish
+// into an even tone at distance. Sampled on a torus so the tile wraps with no visible seam.
+const GROUND_DETAIL_TILES=64;
+let _detailTex=null;
+function buildDetailTexture(){ if(_detailTex)return _detailTex;
+  const N=256, cv=document.createElement('canvas'); cv.width=cv.height=N;
+  const ctx=cv.getContext('2d'), img=ctx.createImageData(N,N), d=img.data;
+  const hash=(x,y)=>{ const s=Math.sin(x*127.1+y*311.7)*43758.5453; return s-Math.floor(s); };
+  const vn=(x,y,per)=>{ const ix=Math.floor(x),iy=Math.floor(y);
+    let fx=x-ix,fy=y-iy; fx=fx*fx*(3-2*fx); fy=fy*fy*(3-2*fy);
+    const w=(a,b)=>hash(((a%per)+per)%per,((b%per)+per)%per);
+    const a=w(ix,iy),b=w(ix+1,iy),c=w(ix,iy+1),e=w(ix+1,iy+1);
+    const t=a+(b-a)*fx, u=c+(e-c)*fx; return t+(u-t)*fy; };
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const u=x/N, v=y/N;
+    let n=vn(u*8,v*8,8)*0.55+vn(u*24+13,v*24+7,24)*0.30+vn(u*64+31,v*64+19,64)*0.15;
+    n=Math.max(0,Math.min(1,(n-0.5)*1.35+0.5));
+    const c=(n*255)|0, i=(y*N+x)*4; d[i]=d[i+1]=d[i+2]=c; d[i+3]=255; }
+  ctx.putImageData(img,0,0);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.NoColorSpace; t.anisotropy=8;
+  _detailTex=t; return t; }
 let groundCv=null,groundCtx=null,groundTex=null;
 function stampDirt(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
   const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(3,tiles*TILE/WORLD_W*TW*0.68);
@@ -1206,7 +1229,38 @@ function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.g
     // the painted ground stays pinned to the playable rectangle; the skirt clamps to the beach
     uvA.setXY(i,(uvA.getX(i)*TW2-SKIRT)/WORLD_W,(uvA.getY(i)*TH2-SKIRT)/WORLD_H); }
   geo.computeVertexNormals();
-  terrainMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:buildGroundTexture(),roughness:.95}));  // painted ground
+  // b240 STAGE 5 - A DETAIL TEXTURE ON THE GROUND.
+  // The one thing Age of Empires has that this game did not have at all. The painted canvas is 1.52
+  // texels per world unit - one pixel per two thirds of a metre - so at the camera this game is
+  // played from the ground is a flat colour field with cone tufts standing on it and nothing in
+  // between. AoE puts the grass INTO the ground surface. AoE2 could afford to because it
+  // pre-rendered its art offline; AoE4 does it with a tiling albedo and a normal map. This is the
+  // cheap version of the AoE4 approach: one 256x256 procedural noise tile, wrapped, sampled off the
+  // existing UV so it tiles in world proportion, multiplied over the painted colour. One extra
+  // texture lookup in the terrain shader and no geometry at all.
+  const NL=String.fromCharCode(10);
+  const gmat=new THREE.MeshStandardMaterial({map:buildGroundTexture(),roughness:.95});
+  gmat.userData.detail={value:buildDetailTexture()};
+  gmat.userData.detailTiles={value:GROUND_DETAIL_TILES};
+  // The first cut of this guessed the built-in UV varying by regex and got it wrong: at
+  // onBeforeCompile the shader still holds its #include directives unexpanded, so NEITHER vUv nor
+  // vMapUv appears in the source yet and the test silently chose the name that does not exist in
+  // this build of three. The forced compile caught it - 'vUv : undeclared identifier'. So it does
+  // not guess: it carries its own varying, computed from the uv attribute, which is stable across
+  // three versions.
+  gmat.onBeforeCompile=sh=>{
+    sh.uniforms.uDetail=gmat.userData.detail;
+    sh.uniforms.uDetailTiles=gmat.userData.detailTiles;
+    sh.vertexShader=('uniform float uDetailTiles;varying vec2 vDetUv;'+NL+sh.vertexShader)
+      .replace('#include <begin_vertex>',
+        '#include <begin_vertex>'+NL+'vDetUv = uv * uDetailTiles;');
+    sh.fragmentShader=('uniform sampler2D uDetail;varying vec2 vDetUv;'+NL+sh.fragmentShader)
+      .replace('#include <map_fragment>',
+        '#include <map_fragment>'+NL+
+        '{ float dt=texture2D(uDetail,vDetUv).r;'+NL+
+        '  diffuseColor.rgb*=(0.80+0.40*dt); }');
+    gmat.userData.injected=true; };
+  terrainMesh=new THREE.Mesh(geo,gmat);  // painted ground + detail
   terrainMesh.receiveShadow=true;scene.add(terrainMesh);}
 // b141 fog-of-war state — declared here because the water shader shares these uniforms
 let fogTex=null,fogData=null;
