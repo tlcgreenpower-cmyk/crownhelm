@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b251</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b252</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -5912,6 +5912,31 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
         flashMsg('⚙ Graphics eased to '+(QUAL==='med'?'Medium':'Fast')+' for smooth play — use the ⚙ button to change'); } } }
   requestAnimationFrame(loop);}
 let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.Vector3();
+// b252: LET THE GAME TAKE ITS OWN PHOTOGRAPH.
+// The tooling can drive this game headlessly but cannot SEE it: screenshots need the browser pane
+// to be compositing frames and it is not, so every visual change for the last dozen builds has been
+// shipped on numbers alone - and three of them were wrong in ways only an eye would catch (bread-
+// roll rocks, camouflage stone, a farmhand standing in the sky). This renders the scene into an
+// offscreen target at a camera you choose, reads the pixels back and hands out a JPEG. No pane, no
+// rAF, no compositing - it works in a tab nobody is looking at.
+window.TFshot=function(opt){ opt=opt||{};
+  const W=opt.w||960, H=opt.h||540;
+  const rt=new THREE.WebGLRenderTarget(W,H,{colorSpace:THREE.SRGBColorSpace});
+  const cam=camera.clone(); cam.aspect=W/H;
+  const tx=opt.x!==undefined?opt.x:camTarget.x, tz=opt.z!==undefined?opt.z:camTarget.z;
+  const d=opt.dist||VIEW_DIST, pit=opt.pitch||VIEW_PITCH, yaw=opt.yaw||0;
+  cam.position.set(tx+Math.sin(yaw)*Math.cos(pit)*d, Math.sin(pit)*d, tz+Math.cos(yaw)*Math.cos(pit)*d);
+  cam.lookAt(tx,0,tz); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  const prev=renderer.getRenderTarget();
+  renderer.setRenderTarget(rt); renderer.render(scene,cam); 
+  const buf=new Uint8Array(W*H*4); renderer.readRenderTargetPixels(rt,0,0,W,H,buf);
+  renderer.setRenderTarget(prev);
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const ctx=cv.getContext('2d'), img=ctx.createImageData(W,H);
+  for(let y=0;y<H;y++){ const src=(H-1-y)*W*4, dst=y*W*4;   // GL reads bottom-up
+    for(let i=0;i<W*4;i++)img.data[dst+i]=buf[src+i]; }
+  ctx.putImageData(img,0,0); rt.dispose();
+  return cv.toDataURL('image/jpeg',opt.q||0.72); };
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
