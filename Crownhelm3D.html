@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b266</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b268</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1728,7 +1728,8 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
   const A=areaScale(),GCAP=Math.round(14000*A),FCAP=Math.round(3200*A),BCAP=Math.round(850*A);
   const grass=new THREE.InstancedMesh(bladeClusterGeo(),
     new THREE.MeshStandardMaterial({map:buildBladeTexture(),alphaTest:0.45,side:THREE.DoubleSide,roughness:1}),GCAP); let gi=0;
-  for(let i=0;i<46000*A&&gi<GCAP;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
+  for(let i=0;i<46000*A&&gi<GCAP;i++){ const _hx=hashN(i*1.7,3);
+    const x=(_hx-0.5)*WORLD_W, z=(hashN(_hx*911.3+7,i*2.3)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.65||e>3.1)continue;
     const gs=0.34+hashN(i,41)*0.26;
     q0.setFromAxisAngle(_yAxis,hashN(i,53)*6.283);
@@ -1738,13 +1739,15 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
   grass.count=gi; ambientGroup.add(grass);
   const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.065,5,4),new THREE.MeshStandardMaterial({roughness:.8}),FCAP); let fi=0;
   const fcols=[0xf2efe2,0xe8d78c,0xd99aab,0xb9a2d8];
-  for(let i=0;i<24000*A&&fi<FCAP;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
+  for(let i=0;i<24000*A&&fi<FCAP;i++){ const _hx=hashN(i*3.1,11);
+    const x=(_hx-0.5)*WORLD_W, z=(hashN(_hx*733.7+13,i*1.9)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.9)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.07,z); flowers.setMatrixAt(fi,m4);
     col.setHex(fcols[i%4]); flowers.setColorAt(fi,col); fi++; }
   flowers.count=fi; ambientGroup.add(flowers);
   const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),BCAP); let bi=0;
-  for(let i=0;i<12000*A&&bi<BCAP;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
+  for(let i=0;i<12000*A&&bi<BCAP;i++){ const _hx=hashN(i*2.7,17);
+    const x=(_hx-0.5)*WORLD_W, z=(hashN(_hx*547.1+19,i*3.7)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     bushes.setMatrixAt(bi,m4); col.setHSL(0.28+hashN(23,i)*0.05,0.48,0.27+hashN(i,29)*0.09,THREE.SRGBColorSpace); bushes.setColorAt(bi,col); bi++; }
