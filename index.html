@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b238</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b239</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1277,9 +1277,15 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
           sin(vW.x*0.45+uTime*1.6)*0.10+sin(vW.x*1.3+uTime*2.2)*0.04+sin((vW.x+vW.z)*1.35+uTime*3.1)*0.010,
           1.0,
           cos(vW.z*0.52+uTime*1.3)*0.10+cos(vW.z*1.5+uTime*1.9)*0.04+cos((vW.z-vW.x)*1.45+uTime*2.6)*0.010));
-        vec3 shore=vec3(0.45,0.92,0.85), mid=vec3(0.13,0.58,0.70), deep=vec3(0.03,0.22,0.44);
-        vec3 col=mix(shore,mid,smoothstep(0.03,0.35,depth));
-        col=mix(col,deep,smoothstep(0.35,1.1,depth));
+        // b239 STAGE 4 - THE SEA WAS NEARLY BLACK. deep sat at (0.03,0.22,0.44); under the fog-of-war
+        // multiply and the horizon haze that lands somewhere near navy-black across half the frame,
+        // which is what makes the coast read as a hole in the world rather than water. The reference
+        // is a rich mid-blue that stays clearly BLUE at depth. Lifted, and the shallow band widened
+        // so the shoreline gets somewhere to make its transition instead of snapping in a third of
+        // a unit of depth. Ripples, swell, fresnel and specular are all untouched.
+        vec3 shore=vec3(0.48,0.93,0.86), mid=vec3(0.16,0.62,0.76), deep=vec3(0.07,0.30,0.58);
+        vec3 col=mix(shore,mid,smoothstep(0.02,0.42,depth));
+        col=mix(col,deep,smoothstep(0.42,1.25,depth));
         // b215: THE SWELL, done the way the grass was. Open sea measured a lateral spread of 8.3
         // levels a row against the land's 73 — a flat blue sheet over nearly half the frame whenever
         // the coast is in shot. Lighting was the wrong tool for it: from overhead there is barely any
@@ -1290,7 +1296,7 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
         // shade, so it costs two lookups and no new machinery.
         { vec2 sp=vW.xz*0.019+vec2(uTime*0.021,uTime*0.014);
           float sn=_tfVN(sp)*0.66+_tfVN(sp*2.4+11.0)*0.34;
-          col*=mix(vec3(0.86,0.90,0.97),vec3(1.16,1.11,1.03),smoothstep(0.30,0.72,sn)); }
+          col*=mix(vec3(0.82,0.88,0.98),vec3(1.22,1.15,1.04),smoothstep(0.28,0.74,sn)); }
         float fres=pow(1.0-max(dot(vd,n),0.0),3.0);
         col=mix(col,vec3(0.62,0.76,0.88),fres*0.35);
         vec3 h=normalize(normalize(uSun)+vd);
