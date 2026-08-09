@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b247</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b248</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3206,7 +3206,7 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
   if(workers0.length){ const ftx=txFromW(x),fty=tzFromW(z),fid=inB(ftx,fty)?buildGrid[ti(ftx,fty)]:0;
     const fb=blds.find(q=>q.id===fid&&q.owner==='player'&&q.done&&q.type==='farm');
     if(fb){ const free=ents.some(u=>u.cmd==='tend'&&u.tendB===fb)?[]:[workers0[0]];   // one farmhand per farm
-      free.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;orderPath(w,fb.tx+(fb.w>>1),fb.ty+(fb.h>>1),fb.id);});
+      free.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;tendSpot(w,fb);});
       flashMsg(free.length?'\u{1F468}\u200D\u{1F33E} A farmhand takes the field \u2014 the farm will feed you now':'\u{1F468}\u200D\u{1F33E} That farm already has its farmhand');SFX.cmd();return; } }
   const eu=entAt(x,z,'player');if(eu){
     const mk=UNIT[eu.type].noConv?[]:list.filter(e=>UNIT[e.type].conv);
@@ -3333,6 +3333,21 @@ function commandPatrol(list,x,z){ const ml=list.filter(e=>e.type!=='worker'&&!UN
   spawnMoveMark(x,z,0x9fd6ec); spawnMoveMark(cx,cz,0x9fd6ec);
   flashMsg('\uD83D\uDEA9 Patrol \u2014 '+ml.length+' will walk the line and fight anything that crosses it. X halts them.');
   SFX.cmd(); }
+// b248: WHERE A FARMHAND STANDS. Pathing into a field can fail - the plot tiles are the building's
+// own, the fence sits on them, and a man already inside can block the one open square. The old code
+// called orderPath once and ignored whether it worked, so a hand whose path failed simply stopped
+// wherever A* last got him and stayed there: he counts as 'arrived', so every few seconds he rolled
+// a new tile, failed again, and stood. That is the crowd loitering in the road by the mill.
+// This tries the rows first, and settles for the nearest tile against the fence rather than giving up.
+function tendSpot(e,b){
+  for(let k=0;k<8;k++){ const tx=b.tx+Math.floor(Math.random()*b.w), ty=b.ty+Math.floor(Math.random()*b.h);
+    if(orderPath(e,tx,ty,b.id))return true; }
+  let best=null,bd=1e9;
+  for(let dy=-1;dy<=b.h;dy++)for(let dx=-1;dx<=b.w;dx++){
+    if(dx>=0&&dx<b.w&&dy>=0&&dy<b.h)continue;
+    const x=b.tx+dx,y=b.ty+dy; if(!inB(x,y)||!passable(x,y,0,'land',e.owner))continue;
+    const d=Math.hypot(wx(x)-e.x,wz(y)-e.z); if(d<bd){bd=d;best=[x,y];} }
+  return best?orderPath(e,best[0],best[1],b.id):false; }
 function pathToNode(e,n){ let bx=n.tx,by=n.ty,bd2=1e9;   // b124: walk to a SPECIFIC open tile beside the node — no more unreachable-tree limbo
   for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy;
     if(inB(x,y)&&passable(x,y,0,'land')){ const ddx=wx(x)-e.x,ddz=wz(y)-e.z,d2=ddx*ddx+ddz*ddz; if(d2<bd2){bd2=d2;bx=x;by=y;} } }
@@ -3843,7 +3858,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       if(!e.inGar&&!e.path&&Math.random()<dt*0.045&&e.mesh.userData.cheerA)playOnce(e,Math.random()<0.6?'cheerA':'attackA');   // b134: idle folk stretch, wave, drill
       if(e.type==='worker'&&Math.random()<dt*2&&!(e.noWork&&elapsed<e.noWork)){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
         else{const f=(Math.random()<0.5&&wantsFarmhand(e.owner))?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
-          if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}
+          if(f){e.cmd='tend';e.tendB=f;tendSpot(e,f);}
           else{ let best=null,bd=48*2.8;   // b93: idle peasants find their own work — b166: weighed by what the realm is short of
             for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(n.type==='wood'&&!chopReachable(n))continue;
               const raw=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty)); if(raw>48)continue;
@@ -3977,9 +3992,12 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       // simply keep the hands it had before the surplus built up
       if(!wantsFarmhand(e.owner)){e.cmd='idle';e.tendB=null;break;}
       e.tendT=(e.tendT||0)-dt;
+      // b248: and if he has ended up off the field entirely - a failed path, a shove from the crowd,
+      // a plot rebuilt around him - walk him back. Without this he works an empty patch of road.
+      const dTend=Math.hypot(e.x-b.cx,e.z-b.cz), reachTend=Math.max(b.w,b.h)*TILE*0.5+TILE*1.7;
+      if(dTend>reachTend){ if(arrived||!e.path)tendSpot(e,b); break; }
       if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
-        const tx2=b.tx+Math.floor(Math.random()*b.w),ty2=b.ty+Math.floor(Math.random()*b.h);
-        orderPath(e,tx2,ty2,b.id);
+        tendSpot(e,b);
         if(Math.random()<0.8)spawnPart(e.x,heightAtWorld(e.x,e.z)+0.7,e.z,'chip'); }
       break;}
   }
@@ -5808,7 +5826,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
     if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }
   for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;e.xp=se.xp||0;e.rank=se.rk||0;if(e.rank)addRankPips(e);placeMesh(e);
     if(se.j==='tend'){const f=blds.filter(q=>q.owner===e.owner&&q.done&&q.type==='farm').sort((q,r)=>Math.hypot(e.x-q.cx,e.z-q.cz)-Math.hypot(e.x-r.cx,e.z-r.cz))[0];
-      if(f){e.cmd='tend';e.tendB=f;orderPath(e,f.tx+(f.w>>1),f.ty+(f.h>>1),f.id);}}
+      if(f){e.cmd='tend';e.tendB=f;tendSpot(e,f);}}
     else if(se.j){const n=nearestNode(e,se.j);if(n)gatherOrder(e,n);}
     // b233: a saved kingdom used to come back with every man on Aggressive, every patrol forgotten,
     // every monk's faith restored for free and every trade cart standing in the road for good -
