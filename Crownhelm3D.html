@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b242</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b243</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -906,11 +906,67 @@ const BLD_CHAR={hall:'castle',house:'home_A',barracks:'barracks',gunshop:'blacks
 }catch(e){/* stay on procedural buildings */} })();
 
 // ==================================================== MATERIALS
+// ==================================================== b243 PROCEDURAL TEXTURE LIBRARY
+// The environment is flat-coloured geometry and the reference is textured assets - that is the
+// whole of the remaining gap, and no amount of constant-tuning closes it. These are generated on a
+// canvas at load, so the game stays one file with nothing to download, and every one of them is
+// GREY-CENTRED: a mean near white so it MULTIPLIES over each material's existing colour rather than
+// replacing it. That matters because the colour variants - eight leaf greens, two stone greys, the
+// gold ochres - are what stop a forest looking like one stamped tree, and they all survive.
+const _texCache={};
+function _mkTex(key,N,draw,repeat){ if(_texCache[key])return _texCache[key];
+  const cv=document.createElement('canvas'); cv.width=cv.height=N;
+  const c=cv.getContext('2d'); draw(c,N);
+  const t=new THREE.CanvasTexture(cv); t.colorSpace=THREE.SRGBColorSpace;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=8;
+  if(repeat)t.repeat.set(repeat,repeat);
+  _texCache[key]=t; return t; }
+const _tnHash=(x,y)=>{ const s=Math.sin(x*127.1+y*311.7)*43758.5453; return s-Math.floor(s); };
+function _tnVal(x,y,per){ const ix=Math.floor(x),iy=Math.floor(y);
+  let fx=x-ix,fy=y-iy; fx=fx*fx*(3-2*fx); fy=fy*fy*(3-2*fy);
+  const w=(a,b)=>_tnHash(((a%per)+per)%per,((b%per)+per)%per);
+  const a=w(ix,iy),b=w(ix+1,iy),cc=w(ix,iy+1),e=w(ix+1,iy+1);
+  const t=a+(b-a)*fx,u=cc+(e-cc)*fx; return t+(u-t)*fy; }
+// STONE: broad mottling for the mass of the rock, a finer grain over it, and dark cracks scored
+// across so a flat box face reads as a cleaved surface rather than a painted panel.
+function stoneTex(){ return _mkTex('stone',256,(c,N)=>{
+  const img=c.createImageData(N,N),d=img.data;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const u=x/N,v=y/N;
+    let n=_tnVal(u*6,v*6,6)*0.55+_tnVal(u*16+7,v*16+3,16)*0.30+_tnVal(u*44+19,v*44+11,44)*0.15;
+    let k=0.74+n*0.42;
+    const crack=_tnVal(u*9+31,v*9+17,9);
+    if(crack>0.62&&crack<0.66)k*=0.62;              // a scored line
+    const g=Math.max(0,Math.min(255,k*255))|0, i=(y*N+x)*4;
+    d[i]=g;d[i+1]=g;d[i+2]=g;d[i+3]=255; }
+  c.putImageData(img,0,0); },1);}
+// BARK: vertical fibre. Trunks are cylinders, so the U axis wraps the girth and V runs the height -
+// streaks drawn down the image become bark running up the tree.
+function barkTex(){ return _mkTex('bark',128,(c,N)=>{
+  const img=c.createImageData(N,N),d=img.data;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const u=x/N,v=y/N;
+    let n=_tnVal(u*22,v*3.5,22)*0.62+_tnVal(u*54+9,v*8+5,54)*0.38;
+    const k=0.72+n*0.48;
+    const g=Math.max(0,Math.min(255,k*255))|0,i=(y*N+x)*4;
+    d[i]=g;d[i+1]=g;d[i+2]=g;d[i+3]=255; }
+  c.putImageData(img,0,0); },1);}
+// FOLIAGE: clumped dapple, so a canopy blob reads as masses of leaf in light and shade instead of
+// one even ball of green. Higher contrast than the others because a canopy is mostly holes.
+function leafTex(){ return _mkTex('leaf',256,(c,N)=>{
+  const img=c.createImageData(N,N),d=img.data;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const u=x/N,v=y/N;
+    let n=_tnVal(u*7,v*7,7)*0.5+_tnVal(u*19+13,v*19+29,19)*0.32+_tnVal(u*48+3,v*48+41,48)*0.18;
+    const k=0.66+Math.pow(n,0.85)*0.62;
+    const g=Math.max(0,Math.min(255,k*255))|0,i=(y*N+x)*4;
+    d[i]=g;d[i+1]=g;d[i+2]=g;d[i+3]=255; }
+  c.putImageData(img,0,0); },2);}
 const M={
-  stone:new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:.9,flatShading:true}),
-  stoneD:new THREE.MeshStandardMaterial({color:0x71767c,roughness:.95,flatShading:true}),
+  stone:new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:.9,map:stoneTex(),flatShading:true}),
+  stoneD:new THREE.MeshStandardMaterial({color:0x71767c,roughness:.95,map:stoneTex(),flatShading:true}),
   wood:new THREE.MeshStandardMaterial({color:0x6b4a2b,roughness:.9,flatShading:true}),
-  trunk:new THREE.MeshStandardMaterial({color:0x5a3d22,roughness:.95,flatShading:true}),
+  trunk:new THREE.MeshStandardMaterial({color:0x5a3d22,roughness:.95,map:barkTex()}),   // b243: flatShading off - it fights a texture
   leafA:new THREE.MeshStandardMaterial({color:0x2f6d38,roughness:.9,flatShading:true}),
   leafB:new THREE.MeshStandardMaterial({color:0x3f8a45,roughness:.9,flatShading:true}),
   rock:new THREE.MeshStandardMaterial({color:0x6b6b76,roughness:.95,flatShading:true}),
@@ -1479,8 +1535,8 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
 // gold-BEARING OUTCROP now: the same slab formation as the iron, cut in warm ochre stone with the
 // bright gold worked into seams across it. The owner's rule from b62 still holds - gold reads gold
 // and stone reads grey at a glance - it just reads as a mine rather than a cheese.
-const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xb8964a,roughness:.72,metalness:.10,flatShading:true});
-const GOLD_STONE_D=new THREE.MeshStandardMaterial({color:0x977a3c,roughness:.80,metalness:.08,flatShading:true});
+const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xc4a254,roughness:.72,metalness:.10,map:stoneTex(),flatShading:true});
+const GOLD_STONE_D=new THREE.MeshStandardMaterial({color:0xa38443,roughness:.80,metalness:.08,map:stoneTex(),flatShading:true});
 function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
   // b242: this was the worst of it on screen - six rounded lumps sprawled across three tiles,
   // reading as a heap of bread. Three angular masses inside a tight footprint, two broken shards.
@@ -1493,8 +1549,8 @@ function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
   for(const[dx,dy,dz,sc]of[[.48,1.72,.22,.34],[-.38,1.42,.46,.30],[.10,2.02,-.44,.30],[.72,1.05,.30,.24]]){
     const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.gold);v.position.set(dx,dy,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
-const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c,0x86c05a,0x549e3e].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
-const PINE_MATS=[0x338549,0x3a9553,0x2e7742].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.9,flatShading:true}));
+const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c,0x86c05a,0x549e3e].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,map:leafTex(),flatShading:true}));   // b243
+const PINE_MATS=[0x338549,0x3a9553,0x2e7742].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.9,map:leafTex(),flatShading:true}));   // b243
 function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),h2=hashN(n.ty*3.1,n.tx*1.9),h3=hashN(n.tx*2.9,n.ty*1.7);
   if(h3<0.68){ // broadleaf: tapered trunk + clustered rounded canopies
     const mA=LEAF_MATS[Math.floor(h1*LEAF_MATS.length)%LEAF_MATS.length];
@@ -1597,7 +1653,7 @@ function buildTreesInstanced(){
   for(const pl of plans){ const n=pl.n; n.px=pl.px;n.py=pl.py;n.pz=pl.pz;n.ry=pl.ry;n.rz=pl.rz;n.ts=pl.ts;
     n.tim=pl.parts.map(pp=>({im:ims[pp[0]],i:idx[pp[0]]++,l:pp[1]}));
     n.mesh=null; setTreeK(n,1); } }
-const ironGrey=new THREE.MeshStandardMaterial({color:0x7d8288,roughness:.9,flatShading:true});
+const ironGrey=new THREE.MeshStandardMaterial({color:0x8d939a,roughness:.9,map:stoneTex(),flatShading:true});
 const ironGreyD=new THREE.MeshStandardMaterial({color:0x5c6167,roughness:.95,flatShading:true});
 // b238 STAGE 3 - ROCK FORMATIONS, NOT LUMPS.
 // A single dodecahedron the size of a house reads as a ball however it is rotated: every facet is
