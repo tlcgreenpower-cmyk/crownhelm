@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b244</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b245</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -5567,7 +5567,7 @@ setInterval(renderDiplo,2000);
 
 // ==================================================== SELECTION RINGS + MINIMAP
 const ringGeo=new THREE.RingGeometry(0.72,0.92,20);ringGeo.rotateX(-Math.PI/2);
-const ringMat=new THREE.MeshBasicMaterial({color:0x7fe0a0,transparent:true,opacity:.9,depthTest:false});
+const ringMat=new THREE.MeshBasicMaterial({color:0x7fe0a0,transparent:true,opacity:.82,depthTest:true,depthWrite:false});   // b245: depth ON - it must not draw over the unit it marks
 let rings=[];
 const rallyGrp=new THREE.Group();
 { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,3.8,6),M.wood); pole.position.y=1.9; rallyGrp.add(pole);
@@ -5578,11 +5578,11 @@ const rallyLineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3()
 const rallyLine=new THREE.Line(rallyLineGeo,new THREE.LineDashedMaterial({color:0xf3e4be,dashSize:1.1,gapSize:.8,transparent:true,opacity:.7,depthTest:false}));
 rallyLine.renderOrder=996; rallyLine.visible=false; scene.add(rallyLine);
 function updateRings(){let need=0;
-  const place=(x,z,s)=>{let r=rings[need];if(!r){r=new THREE.Mesh(ringGeo,ringMat);r.renderOrder=998;scene.add(r);rings.push(r);}r.visible=true;r.scale.setScalar(s);r.position.set(x,heightAtWorld(x,z)+0.12,z);need++;};
+  const place=(x,z,s)=>{let r=rings[need];if(!r){r=new THREE.Mesh(ringGeo,ringMat);r.renderOrder=998;scene.add(r);rings.push(r);}r.visible=true;r.scale.setScalar(s);r.position.set(x,heightAtWorld(x,z)+0.06,z);need++;};
   // b229: the ring is a marker on the MAN, so it comes down with him. His collision radius is
   // deliberately unchanged - men still hold the same ground and stand the same distance apart -
   // but a full-size ring round a three-quarter-size soldier reads as a loose hoop on the grass.
-  for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;place(e.x,e.z,UNIT[e.type].r*2*MAN_SCALE);}
+  for(const id of selected){const e=ents.find(u=>u.id===id);if(!e)continue;place(e.x,e.z,UNIT[e.type].r*1.18*MAN_SCALE);}
   if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b)place(b.cx,b.cz,Math.max(b.w,b.h)*TILE*0.6);}
   for(let i=need;i<rings.length;i++)rings[i].visible=false;
   let rb=null; if(selBuilding){const b=blds.find(x=>x.id===selBuilding); if(b&&b.owner==='player'&&b.done&&b.rally)rb=b;}
