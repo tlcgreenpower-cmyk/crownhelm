@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b259</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b261</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1459,10 +1459,17 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
         // exponent low enough to fire at all is the only honest setting, and even then the swell
         // only swings the dot by a tenth, so this is a faint sheen and not the answer on its own.
         col+=vec3(1.0,0.96,0.85)*pow(max(dot(n,h),0.0),5.0)*0.30;
-        // foam hugging the shoreline only, gently animated
-        float foam=smoothstep(0.16,0.02,depth)*(0.55+0.45*sin(uTime*2.0+vW.x*0.8+vW.z*0.7));
-        col=mix(col,vec3(0.94,0.97,1.0),clamp(foam,0.0,1.0)*0.7);
+        // b260 THE SURF. See the note above the swell: same reasoning, other end of the sea.
+        float fedge=_tfVN(vW.xz*0.52+vec2(uTime*0.085,-uTime*0.062))*0.68
+                   +_tfVN(vW.xz*1.35+vec2(-uTime*0.13,uTime*0.10))*0.32;
+        float band=smoothstep(0.26,0.02,depth);                       // how close to the sand we are
+        float surf=smoothstep(0.46,0.74,band*0.82+fedge*0.40);        // broken into tongues, not a ring
+        float pulse=0.62+0.38*sin(uTime*1.7+vW.x*0.33+vW.z*0.27);     // and it advances and retreats
+        float lip=smoothstep(0.07,0.0,depth);                         // solid white where it meets the sand
+        float foam=clamp(surf*pulse*0.95+lip*0.95,0.0,1.0);
+        col=mix(col,vec3(0.96,0.99,1.0),foam*0.92);
         float alpha=mix(0.72,0.94,smoothstep(0.05,0.8,depth));
+        alpha=max(alpha,foam*0.96);   // b261: water you can see the sand through, foam you cannot
         if(uCldAmt>0.001){ vec2 cw=vW.xz*uCldFreq+uCldDrift;   // b179: the same cloud crossing the same coast
           float cn=_tfVN(cw)*0.66+_tfVN(cw*2.13+7.0)*0.34;
           col*=mix(1.0,uCldDepth,smoothstep(0.46,0.74,cn)*uCldAmt); }
