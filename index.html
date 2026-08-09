@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b236</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b237</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1452,13 +1452,33 @@ function buildTreesInstanced(){
   const L=LEAF_MATS.length,P=PINE_MATS.length,plans=[],counts={};
   const lm=(x,y,z,ex,ey,ez,sx,sy,sz)=>new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(ex,ey,ez)),new THREE.Vector3(sx,sy,sz));
   for(const n of woodNodes){ const h1=hashN(n.tx*1.3,n.ty*2.7),h2=hashN(n.ty*3.1,n.tx*1.9),h3=hashN(n.tx*2.9,n.ty*1.7);
+    // b237 STAGE 2 - THREE TREE ARCHETYPES, NOT TWO.
+    // The old broadleaf was four equal blobs at nearly the same height, which from the game camera
+    // reads as one lumpy ball: no crown, no shoulders, no gap between masses. The reference has a
+    // clear silhouette - a broad crown that is WIDER THAN IT IS TALL with a dark underskirt, or a
+    // narrow upright one - and a conifer built of several drooping tiers rather than two cones.
+    // All three are built out of the same instanced parts the old ones used, so placement, felling,
+    // shrink-as-harvested and the draw-call count are untouched.
     const parts=[];
-    if(h3<0.68){ const a=Math.floor(h1*L)%L,b=Math.floor(h2*L)%L;
-      parts.push(['tb',lm(0,1.0,0,0,0,0,1,1,1)]);
-      const bl=(x,y,z,s,mi)=>parts.push(['b'+mi,lm(x,y,z,h1*3,h2*3,h3*3,s,s*.82,s)]);
-      bl(0,3.0,0,1.55,a);bl(.95,2.5,.35,1.0,b);bl(-.85,2.6,-.3,.95,b);bl(.15,2.3,-.9,.85,a);
-    } else { const mi=Math.floor(h1*P)%P;
-      parts.push(['tp',lm(0,.7,0,0,0,0,1,1,1)],['c1'+mi,lm(0,2.6,0,0,0,0,1,1,1)],['c2'+mi,lm(0,4.1,0,0,0,0,1,1,1)]); }
+    if(h3<0.38){ // OAK: broad crown, low shoulders, a darker skirt beneath to give it depth
+      const a=Math.floor(h1*L)%L, b=Math.floor(h2*L)%L, c=(a+3)%L;
+      parts.push(['tb',lm(0,1.0,0,0,0,0,1.05,1.05,1.05)]);
+      const bl=(x,y,z,sx,sy,mi)=>parts.push(['b'+mi,lm(x,y,z,h1*3,h2*3,h3*3,sx,sy,sx)]);
+      bl(0,3.15,0,1.85,1.30,a);                          // the crown, flattened
+      bl(1.20,2.55,.30,1.15,0.90,b); bl(-1.10,2.60,-.35,1.10,0.88,b);
+      bl(.20,2.45,-1.15,1.00,0.82,c); bl(-.25,2.50,1.10,0.95,0.80,c);
+      bl(0,2.05,0,1.45,0.62,c);                          // underskirt: the shaded mass under the crown
+    } else if(h3<0.68){ // BIRCH: slim and upright, a tall narrow crown that never blocks a view
+      const a=Math.floor(h2*L)%L, b=(a+5)%L;
+      parts.push(['tb',lm(0,1.25,0,0,0,0,0.72,1.35,0.72)]);
+      const bl=(x,y,z,sx,sy,mi)=>parts.push(['b'+mi,lm(x,y,z,h1*3,h2*3,h3*3,sx,sy,sx)]);
+      bl(0,4.05,0,0.98,1.35,a); bl(.42,3.30,.20,0.85,1.05,b); bl(-.40,3.15,-.22,0.80,1.00,b);
+    } else { const mi=Math.floor(h1*P)%P;   // FIR: four tiers, each wider and shorter than the one above
+      parts.push(['tp',lm(0,.7,0,0,0,0,1,1,1)],
+        ['c1'+mi,lm(0,2.30,0,0,0,0,1.30,1.05,1.30)],
+        ['c1'+mi,lm(0,3.45,0,0,0,0,1.02,0.92,1.02)],
+        ['c2'+mi,lm(0,4.45,0,0,0,0,1.05,1.00,1.05)],
+        ['c2'+mi,lm(0,5.35,0,0,0,0,0.66,0.85,0.66)]); }
     const px=wx(n.tx),pz=wz(n.ty),py=heightAtWorld(px,pz);
     plans.push({n,parts,px,py,pz,ry:h1*6,rz:(h2-.5)*.08,ts:0.85+h2*0.7});
     for(const pp of parts)counts[pp[0]]=(counts[pp[0]]||0)+1; }
