@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b233</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b234</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -5145,6 +5145,15 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         info.innerHTML+='<br><span style="color:#e8a86a">\uD83D\uDD27 Damaged \u2014 '+Math.round(b.hp/b.maxHp*100)+'% standing</span>'
           +'<span style="color:#6f93a8;font-size:11px"> \u2014 select workers and right-click it to mend it</span>';
         if(crew.length)techBtn(cmds,'\uD83D\uDD27','Repair',crew.length+(crew.length===1?' worker':' workers'),true,()=>{crew.forEach(w=>repairOrder(w,b));SFX.cmd();refreshUI();}); }
+      // b234: you could order a man and never un-order him. A misclick on a Castle unit, or a
+      // queue laid down before a raid changed what the town needed, was simply paid for. Cancels
+      // from the BACK of the queue and hands the materials straight back.
+      if(b.queue.length&&TRAINERS.has(b.type)){ const lastQ=b.queue[b.queue.length-1];
+        techBtn(cmds,'✖','Cancel last',UNIT[lastQ.type].name,true,()=>{
+          const q=b.queue.pop(); if(!q)return; const c=COST[q.type]||{}, rr=res.player;
+          rr.f+=(c.f||0); rr.w+=(c.w||0); rr.m+=(c.m||0); rr.g+=(c.g||0); b.qHold=false;
+          SFX.cmd(); flashMsg('✖ '+UNIT[q.type].name+' cancelled — the materials are back in the stores');
+          updateHUD(); refreshUI(); }); }
       if(GAR_CAP[b.type]){const gn=(b.gar||[]).length;
         info.innerHTML+='<br>⛨ Garrison '+gn+'/'+GAR_CAP[b.type]+(gn?'':' <span style="color:#6f93a8;font-size:11px">— right-click here with soldiers selected</span>');
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
