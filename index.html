@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b265</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b266</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1654,12 +1654,17 @@ function buildTreesInstanced(){
       parts.push(['tb',lm(0,1.25,0,0,0,0,0.72,1.35,0.72)]);
       const bl=(x,y,z,sx,sy,mi)=>parts.push(['b'+mi,lm(x,y,z,h1*3,h2*3,h3*3,sx,sy,sx)]);
       bl(0,4.05,0,0.98,1.35,a); bl(.42,3.30,.20,0.85,1.05,b); bl(-.40,3.15,-.22,0.80,1.00,b);
-    } else { const mi=Math.floor(h1*P)%P;   // FIR: four tiers, each wider and shorter than the one above
-      parts.push(['tp',lm(0,.7,0,0,0,0,1,1,1)],
-        ['c1'+mi,lm(0,2.30,0,0,0,0,1.30,1.05,1.30)],
-        ['c1'+mi,lm(0,3.45,0,0,0,0,1.02,0.92,1.02)],
-        ['c2'+mi,lm(0,4.45,0,0,0,0,1.05,1.00,1.05)],
-        ['c2'+mi,lm(0,5.35,0,0,0,0,0.66,0.85,0.66)]); }
+    } else { const mi=Math.floor(h1*P)%P;   // FIR: tiers, each wider and shorter than the one above
+      const f=(h3-0.68)/0.32;                       // free spread inside the fir population
+      const tiers=3+Math.floor(f*2.999);            // three, four or five
+      const spread=0.88+h2*0.52, gap=0.88+f*0.50;   // squat spruce through to narrow spire
+      parts.push(['tp',lm(0,.7,0,0,0,0,1,1,1)]);
+      // work in real radius and height and divide by each cone's own base, so switching from the
+      // broad c1 geometry to the narrow c2 near the top does not pinch the tree in at the waist
+      let y=2.10+h2*0.42, rad=1.68*spread, hgt=3.00;
+      for(let t=0;t<tiers;t++){ const c2=(t>=tiers-2), base=c2?0.85:1.25, hb=c2?2.0:2.9;
+        parts.push([(c2?'c2':'c1')+mi,lm(0,y,0,0,0,0,rad/base,hgt/hb,rad/base)]);
+        y+=(1.04+t*0.05)*gap; rad*=0.80+f*0.05; hgt*=0.93; } }
     const px=wx(n.tx),pz=wz(n.ty),py=heightAtWorld(px,pz);
     plans.push({n,parts,px,py,pz,ry:h1*6,rz:(h2-.5)*.08,ts:0.85+h2*0.7});
     for(const pp of parts)counts[pp[0]]=(counts[pp[0]]||0)+1; }
