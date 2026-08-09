@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b241</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b242</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1482,14 +1482,15 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
 const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xb8964a,roughness:.72,metalness:.10,flatShading:true});
 const GOLD_STONE_D=new THREE.MeshStandardMaterial({color:0x977a3c,roughness:.80,metalness:.08,flatShading:true});
 function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
-  g.add(rockSlab(GOLD_STONE,1.25,1.60,1.10, 0,1.25,0, n.tx+21));
-  g.add(rockSlab(GOLD_STONE_D,0.92,1.05,0.88, 1.20,0.80,0.40, n.ty+22));
-  g.add(rockSlab(GOLD_STONE,0.78,0.90,1.00, -1.10,0.68,-0.35, n.tx+n.ty+23));
-  for(const[dx,dz,sc,sd]of[[1.60,-0.85,0.40,24],[-1.55,0.90,0.34,25],[0.25,1.62,0.38,26]])
-    g.add(rockSlab(GOLD_STONE_D,sc,sc*0.72,sc,dx,sc*0.55,dz,n.tx+sd));
-  // the seams: more of them than before and spread over the whole formation, not clustered on top
-  for(const[dx,dy,dz,sc]of[[.55,1.95,.28,.44],[-.42,1.75,.55,.38],[.14,2.25,-.55,.40],
-                           [-.66,1.35,-.28,.34],[1.22,1.30,.36,.30],[.05,1.55,.95,.32]]){
+  // b242: this was the worst of it on screen - six rounded lumps sprawled across three tiles,
+  // reading as a heap of bread. Three angular masses inside a tight footprint, two broken shards.
+  g.add(rockSlab(GOLD_STONE,1.50,1.95,1.30, 0,1.00,0, n.tx+21));
+  g.add(rockSlab(GOLD_STONE_D,1.00,1.20,0.95, 0.92,0.60,0.32, n.ty+22));
+  g.add(rockSlab(GOLD_STONE,0.82,1.45,0.92, -0.85,0.75,-0.28, n.tx+n.ty+23));
+  g.add(rockSlab(GOLD_STONE_D,0.52,0.44,0.52, -0.95,0.22,0.80, n.tx+24, true));
+  g.add(rockSlab(GOLD_STONE_D,0.44,0.36,0.44, 0.90,0.18,-0.85, n.tx+25, true));
+  // the seams, worked across the standing faces rather than piled on the crown
+  for(const[dx,dy,dz,sc]of[[.48,1.72,.22,.34],[-.38,1.42,.46,.30],[.10,2.02,-.44,.30],[.72,1.05,.30,.24]]){
     const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.gold);v.position.set(dx,dy,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c,0x86c05a,0x549e3e].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
@@ -1605,23 +1606,24 @@ const ironGreyD=new THREE.MeshStandardMaterial({color:0x5c6167,roughness:.95,fla
 // round the foot of it. That is what these do now.
 // The contract is unchanged and load-bearing: still a Group at scale 2, still returned, still
 // added to decorGroup, so n.s0/setScalar shrink-as-mined, visibility and every index still work.
-function rockSlab(mat,sx,sy,sz,px,py,pz,seed){
-  const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1,0),mat);
+const _slabGeo=new THREE.BoxGeometry(1,1,1);
+const _shardGeo=new THREE.OctahedronGeometry(1,0);
+function rockSlab(mat,sx,sy,sz,px,py,pz,seed,shard){
+  const m=new THREE.Mesh(shard?_shardGeo:_slabGeo,mat);
   m.scale.set(sx,sy,sz); m.position.set(px,py,pz);
-  m.rotation.set((hashN(seed,11)-0.5)*0.7, hashN(seed,13)*6.28, (hashN(seed,17)-0.5)*0.7);
+  m.rotation.set((hashN(seed,11)-0.5)*0.34, hashN(seed,13)*6.28, (hashN(seed,17)-0.5)*0.30);
   m.castShadow=true; return m; }
 function addRock(n){const g=new THREE.Group();g.scale.setScalar(2);
-  const s=hashN(n.tx,n.ty);
-  // the main mass: a tall leaning slab with two smaller ones shouldered into it
-  g.add(rockSlab(ironGrey,1.30,1.75,1.15, 0,1.35,0, n.tx+1));
-  g.add(rockSlab(ironGreyD,0.95,1.15,0.90, -1.25,0.85,0.45, n.ty+2));
-  g.add(rockSlab(ironGrey,0.80,0.95,1.05, 1.15,0.72,-0.40, n.tx+n.ty));
-  // rubble round the foot, so it grows out of the ground instead of resting on it
-  for(const[dx,dz,sc,sd]of[[1.55,0.95,0.42,3],[-1.70,-0.75,0.36,4],[0.35,-1.65,0.40,5],[-0.55,1.60,0.30,6]])
-    g.add(rockSlab(ironGreyD,sc,sc*0.72,sc,dx,sc*0.55,dz,n.tx+sd));
+  // b242: three masses, not seven, and inside a tight footprint. The sprawl was the fault - six
+  // pieces spread to +/-1.7 read as a heap rather than an outcrop.
+  g.add(rockSlab(ironGrey,1.55,2.05,1.35, 0,1.05,0, n.tx+1));
+  g.add(rockSlab(ironGreyD,1.05,1.25,1.00, -0.95,0.62,0.35, n.ty+2));
+  g.add(rockSlab(ironGrey,0.85,1.55,0.95, 0.88,0.80,-0.30, n.tx+n.ty));
+  g.add(rockSlab(ironGreyD,0.55,0.45,0.55, 0.95,0.24,0.85, n.tx+3, true));
+  g.add(rockSlab(ironGreyD,0.45,0.38,0.45, -0.90,0.20,-0.80, n.tx+4, true));
   // the ore itself, still bright enough to name the node at a glance
   for(const[dx,dz,sc]of[[.55,.30,.42],[-.35,-.50,.36],[.05,.62,.34]]){
-    const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.ore);v.position.set(dx,2.05+dz*.3,dz);v.castShadow=true;g.add(v);}
+    const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.ore);v.position.set(dx,1.80+dz*.3,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 
 // ==================================================== AMBIENT LIFE (grass, flowers, bushes, birds, clouds)
@@ -1631,7 +1633,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
   const m4=new THREE.Matrix4(),col=new THREE.Color(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3();
   // b236: half again as much turf and twice the flowers - the reference is thick with both,
   // and measured, the small scatter costs about a millisecond a frame at any density here.
-  const A=areaScale(),GCAP=Math.round(14000*A),FCAP=Math.round(3200*A),BCAP=Math.round(1500*A);
+  const A=areaScale(),GCAP=Math.round(14000*A),FCAP=Math.round(3200*A),BCAP=Math.round(850*A);
   const grass=new THREE.InstancedMesh(bladeClusterGeo(),
     new THREE.MeshStandardMaterial({map:buildBladeTexture(),alphaTest:0.45,side:THREE.DoubleSide,roughness:1}),GCAP); let gi=0;
   for(let i=0;i<46000*A&&gi<GCAP;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
