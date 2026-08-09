@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b235</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b236</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1494,16 +1494,18 @@ function addRock(n){const g=new THREE.Group();g.scale.setScalar(2);
 let ambientGroup=null,cloudGroup=null,birdGroup=null,birds=[],bflyGroup=null,bflies=[];
 function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGroup=new THREE.Group(); scene.add(ambientGroup);
   const m4=new THREE.Matrix4(),col=new THREE.Color(),v3=new THREE.Vector3(),q0=new THREE.Quaternion(),s3=new THREE.Vector3();
-  const A=areaScale(),GCAP=Math.round(9000*A),FCAP=Math.round(1600*A),BCAP=Math.round(1200*A);
-  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.11,.62,4),new THREE.MeshStandardMaterial({roughness:1}),GCAP); let gi=0;
-  for(let i=0;i<30000*A&&gi<GCAP;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
+  // b236: half again as much turf and twice the flowers - the reference is thick with both,
+  // and measured, the small scatter costs about a millisecond a frame at any density here.
+  const A=areaScale(),GCAP=Math.round(14000*A),FCAP=Math.round(3200*A),BCAP=Math.round(1500*A);
+  const grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.16,.44,4),new THREE.MeshStandardMaterial({roughness:1}),GCAP); let gi=0;
+  for(let i=0;i<46000*A&&gi<GCAP;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.65||e>3.1)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.22,z); grass.setMatrixAt(gi,m4);
-    col.setHSL(0.26+hashN(i,9)*0.06,0.5,0.30+hashN(9,i)*0.12); grass.setColorAt(gi,col); gi++; }
+    col.setHSL(0.26+hashN(i,9)*0.07,0.62,0.26+hashN(9,i)*0.13,THREE.SRGBColorSpace); grass.setColorAt(gi,col); gi++; }
   grass.count=gi; ambientGroup.add(grass);
   const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,5,4),new THREE.MeshStandardMaterial({roughness:.8}),FCAP); let fi=0;
   const fcols=[0xffffff,0xf0d060,0xe66a8a,0xb07ae0];
-  for(let i=0;i<12000*A&&fi<FCAP;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
+  for(let i=0;i<24000*A&&fi<FCAP;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.9)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.12,z); flowers.setMatrixAt(fi,m4);
     col.setHex(fcols[i%4]); flowers.setColorAt(fi,col); fi++; }
@@ -1512,7 +1514,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
   for(let i=0;i<12000*A&&bi<BCAP;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
-    bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.45,0.22+hashN(i,29)*0.08); bushes.setColorAt(bi,col); bi++; }
+    bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.55,0.20+hashN(i,29)*0.09,THREE.SRGBColorSpace); bushes.setColorAt(bi,col); bi++; }
   bushes.count=bi; bushes.castShadow=true; ambientGroup.add(bushes);   // b203: big enough to ground
   // b103 AoE2 ground pass — shoreline reeds, pebbles, stumps and fallen logs
   const eul=new THREE.Euler();
@@ -1522,7 +1524,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.02||e>1.34)continue;
     const s=.7+hashN(i,71)*.7; v3.set(x,heightAtWorld(x,z)+.5*s,z);
     q0.setFromEuler(eul.set((hashN(i,101)-.5)*.22,hashN(103,i)*3,(hashN(i,107)-.5)*.22)); s3.set(1,s,1); m4.compose(v3,q0,s3);
-    reeds.setMatrixAt(ri,m4); col.setHSL(0.2+hashN(73,i)*0.07,0.42,0.22+hashN(i,79)*0.09); reeds.setColorAt(ri,col); ri++; }
+    reeds.setMatrixAt(ri,m4); col.setHSL(0.2+hashN(73,i)*0.07,0.5,0.21+hashN(i,79)*0.10,THREE.SRGBColorSpace); reeds.setColorAt(ri,col); ri++; }
   reeds.count=ri; ambientGroup.add(reeds);
   const PCAP2=Math.round(900*A);
   const peb=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.16,0),new THREE.MeshStandardMaterial({roughness:.95}),PCAP2); let pi2=0;
@@ -1530,7 +1532,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.08||e>3.3)continue;
     const s=.5+hashN(i,127)*1.0; v3.set(x,heightAtWorld(x,z)+.08*s,z);
     q0.setFromEuler(eul.set(hashN(i,131)*3,hashN(137,i)*3,0)); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
-    peb.setMatrixAt(pi2,m4); col.setHSL(0.09,0.05,0.32+hashN(i,139)*0.18); peb.setColorAt(pi2,col); pi2++; }
+    peb.setMatrixAt(pi2,m4); col.setHSL(0.09,0.06,0.30+hashN(i,139)*0.18,THREE.SRGBColorSpace); peb.setColorAt(pi2,col); pi2++; }
   peb.count=pi2; ambientGroup.add(peb);
   // b199 THE STRAND. Photographed at the water's edge the beach was a flat empty tan stripe between
   // a land thick with tufts, bushes, stumps, mushrooms and logs and a sea with foam on it. Not an
@@ -1552,7 +1554,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     if(hashN(i,313)>(1.10-e)/(1.10-tideLevel))continue;
     const s=.5+hashN(i,317)*1.1; v3.set(x,heightAtWorld(x,z)+.05*s,z);
     q0.setFromEuler(eul.set(hashN(i,331)*3,hashN(337,i)*3,0)); s3.set(s*1.3,s*.55,s*1.1); m4.compose(v3,q0,s3);
-    shingle.setMatrixAt(shi,m4); col.setHSL(0.09,0.09,0.42+hashN(i,347)*0.22); shingle.setColorAt(shi,col); shi++; }
+    shingle.setMatrixAt(shi,m4); col.setHSL(0.09,0.09,0.40+hashN(i,347)*0.22,THREE.SRGBColorSpace); shingle.setColorAt(shi,col); shi++; }
   shingle.count=shi; ambientGroup.add(shingle);
   // a few boulders sat in the sand, and bleached driftwood above the water
   const BRCAP=Math.round(260*A);
@@ -1567,13 +1569,13 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const y=heightAtWorld(x,z), k=i%7;
     if(k===0&&bri<BRCAP){ const s=.55+hashN(i,367)*.9; v3.set(x,y+.16*s,z);
       q0.setFromEuler(eul.set(hashN(i,373)*3,hashN(379,i)*3,hashN(i,383)*3)); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
-      boulder.setMatrixAt(bri,m4); col.setHSL(0.08,0.06,0.34+hashN(i,389)*0.16); boulder.setColorAt(bri,col); bri++; }
+      boulder.setMatrixAt(bri,m4); col.setHSL(0.08,0.07,0.33+hashN(i,389)*0.16,THREE.SRGBColorSpace); boulder.setColorAt(bri,col); bri++; }
     else if(k===1&&dwi<DWCAP&&e>tideLevel+0.06){ v3.set(x,y+.13,z);
       q0.setFromEuler(eul.set(0,hashN(i,397)*3,Math.PI/2+(hashN(401,i)-.5)*.3)); s3.set(1,.7+hashN(i,409)*.8,1); m4.compose(v3,q0,s3);
       drift.setMatrixAt(dwi,m4); dwi++; }
     else if((k===2||k===3)&&wri<WRCAP&&e<tideLevel+0.30){ const s=.6+hashN(i,419)*.9;   // wrack rots along the tideline
       v3.set(x,y+.05*s,z); q0.setFromEuler(eul.set(0,hashN(423,i)*3,0)); s3.set(s*1.5,s*.3,s*1.1); m4.compose(v3,q0,s3);
-      wrack.setMatrixAt(wri,m4); col.setHSL(0.12+hashN(i,431)*0.05,0.30,0.16+hashN(433,i)*0.08); wrack.setColorAt(wri,col); wri++; } }
+      wrack.setMatrixAt(wri,m4); col.setHSL(0.12+hashN(i,431)*0.05,0.36,0.15+hashN(433,i)*0.08,THREE.SRGBColorSpace); wrack.setColorAt(wri,col); wri++; } }
   boulder.count=bri; drift.count=dwi; wrack.count=wri;
   boulder.castShadow=true; drift.castShadow=true;   // b203: a boulder on open sand with no shadow floats
   ambientGroup.add(boulder); ambientGroup.add(drift); ambientGroup.add(wrack);
@@ -1610,7 +1612,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2)||elev[ti(tx,tz2)]<1.55)continue;
     const s=.7+hashN(i,239)*.7, y=heightAtWorld(x,z);
     v3.set(x,y+.45*s,z); q0.setFromEuler(eul.set(0,hashN(i,241)*3,(hashN(243,i)-.5)*.15)); s3.setScalar(s); m4.compose(v3,q0,s3);
-    sapl.setMatrixAt(sp2,m4); col.setHSL(0.27+hashN(i,251)*0.05,0.5,0.32); sapl.setColorAt(sp2,col); sp2++; }
+    sapl.setMatrixAt(sp2,m4); col.setHSL(0.27+hashN(i,251)*0.05,0.6,0.28,THREE.SRGBColorSpace); sapl.setColorAt(sp2,col); sp2++; }
   sapl.count=sp2; sapl.castShadow=true; ambientGroup.add(sapl);
   const DCAP=Math.round(110*A);
   const dead=new THREE.InstancedMesh(new THREE.CylinderGeometry(.12,.2,2.6,5),new THREE.MeshStandardMaterial({color:0x5d5248,roughness:1,flatShading:true}),DCAP);
@@ -1855,7 +1857,7 @@ function buildLeaves(){ if(leafMesh){scene.remove(leafMesh);leafMesh=null;} leav
   if(!N)return;
   leafMesh=new THREE.InstancedMesh(new THREE.PlaneGeometry(.24,.17),new THREE.MeshBasicMaterial({side:THREE.DoubleSide,transparent:true,opacity:.85}),N);
   const lc=new THREE.Color();
-  for(let i=0;i<N;i++){ leaves.push(newLeaf(i)); lc.setHSL(0.19+hashN(i,301)*0.13,0.6,0.34+hashN(303,i)*0.16); leafMesh.setColorAt(i,lc); }
+  for(let i=0;i<N;i++){ leaves.push(newLeaf(i)); lc.setHSL(0.19+hashN(i,301)*0.13,0.66,0.31+hashN(303,i)*0.16,THREE.SRGBColorSpace); leafMesh.setColorAt(i,lc); }
   leafMesh.count=N; leafMesh.frustumCulled=false; scene.add(leafMesh); }
 function updateLeaves(dt,now){ if(!leafMesh)return;
   for(let i=0;i<leaves.length;i++){ const L=leaves[i]; L.t+=dt;
