@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b261</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b263</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1177,7 +1177,12 @@ function terrainColor(e,vx,vz,out){ // smooth gradient between elevation stops
   // its gradient instead of pinned at the ends.
   if(e>1.35){ const dry=meadowAt(vx,vz);
     if(dry>0)out.lerp(TC_DRY,dry*0.50); else out.lerp(TC_LUSH,-dry*0.42); }
-  { const d=(noise2(vx*0.18,vz*0.18)-0.5)*0.05;   // b169: a plain lightness nudge, without the HSL round trip
+  { let d=(noise2(vx*0.18,vz*0.18)-0.5)*0.05;   // b169: a plain lightness nudge, without the HSL round trip
+    // b262: and the broad one that b169 never had. Only on grass - the shore bands are tuned.
+    if(e>1.42){ const v1=noise2(vx*0.022+53,vz*0.022+29)-0.5, v2=noise2(vx*0.055+7,vz*0.055+91)-0.5;
+      let bv=(v1*0.70+v2*0.30)*0.285;   // 0.185 measured as barely a move (green sd 10.7 -> 12.2)
+      if(e<1.72)bv*=(e-1.42)/0.30;                 // ease it out as the grass runs down to the sand
+      d+=bv; }
     out.r=out.r+d<0?0:out.r+d>1?1:out.r+d; out.g=out.g+d<0?0:out.g+d>1?1:out.g+d; out.b=out.b+d<0?0:out.b+d>1?1:out.b+d; }
   // fine grain speckle — reads as turf texture instead of flat paint
   const spk=noise2(vx*1.9+31,vz*1.9+17);
@@ -6061,7 +6066,7 @@ window.TFshot=function(opt){ opt=opt||{};
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
+  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
