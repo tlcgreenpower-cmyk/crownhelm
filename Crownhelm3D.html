@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b248</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b249</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2839,7 +2839,16 @@ function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owne
 const BRIDGE_DECK=1.15, BRIDGE_WALK=BRIDGE_DECK+0.32;
 function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
   if(bridgeTiles.size&&y<waterY){const bi=ti(txFromW(e.x),tzFromW(e.z));if(bridgeTiles.has(bi))y=waterY+BRIDGE_WALK;}   // march the planks, not the seabed
+  if(e.deckY!==undefined&&e.deckY!==null)y=e.deckY;   // b249: a farmhand stands on the bed, not beside it
   e.mesh.position.set(e.x,y,e.z);}
+// the height of a farm's growing surface, measured off its own mesh once and remembered
+function farmDeckY(b){ if(b._deckY!==undefined)return b._deckY;
+  const bb=new THREE.Box3().setFromObject(b.mesh);
+  const base=heightAtWorld(b.cx,b.cz);
+  const top=bb.max.y;
+  b._deckY=Math.min(top-0.35,base+2.2);   // just under the crop tops, and never absurdly high
+  if(b._deckY<base)b._deckY=base;
+  return b._deckY; }
 const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
@@ -3169,7 +3178,7 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   grp.add(fl);grp.position.set(-.35*MAN_SCALE,0,-.35*MAN_SCALE);grp.scale.setScalar(MAN_SCALE);   // b227: and so does the standard
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
-function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;if(u.stance==='defend')u.post={x,z};}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege
+function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;u.deckY=null;if(u.stance==='defend')u.post={x,z};}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege
   // b118: real-army order — melee line front, muskets centre, cavalry next, guns & healers rear,
   // and every regiment stands TOGETHER (same types form contiguous blocks in the ranks)
   const rank=t=>{const U=UNIT[t];return (U.heal||U.noAtk)?5:(U.siege||U.ramOnly)?4:U.cav?2:U.ranged?1:0;};   // healers ALWAYS at the very back (owner rule)
@@ -3352,7 +3361,7 @@ function pathToNode(e,n){ let bx=n.tx,by=n.ty,bd2=1e9;   // b124: walk to a SPEC
   for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy;
     if(inB(x,y)&&passable(x,y,0,'land')){ const ddx=wx(x)-e.x,ddz=wz(y)-e.z,d2=ddx*ddx+ddz*ddz; if(d2<bd2){bd2=d2;bx=x;by=y;} } }
   return orderPath(e,bx,by,0); }
-function gatherOrder(e,node){if(e.type!=='worker')return;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;clearStall(e);
+function gatherOrder(e,node){if(e.type!=='worker')return;e.deckY=null;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;clearStall(e);
   e.gBoost=blds.some(b=>b.owner===e.owner&&b.type==='storehouse'&&b.done&&Math.hypot(b.cx-wx(node.tx),b.cz-wz(node.ty))<14)?1.15:1;
   pathToNode(e,node);}
 function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my&&!e.inGar){const d=Math.hypot(x-e.x,z-e.z);if(d<bd+UNIT[e.type].r){bd=d;best=e;}}return best;}
@@ -3986,19 +3995,30 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       if(e.convT>=U.convt)convertUnit(e,t);
       break;}
     case 'inside':break;   // safe behind the walls — the building does the fighting
-    case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;break;}
-      if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;break;}   // one farmhand per farm — extras step off
+    case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;e.deckY=null;break;}
+      if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;e.deckY=null;break;}   // one farmhand per farm — extras step off
       // and a man already in the field walks off it once the granary is full, or the realm would
       // simply keep the hands it had before the surplus built up
-      if(!wantsFarmhand(e.owner)){e.cmd='idle';e.tendB=null;break;}
+      if(!wantsFarmhand(e.owner)){e.cmd='idle';e.tendB=null;e.deckY=null;break;}
       e.tendT=(e.tendT||0)-dt;
       // b248: and if he has ended up off the field entirely - a failed path, a shove from the crowd,
       // a plot rebuilt around him - walk him back. Without this he works an empty patch of road.
       const dTend=Math.hypot(e.x-b.cx,e.z-b.cz), reachTend=Math.max(b.w,b.h)*TILE*0.5+TILE*1.7;
-      if(dTend>reachTend){ if(arrived||!e.path)tendSpot(e,b); break; }
-      if(arrived&&e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
-        tendSpot(e,b);
-        if(Math.random()<0.8)spawnPart(e.x,heightAtWorld(e.x,e.z)+0.7,e.z,'chip'); }
+      if(dTend>reachTend){ e.deckY=null; if(arrived||!e.path)tendSpot(e,b); break; }
+      // he has reached his field: step up onto the bed and work the rows
+      if(arrived){ e.path=null;
+        // separateUnits runs every other step and will happily shove him off the bed while he is
+        // still standing at deck height - which would leave him hanging in the air beside his own
+        // farm. Clamp him back inside the plot every tick he is up there.
+        if(e.deckY!==undefined&&e.deckY!==null){
+          const hw=b.w*TILE*0.5-0.9, hh=b.h*TILE*0.5-0.9;
+          e.x=clamp(e.x,b.cx-hw,b.cx+hw); e.z=clamp(e.z,b.cz-hh,b.cz+hh); }
+        if(e.deckY===undefined||e.deckY===null||e.tendT<=0){
+          const inx=b.cx+(Math.random()-0.5)*(b.w*TILE-1.6), inz=b.cz+(Math.random()-0.5)*(b.h*TILE-1.6);
+          e.x=inx; e.z=inz; e.deckY=farmDeckY(b);
+          e.dir=Math.atan2(b.cz-e.z,b.cx-e.x); }
+        if(e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
+          if(Math.random()<0.8)spawnPart(e.x,farmDeckY(b)+0.7,e.z,'chip'); } }
       break;}
   }
   // mesh transforms
