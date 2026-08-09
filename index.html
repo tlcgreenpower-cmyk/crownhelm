@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b271</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b274</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1564,26 +1564,26 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
 // gold-BEARING OUTCROP now: the same slab formation as the iron, cut in warm ochre stone with the
 // bright gold worked into seams across it. The owner's rule from b62 still holds - gold reads gold
 // and stone reads grey at a glance - it just reads as a mine rather than a cheese.
-const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xe6b93f,roughness:.55,metalness:.34,map:stoneTex(),flatShading:true});
-const GOLD_ROCK=new THREE.MeshStandardMaterial({color:0x8f8069,roughness:.94,map:stoneTex(),flatShading:true});
-const GOLD_ROCK_D=new THREE.MeshStandardMaterial({color:0x6d6152,roughness:.96,map:stoneTex(),flatShading:true});
+const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xcb9a34,roughness:.62,metalness:.28,map:stoneTex(),flatShading:true});
+const GOLD_ROCK=new THREE.MeshStandardMaterial({color:0xb09a76,roughness:.94,map:stoneTex(),flatShading:true});
+const GOLD_ROCK_D=new THREE.MeshStandardMaterial({color:0x6a5b44,roughness:.96,map:stoneTex(),flatShading:true});
 const GOLD_STONE_D=new THREE.MeshStandardMaterial({color:0xb08c2e,roughness:.74,metalness:.14,map:stoneTex(),flatShading:true});
 function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
   // b242: this was the worst of it on screen - six rounded lumps sprawled across three tiles,
   // reading as a heap of bread. Three angular masses inside a tight footprint, two broken shards.
   // the body is ROCK - same three masses and the same footprint as b242 gave the iron node
-  g.add(rockSlab(GOLD_ROCK,1.42,2.15,1.22, 0,1.05,0, n.tx+21));
-  g.add(rockSlab(GOLD_ROCK_D,1.00,1.20,0.95, 0.92,0.60,0.32, n.ty+22));
-  g.add(rockSlab(GOLD_ROCK,0.82,1.45,0.92, -0.85,0.75,-0.28, n.tx+n.ty+23));
-  // and the gold is IN it: a struck seam at the peak, then nuggets caught on the faces
-  g.add(rockSlab(GOLD_STONE,0.70,0.86,0.64, 0.10,2.02,-0.05, n.tx+27));   // the peak, run through
-  g.add(rockSlab(GOLD_STONE,0.52,0.44,0.52, -0.95,0.22,0.80, n.tx+24, true));
-  g.add(rockSlab(GOLD_STONE,0.44,0.36,0.44, 0.90,0.18,-0.85, n.tx+25, true));
-  g.add(rockSlab(GOLD_STONE,0.34,0.30,0.34, 0.42,1.28,0.62, n.ty+28, true));
-  g.add(rockSlab(GOLD_STONE,0.30,0.26,0.30, -0.52,1.05,-0.66, n.tx+29, true));
-  g.add(rockSlab(GOLD_STONE_D,0.26,0.22,0.26, 0.06,0.34,0.92, n.ty+31, true));
+  // SIX masses, the iron node's proven layout, in warm stone. b270 spent three of them turning
+  // rock into gold and left a body of three, which reads as a box however the gold is painted on.
+  g.add(rockSlab(GOLD_ROCK,1.44,2.20,1.24, 0,1.08,0, n.tx+21));
+  g.add(rockSlab(GOLD_ROCK,0.78,0.98,0.74, -0.06,2.12,0.05, n.tx+27));   // the peak
+  g.add(rockSlab(GOLD_ROCK_D,1.02,1.22,0.98, -0.92,0.60,0.34, n.ty+22));
+  g.add(rockSlab(GOLD_ROCK,0.84,1.50,0.93, 0.86,0.78,-0.30, n.tx+n.ty+23));
+  g.add(rockSlab(GOLD_ROCK_D,0.54,0.44,0.54, 0.93,0.23,0.83, n.tx+24, true));
+  g.add(rockSlab(GOLD_ROCK_D,0.44,0.37,0.44, -0.88,0.19,-0.78, n.tx+25, true));
+  // one struck seam across a standing face, so the stone is visibly worked
+  g.add(rockSlab(GOLD_STONE,0.70,0.17,0.52, 0.10,1.52,0.52, n.tx+29));
   // the seams, worked across the standing faces rather than piled on the crown
-  for(const[dx,dy,dz,sc]of[[.48,1.72,.22,.34],[-.38,1.42,.46,.30],[.10,2.02,-.44,.30],[.72,1.05,.30,.24]]){
+  for(const[dx,dy,dz,sc]of[[.74,1.62,.52,.42],[-.72,1.30,.62,.36],[.22,2.30,-.52,.34],[1.02,0.92,-.46,.30],[-.34,0.52,.92,.28]]){
     const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.gold);v.position.set(dx,dy,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
 const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c,0x86c05a,0x549e3e].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,map:leafTex(),flatShading:true}));   // b243
