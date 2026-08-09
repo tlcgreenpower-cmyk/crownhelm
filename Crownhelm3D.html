@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b257</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b259</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1288,9 +1288,17 @@ let groundCv=null,groundCtx=null,groundTex=null;
 function stampDirt(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
   const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(3,tiles*TILE/WORLD_W*TW*0.68);
   const c2=groundCtx;
+  // b258: three passes instead of one. A ragged outer fringe so the patch does not end on an
+  // oval, the old body, then a darker trodden core - a yard is worn hardest where the feet are.
+  for(let i=0;i<9;i++){ const a=i/9*Math.PI*2+cx*0.53, rr=r*(0.62+((Math.abs(cx*11+cz*5)+i*23)%19)/19*0.62);
+    c2.fillStyle='rgba(178,152,106,0.10)';
+    c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.62,py+Math.sin(a)*r*0.58,rr*0.55,rr*0.42,a,0,7); c2.fill(); }
   for(let i=0;i<5;i++){ const a=i/5*Math.PI*2+cx*0.37, rr=r*(0.55+((Math.abs(cx*7+cz*13)+i*29)%17)/17*0.5);
-    c2.fillStyle=i?'rgba(196,168,118,0.18)':'rgba(186,156,106,0.38)';
+    c2.fillStyle=i?'rgba(196,168,118,0.26)':'rgba(186,156,106,0.50)';
     c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.25,py+Math.sin(a)*r*0.22,rr,rr*0.8,a,0,7); c2.fill(); }
+  for(let i=0;i<3;i++){ const a=i*2.4+cz*0.29, rr=r*(0.30+((Math.abs(cx*3+cz*19)+i*13)%11)/11*0.22);
+    c2.fillStyle='rgba(150,120,80,0.24)';
+    c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.18,py+Math.sin(a)*r*0.16,rr,rr*0.85,a,0,7); c2.fill(); }
   groundTex.needsUpdate=true; }
 function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.map&&terrainMesh.material.map.dispose();}
   const SUB=3;   // render mesh 3x finer than the game grid — smooth rolling ground
@@ -2595,6 +2603,72 @@ function makeFarmField(seed){
   g.add(merged);
   return g;
 }
+// ---- b258: what a working building leaves lying about --------------------------------------
+M.props=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.92,flatShading:true});
+const _propGeo={};
+function propGeo(k){ if(_propGeo[k])return _propGeo[k]; let g;
+  if(k==='barrel')g=new THREE.CylinderGeometry(.30,.26,.70,8);
+  else if(k==='crate')g=new THREE.BoxGeometry(.52,.48,.52);
+  else if(k==='sack')g=new THREE.SphereGeometry(.27,6,5);
+  else if(k==='log')g=new THREE.CylinderGeometry(.17,.17,1.35,6);
+  else if(k==='bucket')g=new THREE.CylinderGeometry(.17,.14,.30,7);
+  else if(k==='plank')g=new THREE.BoxGeometry(.95,.10,.30);
+  else if(k==='stump')g=new THREE.CylinderGeometry(.31,.35,.36,8);
+  else if(k==='post')g=new THREE.BoxGeometry(.13,.95,.13);
+  else if(k==='stone')g=new THREE.DodecahedronGeometry(.24,0);
+  else g=new THREE.BoxGeometry(.4,.4,.4);
+  _propGeo[k]=g; return g; }
+// a trade leaves its own litter: sacks at a mill, logs at the woodcutter's, crates at a market
+const PROP_KIT={
+  mill:[['sack',0xc9b183],['sack',0xd8c396],['barrel',0x7a5330]],
+  granary:[['sack',0xc9b183],['sack',0xd8c396],['crate',0x7d5836]],
+  lumber:[['log',0x6b4a2b],['log',0x5d4025],['stump',0x6b4a2b],['plank',0x8a6a3f]],
+  woodcutter:[['log',0x6b4a2b],['stump',0x6b4a2b],['plank',0x8a6a3f]],
+  barracks:[['crate',0x6f5030],['post',0x5d4025],['barrel',0x7a5330]],
+  armourer:[['stone',0x6b6b76],['barrel',0x7a5330],['crate',0x6f5030]],
+  blacksmith:[['stone',0x6b6b76],['barrel',0x7a5330],['crate',0x6f5030]],
+  market:[['crate',0x7d5836],['crate',0x8a6a3f],['barrel',0x7a5330],['sack',0xc9b183]],
+  house:[['bucket',0x6b4a2b],['log',0x5d4025],['barrel',0x7a5330]],
+  hall:[['barrel',0x7a5330],['crate',0x7d5836],['stone',0x6b6b76]],
+  castle:[['stone',0x6b6b76],['stone',0x71767c],['barrel',0x7a5330]],
+  church:[['stone',0x6b6b76],['bucket',0x6b4a2b]],
+  siege:[['log',0x6b4a2b],['plank',0x8a6a3f],['crate',0x6f5030]],
+  quarry:[['stone',0x6b6b76],['stone',0x71767c],['crate',0x6f5030]] };
+const PROP_DEF=[['crate',0x7d5836],['barrel',0x7a5330],['bucket',0x6b4a2b]];
+function addBldProps(b){
+  if(!BGU)return;                                   // no merge helper, no props - not worth 5 draw calls each
+  const kit=PROP_KIT[b.type]||PROP_DEF;
+  const hw=b.w*TILE*0.5, hh=b.h*TILE*0.5;
+  const rnd=(n)=>{ const v=Math.sin((b.id*13.7+n*7.31))*43758.5453; return v-Math.floor(v); };
+  const parts=[]; const n=2+Math.floor(rnd(1)*2.4);
+  for(let i=0;i<n;i++){
+    const spec=kit[Math.floor(rnd(i*3+2)*kit.length)%kit.length];
+    // sit it just off the footprint, and keep the doorway side clear so nothing blocks the way in
+    let lx,lz,tries=0;
+    do{ const a=rnd(i*5+3)*6.283;
+        lx=Math.cos(a)*(hw+0.55+rnd(i*7+4)*0.5); lz=Math.sin(a)*(hh+0.55+rnd(i*9+5)*0.5); tries++;
+    }while(tries<6&&lz>hh*0.4&&Math.abs(lx)<hw*0.7);
+    const wx=b.cx+lx, wz=b.cz+lz;
+    // non-indexed across the board: mergeGeometries refuses a mix, and a Dodecahedron is
+    // non-indexed while a Box is not, so a stone next to a crate would silently drop the lot
+    const g=propGeo(spec[0]).clone().toNonIndexed();
+    const q=new THREE.Quaternion().setFromAxisAngle(_yAxis,rnd(i*11+6)*6.283);
+    if(spec[0]==='log'||spec[0]==='plank')q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2));
+    const s=0.85+rnd(i*13+7)*0.45;
+    const bx=new THREE.Box3().setFromBufferAttribute(g.attributes.position);
+    const m=new THREE.Matrix4().compose(
+      new THREE.Vector3(lx,heightAtWorld(wx,wz)-b.mesh.position.y-bx.min.y*s,lz),q,new THREE.Vector3(s,s,s));
+    g.applyMatrix4(m);
+    const c=new THREE.Color(spec[1]).convertSRGBToLinear(), cnt=g.attributes.position.count;
+    const ca=new Float32Array(cnt*3); for(let v=0;v<cnt;v++){ca[v*3]=c.r;ca[v*3+1]=c.g;ca[v*3+2]=c.b;}
+    g.setAttribute('color',new THREE.BufferAttribute(ca,3));
+    g.deleteAttribute('uv'); g.deleteAttribute('normal'); g.computeVertexNormals();
+    parts.push(g); }
+  const merged=parts.length>1?BGU.mergeGeometries(parts,false):parts[0];
+  for(const g of parts)if(g!==merged)g.dispose();
+  if(!merged)return;
+  const mesh=new THREE.Mesh(merged,M.props); mesh.castShadow=true; mesh.receiveShadow=true;
+  mesh.userData.props=true; b.mesh.add(mesh); b._propMesh=mesh; }
 function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
   if(type==='farm'){ const fg=makeFarmField(seed||0);
     const hbf=makeHealthBar();hbf.scale.setScalar(1.4);hbf.position.y=3;fg.add(hbf);fg.userData.hb=hbf;
@@ -3590,9 +3664,27 @@ function stampPath(ax,az,bx,bz,width,wear){ if(!groundCtx)return; const TW=groun
   pts.push(B); const c2=groundCtx, base=Math.max(2,TW/MAP_W*0.5), w=base*(width||1);
   const run=()=>{c2.beginPath();c2.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)c2.lineTo(pts[i][0],pts[i][1]);c2.stroke();};
   c2.lineCap='round'; c2.lineJoin='round';
-  c2.strokeStyle='rgba(150,128,90,0.16)'; c2.lineWidth=w*1.65; run();              // the soft verge either side
+  // b259: the verge is three graded passes, not one, so the earth thins out into the grass
+  c2.strokeStyle='rgba(150,128,90,0.05)'; c2.lineWidth=w*2.45; run();
+  c2.strokeStyle='rgba(150,128,90,0.08)'; c2.lineWidth=w*1.95; run();
+  c2.strokeStyle='rgba(152,130,92,0.14)'; c2.lineWidth=w*1.55; run();
   c2.strokeStyle='rgba(178,150,104,'+(0.26+0.16*(wear||0))+')'; c2.lineWidth=w; run();   // and the worn road itself
   if((wear||0)>0.5){ c2.strokeStyle='rgba(150,122,78,0.14)'; c2.lineWidth=w*0.42; run(); }   // ruts down the middle of a busy one
+  // and a scatter along both sides so the boundary wanders: earth spilling out into the verge,
+  // grass surviving in the middle of the track. Deterministic off the endpoints, so a road looks
+  // the same every time it is drawn and a reload does not reshuffle the town.
+  for(let i=0;i<26;i++){ const t=(i+0.5)/26;
+    const si=Math.min(pts.length-2,Math.floor(t*(pts.length-1))), ft=t*(pts.length-1)-si;
+    const x=pts[si][0]+(pts[si+1][0]-pts[si][0])*ft, y=pts[si][1]+(pts[si+1][1]-pts[si][1])*ft;
+    const dx=pts[si+1][0]-pts[si][0], dy=pts[si+1][1]-pts[si][1], dl=Math.hypot(dx,dy)||1;
+    const nx=-dy/dl, ny=dx/dl;
+    const side=(hashN(ax+i,bz+i)<0.5)?-1:1, off=(0.45+hashN(az+i,bx+i)*0.85)*w*side;
+    const rr=w*(0.16+hashN(ax*2+i,az*3+i)*0.30);
+    c2.fillStyle='rgba(172,146,102,0.20)';
+    c2.beginPath(); c2.ellipse(x+nx*off,y+ny*off,rr,rr*0.72,0,0,7); c2.fill();
+    if(hashN(bx+i,bz*2+i)<0.42){ const io2=(hashN(i,ax)-0.5)*w*0.7, rg=w*(0.10+hashN(i*3,bz)*0.16);
+      c2.fillStyle='rgba(124,150,86,0.20)';
+      c2.beginPath(); c2.ellipse(x+nx*io2,y+ny*io2,rg,rg*0.8,0,0,7); c2.fill(); } }
   groundTex.needsUpdate=true; }
 function stampTownPath(b){ if(PATH_SKIP.has(b.type))return;
   // the network starts at the Keep; anything else joins the nearest thing already joined
@@ -3751,6 +3843,10 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
   if(!b._stamped&&b.type!=='wall'){ const ex=explored[ti(clamp(b.tx+(b.w>>1),0,MAP_W-1),clamp(b.ty+(b.h>>1),0,MAP_H-1))];
     if(b.owner==='player'||ex){ stampDirt(b.cx,b.cz,Math.max(b.w,b.h)+0.6); b._stamped=true;
       if(!b._roadDone){ b._roadDone=1; stampTownPath(b); } } }   // b150: and the road that serves it, once the land is known
+  // b258: a finished building gathers its own clutter. Farms are excluded on purpose - the
+  // farmhands walk the plots and b251 raycasts that very mesh to find the surface to stand on.
+  if(b.done&&!b._props&&b.type!=='wall'&&b.type!=='gate'&&b.type!=='bridge'&&b.type!=='farm'){
+    b._props=1; try{ addBldProps(b); }catch(e){} }
   if(b.rschK){ b.rschT-=dt; if(b.rschT<=0){ const k=b.rschK; b.rschK=null;
     if(k==='up'){ b.up=true; if(b.type==='wall'||b.type==='gate'){b.maxHp*=1.5;b.hp*=1.5;} }
     else if(k==='up2')b.up2=true;
