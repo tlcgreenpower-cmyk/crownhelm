@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b234</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b235</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -589,13 +589,13 @@ function applyQuality(){
   const qb=document.getElementById('qualBtn'); if(qb)qb.textContent='⚙ Graphics: '+(QUAL==='high'?'High — full shadows, for strong PCs':QUAL==='med'?'Medium — balanced look & speed':'Fast — smoothest, no shadows');
 }
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.30;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.38;   // b235
 const scene=new THREE.Scene();
 const SUNDIR=new THREE.Vector3(0.5,0.8,0.35).normalize();   // shader sun (water glints + sky) — stays high or the sea stripes
 const LIGHTDIR=new THREE.Vector3(0.55,0.62,0.38).normalize();   // b111 golden hour: the LIGHT sits lower for long shadows
 scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
 const camera=new THREE.PerspectiveCamera(52,2,0.5,1400);
-const hemi=new THREE.HemisphereLight(0xd8e6f8,0x4d5438,0.8); scene.add(hemi);
+const hemi=new THREE.HemisphereLight(0xdcecff,0x6a7a44,0.8); scene.add(hemi);   // b235: warmer green bounce off the turf, not mud
 const sun=new THREE.DirectionalLight(0xffe7bd,1.52); sun.position.copy(LIGHTDIR).multiplyScalar(140); sun.castShadow=true;
 sun.shadow.mapSize.set(4096,4096); sun.shadow.radius=2.5;   // b120: crisper yet softer-edged shadows
 const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H;sc.near=20;sc.far=400; sun.shadow.bias=-0.0004;
@@ -643,7 +643,7 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(600,24,16),skyMat); scene.add(
 
 // ---- day/night cycle: 5-minute days, warm dusks, moonlit nights, lanterns ----
 const LANTERN_MAT=new THREE.MeshStandardMaterial({color:0x6a4a20,emissive:0xffb050,emissiveIntensity:0});
-const _sunDay=new THREE.Color(0xffe7bd),_sunDusk=new THREE.Color(0xffa060),_sunMoon=new THREE.Color(0x9db8e8),_sunC=new THREE.Color();
+const _sunDay=new THREE.Color(0xfff0cf),_sunDusk=new THREE.Color(0xffa060),_sunMoon=new THREE.Color(0x9db8e8),_sunC=new THREE.Color();
 let dayNight=0;
 let chirpT=4,waveT=9;
 // b147: the country and the town sound like themselves. Everything here is picked from what is
@@ -693,11 +693,14 @@ function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
     else if(k==='dock'){ _sfxG=g0*0.7; beep(1500+Math.random()*300,0.22,'sine',0.020,900); setTimeout(()=>{_sfxG=g0*0.5;beep(1300,0.2,'sine',0.016,800);},260); } } }   // gulls
 function updateDayNight(){ const dayLight=1, a=0;   // permanent bright daylight (owner request b41)
   dayNight=0;
-  sun.intensity=1.85*Math.max(dayLight,0.42)*wSun+flashI*1.9;
+  // b235 STAGE 1 (visual upgrade): warmer, stronger key light. The scene read pale and flat -
+  // not for want of terrain colour, which already carries four noise fields, but because the
+  // light on it was weak and slightly cold. Nothing here changes geometry or gameplay.
+  sun.intensity=2.10*Math.max(dayLight,0.42)*wSun+flashI*1.9;
   if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
   if(wCloud>0.01)_sunC.lerp(_sunOvercast,Math.min(0.85,wCloud));   // b146: under cloud the light goes flat and cold
   sun.color.copy(_sunC);
-  hemi.intensity=(0.55+0.60*dayLight)*(1-0.22*wCloud)+flashI*1.2;
+  hemi.intensity=(0.50+0.58*dayLight)*(1-0.22*wCloud)+flashI*1.2;   // slightly less flat fill, so the sun does the modelling
   skyMat.uniforms.uNight.value=dayNight;
   skyMat.uniforms.uCloud.value=wCloud;
   skyMat.uniforms.uFlash.value=flashI*0.85;
@@ -1054,7 +1057,11 @@ const _tc1=new THREE.Color(),_tc2=new THREE.Color();
 // was 85.6% of the frame at 0.72 saturation — a single flat electric green. These are the same hues
 // pulled back to 0.40-0.51, which is where stylised RTS ground actually sits; the tonal interest is
 // put back by the meadow break-up below rather than by shouting the colour.
-const TERR_STOPS=[[0.0,0xbfa878],[1.05,0xd6c088],[1.45,0x88b460],[2.0,0x6faa58],[2.6,0x5f9b4c],[3.1,0x76a262],[3.6,0x8fae74]];
+// b235 STAGE 1: the same seven stops, warmed and enriched. The old greens sat cool and slightly
+// grey (0x6faa58 is 34% saturated); these run warmer and a touch more saturated so the ground
+// reads as sunlit meadow rather than painted card. Elevation bands are UNCHANGED, so nothing
+// about passability, the minimap or the shoreline moves.
+const TERR_STOPS=[[0.0,0xcbb07c],[1.05,0xe0c98d],[1.45,0x93bd5c],[2.0,0x77b354],[2.6,0x64a448],[3.1,0x7fac5c],[3.6,0x9ab86e]];
 const TERR_STOPC=TERR_STOPS.map(s=>new THREE.Color(s[1]));   // the same colours, converted to working space ONCE
 const TC_SWAMP=new THREE.Color(0x5e6b42), TC_WETSAND=new THREE.Color(0x94794f);
 const TC_DRY=new THREE.Color(0xaaa468), TC_LUSH=new THREE.Color(0x346836);
