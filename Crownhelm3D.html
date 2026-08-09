@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b252</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b257</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -597,7 +597,7 @@ scene.fog=new THREE.FogExp2(0xc4dcE8,0.0010);
 const camera=new THREE.PerspectiveCamera(52,2,0.5,1400);
 const hemi=new THREE.HemisphereLight(0xdcecff,0x6a7a44,0.8); scene.add(hemi);   // b235: warmer green bounce off the turf, not mud
 const sun=new THREE.DirectionalLight(0xffe7bd,1.52); sun.position.copy(LIGHTDIR).multiplyScalar(140); sun.castShadow=true;
-sun.shadow.mapSize.set(4096,4096); sun.shadow.radius=2.5;   // b120: crisper yet softer-edged shadows
+sun.shadow.mapSize.set(4096,4096); sun.shadow.radius=1.6;   // b254: tighter kernel now the map is not stretched map-wide
 const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H;sc.near=20;sc.far=400; sun.shadow.bias=-0.0004;
 scene.add(sun,sun.target);
 
@@ -693,14 +693,15 @@ function updateAmbience(dt){ if(!audioOn||!actx||!running)return;
     else if(k==='dock'){ _sfxG=g0*0.7; beep(1500+Math.random()*300,0.22,'sine',0.020,900); setTimeout(()=>{_sfxG=g0*0.5;beep(1300,0.2,'sine',0.016,800);},260); } } }   // gulls
 function updateDayNight(){ const dayLight=1, a=0;   // permanent bright daylight (owner request b41)
   dayNight=0;
+  fitShadowsToView();   // b254: the shadow volume follows the view instead of straddling the map
   // b235 STAGE 1 (visual upgrade): warmer, stronger key light. The scene read pale and flat -
   // not for want of terrain colour, which already carries four noise fields, but because the
   // light on it was weak and slightly cold. Nothing here changes geometry or gameplay.
-  sun.intensity=2.10*Math.max(dayLight,0.42)*wSun+flashI*1.9;
+  sun.intensity=2.80*Math.max(dayLight,0.42)*wSun+flashI*1.9;
   if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
   if(wCloud>0.01)_sunC.lerp(_sunOvercast,Math.min(0.85,wCloud));   // b146: under cloud the light goes flat and cold
   sun.color.copy(_sunC);
-  hemi.intensity=(0.50+0.58*dayLight)*(1-0.22*wCloud)+flashI*1.2;   // slightly less flat fill, so the sun does the modelling
+  hemi.intensity=(0.20+0.26*dayLight)*(1-0.22*wCloud)+flashI*1.2;   // b256: fill cut to less than half, so the sun does the modelling and a shadow reads as a shadow
   skyMat.uniforms.uNight.value=dayNight;
   skyMat.uniforms.uCloud.value=wCloud;
   skyMat.uniforms.uFlash.value=flashI*0.85;
@@ -1704,24 +1705,24 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     new THREE.MeshStandardMaterial({map:buildBladeTexture(),alphaTest:0.45,side:THREE.DoubleSide,roughness:1}),GCAP); let gi=0;
   for(let i=0;i<46000*A&&gi<GCAP;i++){ const x=(hashN(i*1.7,3)-0.5)*WORLD_W, z=(hashN(7,i*2.3)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.65||e>3.1)continue;
-    const gs=0.62+hashN(i,41)*0.55;
+    const gs=0.34+hashN(i,41)*0.26;
     q0.setFromAxisAngle(_yAxis,hashN(i,53)*6.283);
-    v3.set(x,heightAtWorld(x,z)-0.02,z); s3.set(gs,gs*(0.85+hashN(i,59)*0.5),gs);
+    v3.set(x,heightAtWorld(x,z)-0.02,z); s3.set(gs*1.15,gs*(0.80+hashN(i,59)*0.45),gs*1.15);
     m4.compose(v3,q0,s3); grass.setMatrixAt(gi,m4);
-    col.setHSL(0.26+hashN(i,9)*0.07,0.62,0.26+hashN(9,i)*0.13,THREE.SRGBColorSpace); grass.setColorAt(gi,col); gi++; }
+    col.setHSL(0.25+hashN(i,9)*0.06,0.44,0.46+hashN(9,i)*0.14,THREE.SRGBColorSpace); grass.setColorAt(gi,col); gi++; }
   grass.count=gi; ambientGroup.add(grass);
-  const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,5,4),new THREE.MeshStandardMaterial({roughness:.8}),FCAP); let fi=0;
-  const fcols=[0xffffff,0xf0d060,0xe66a8a,0xb07ae0];
+  const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.065,5,4),new THREE.MeshStandardMaterial({roughness:.8}),FCAP); let fi=0;
+  const fcols=[0xf2efe2,0xe8d78c,0xd99aab,0xb9a2d8];
   for(let i=0;i<24000*A&&fi<FCAP;i++){ const x=(hashN(i*3.1,11)-0.5)*WORLD_W, z=(hashN(13,i*1.9)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.9)continue;
-    m4.makeTranslation(x,heightAtWorld(x,z)+.12,z); flowers.setMatrixAt(fi,m4);
+    m4.makeTranslation(x,heightAtWorld(x,z)+.07,z); flowers.setMatrixAt(fi,m4);
     col.setHex(fcols[i%4]); flowers.setColorAt(fi,col); fi++; }
   flowers.count=fi; ambientGroup.add(flowers);
   const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),BCAP); let bi=0;
   for(let i=0;i<12000*A&&bi<BCAP;i++){ const x=(hashN(i*2.7,17)-0.5)*WORLD_W, z=(hashN(19,i*3.7)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
-    bushes.setMatrixAt(bi,m4); col.setHSL(0.29+hashN(23,i)*0.05,0.55,0.20+hashN(i,29)*0.09,THREE.SRGBColorSpace); bushes.setColorAt(bi,col); bi++; }
+    bushes.setMatrixAt(bi,m4); col.setHSL(0.28+hashN(23,i)*0.05,0.48,0.27+hashN(i,29)*0.09,THREE.SRGBColorSpace); bushes.setColorAt(bi,col); bi++; }
   bushes.count=bi; bushes.castShadow=true; ambientGroup.add(bushes);   // b203: big enough to ground
   // b103 AoE2 ground pass — shoreline reeds, pebbles, stumps and fallen logs
   const eul=new THREE.Euler();
@@ -5784,6 +5785,23 @@ function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom
   const rb=document.getElementById('ruleBtn');
   if(rb)rb.onclick=()=>{freePlay=true;gameOver=false;running=true;ov.classList.add('hidden');flashMsg('👑 You rule in peace — build your kingdom as you please.');};}
 // REALM_SITES computed per battleground in setMap()
+const _shTgt=new THREE.Vector3();
+function fitShadowsToView(){
+  const sc=sun.shadow.camera;
+  // cover the view: the standard camera at dist 45 sees about 76 units across, and zooming out
+  // widens it, so the span tracks camDist and is clamped to the map at the far end.
+  const span=Math.min(Math.max(camDist*1.45,52),Math.max(HALF_W,HALF_H));
+  // snap the centre to whole texels, or every pan makes the shadow edges crawl
+  const texel=(span*2)/sun.shadow.mapSize.width;
+  const cx=Math.round(camTarget.x/texel)*texel, cz=Math.round(camTarget.z/texel)*texel;
+  _shTgt.set(cx,0,cz);
+  sun.target.position.copy(_shTgt); sun.target.updateMatrixWorld();
+  sun.position.copy(LIGHTDIR).multiplyScalar(140).add(_shTgt);
+  if(sc.right!==span){ sc.left=-span;sc.right=span;sc.top=span;sc.bottom=-span;
+    sc.near=20;sc.far=340; sc.updateProjectionMatrix(); }
+  // the bias has to shrink with the frustum: -0.0004 was tuned against a map-wide camera and at
+  // this scale it lifts a shadow clean off the thing casting it.
+  sun.shadow.bias=-0.00012; sun.shadow.normalBias=0.035; }
 function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HALF_W;sc.top=HALF_H;sc.bottom=-HALF_H; sc.updateProjectionMatrix(); }
 // b169: a building owns three things in the scene — its mesh, its scaffold and its progress bar —
 // and starting a new world only ever took the first. Load a save five times and you were dragging
@@ -5940,7 +5958,7 @@ window.TFshot=function(opt){ opt=opt||{};
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,tech,res,update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
+  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,groundCv,WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
@@ -5967,7 +5985,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       timeWorld(){ const r={},T=n=>{const t=performance.now();return()=>{r[n]=+(performance.now()-t).toFixed(0);};};
         let d=T('genMap');genMap();d(); d=T('terrain');buildTerrain();d(); d=T('water');buildWater();d();
         d=T('decor');buildDecor();d(); d=T('ambient');buildAmbient();d(); d=T('sheep');buildSheep();d();
-        d=T('clouds');spawnClouds();d(); return r; },passable,wx,wz,txFromW,tzFromW,camTarget,blds,ents,setCam:(x,z,d,p)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;if(p!==undefined)camPitch=p;},get camPitch(){return camPitch;},
+        d=T('clouds');spawnClouds();d(); return r; },passable,wx,wz,txFromW,tzFromW,camTarget,get blds(){return blds;},get ents(){return ents;},get elapsed(){return elapsed;},get running(){return running;},get gameOver(){return gameOver;},get selected(){return selected;},get citizens(){return citizens;},setCam:(x,z,d,p)=>{camTarget.x=x;camTarget.z=z;camDist=d||40;if(p!==undefined)camPitch=p;},get camPitch(){return camPitch;},
       sel:id=>{selBuilding=id;selected=[];refreshUI();return document.getElementById('selInfo').innerHTML;}};return 'ok';},
   // b170: one glance at every system that is supposed to be putting something in the world. A
   // feature can die quietly — the carts did, for whole builds — and nothing in the game says so.
