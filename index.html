@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b250</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b251</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2840,16 +2840,25 @@ const BRIDGE_DECK=1.15, BRIDGE_WALK=BRIDGE_DECK+0.32;
 function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
   if(bridgeTiles.size&&y<waterY){const bi=ti(txFromW(e.x),tzFromW(e.z));if(bridgeTiles.has(bi))y=waterY+BRIDGE_WALK;}   // march the planks, not the seabed
   // b250: derived, never stored - and never below the ground he is standing on
-  if(e._onDeck&&e.cmd==='tend'&&e.tendB&&!e.tendB._gone){ const dy=farmDeckY(e.tendB); if(dy>y)y=dy; }
+  if(e._onDeck&&e.cmd==='tend'&&e.tendB&&!e.tendB._gone){ const dy=farmSurfaceY(e.tendB,e.x,e.z); if(dy>y)y=dy; }
   e.mesh.position.set(e.x,y,e.z);}
-// the height of a farm's growing surface, measured off its own mesh once and remembered
-function farmDeckY(b){ if(b._deckY!==undefined)return b._deckY;
-  const bb=new THREE.Box3().setFromObject(b.mesh);
-  const base=heightAtWorld(b.cx,b.cz);
-  const top=bb.max.y;
-  b._deckY=Math.min(top-0.35,base+2.2);   // just under the crop tops, and never absurdly high
-  if(b._deckY<base)b._deckY=base;
-  return b._deckY; }
+// The surface a farmhand actually stands on, measured by casting down onto the farm itself rather
+// than inferred from a bounding box. Cached per farm per position bucket so it costs one cast, not
+// one a frame.
+const _farmRay=new THREE.Raycaster(), _farmDown=new THREE.Vector3(0,-1,0), _farmFrom=new THREE.Vector3();
+function farmSurfaceY(b,x,z){
+  const g=heightAtWorld(x,z);
+  const bb=b._bb||(b._bb=new THREE.Box3().setFromObject(b.mesh));
+  _farmFrom.set(x,bb.max.y+2,z); _farmRay.set(_farmFrom,_farmDown);
+  _farmRay.far=(bb.max.y+2)-(g-2);
+  const hits=_farmRay.intersectObject(b.mesh,true);
+  // hits come back NEAREST-FIRST, and the ray starts above the farm - so the first one is the
+  // HIGHEST surface, which is the top of the wheat or a fence rail. That is what stood a man 2.9
+  // units in the air over a flat field. Walk them backwards and take the LOWEST surface he could
+  // stand on instead: the soil in a flat field, the bed in a raised planter.
+  for(let i=hits.length-1;i>=0;i--){ const y=hits[i].point.y;
+    if(y>=g-0.05&&y<=g+2.2)return y; }
+  return g; }
 const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
@@ -4021,7 +4030,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
           e.x=inx; e.z=inz; e._onDeck=true;
           e.dir=Math.atan2(b.cz-e.z,b.cx-e.x); }
         if(e.tendT<=0){ e.tendT=2.5+Math.random()*2.5; e.atk=0.4; playOnce(e,'attackA');
-          if(Math.random()<0.8)spawnPart(e.x,Math.max(farmDeckY(b),heightAtWorld(e.x,e.z))+0.7,e.z,'chip'); } }
+          if(Math.random()<0.8)spawnPart(e.x,Math.max(farmSurfaceY(b,e.x,e.z),heightAtWorld(e.x,e.z))+0.7,e.z,'chip'); } }
       break;}
   }
   // mesh transforms
