@@ -65,7 +65,7 @@
     <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
     <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b243</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b244</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -929,17 +929,25 @@ function _tnVal(x,y,per){ const ix=Math.floor(x),iy=Math.floor(y);
   const t=a+(b-a)*fx,u=cc+(e-cc)*fx; return t+(u-t)*fy; }
 // STONE: broad mottling for the mass of the rock, a finer grain over it, and dark cracks scored
 // across so a flat box face reads as a cleaved surface rather than a painted panel.
+// b244: the first stone texture read as CAMOUFLAGE on the buildings, and the fault was scale, not
+// taste. M.stone is shared with the keep and the walls, so the same 256px image that sits on a
+// one-metre boulder also stretches across a whole castle face - and its lowest octave was six
+// cycles across the image, which on that wall is a blotch the size of a door. The fix is to run
+// the whole thing at much higher frequency and much lower amplitude, so it reads as GRAIN at any
+// size it is stretched to rather than as shapes, and to tile it three times over besides.
+// Lesson worth keeping: a texture on a SHARED material has to work at every scale that material is
+// used at, and in this file M.stone spans a pebble to a keep.
 function stoneTex(){ return _mkTex('stone',256,(c,N)=>{
   const img=c.createImageData(N,N),d=img.data;
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const u=x/N,v=y/N;
-    let n=_tnVal(u*6,v*6,6)*0.55+_tnVal(u*16+7,v*16+3,16)*0.30+_tnVal(u*44+19,v*44+11,44)*0.15;
-    let k=0.74+n*0.42;
-    const crack=_tnVal(u*9+31,v*9+17,9);
-    if(crack>0.62&&crack<0.66)k*=0.62;              // a scored line
+    let n=_tnVal(u*22,v*22,22)*0.42+_tnVal(u*52+7,v*52+3,52)*0.34+_tnVal(u*110+19,v*110+11,110)*0.24;
+    let k=0.88+n*0.20;                              // was 0.74+n*0.42 - less than half the contrast
+    const crack=_tnVal(u*34+31,v*34+17,34);
+    if(crack>0.70&&crack<0.725)k*=0.88;             // a hairline, not a canyon
     const g=Math.max(0,Math.min(255,k*255))|0, i=(y*N+x)*4;
     d[i]=g;d[i+1]=g;d[i+2]=g;d[i+3]=255; }
-  c.putImageData(img,0,0); },1);}
+  c.putImageData(img,0,0); },3);}
 // BARK: vertical fibre. Trunks are cylinders, so the U axis wraps the girth and V runs the height -
 // streaks drawn down the image become bark running up the tree.
 function barkTex(){ return _mkTex('bark',128,(c,N)=>{
@@ -947,7 +955,7 @@ function barkTex(){ return _mkTex('bark',128,(c,N)=>{
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const u=x/N,v=y/N;
     let n=_tnVal(u*22,v*3.5,22)*0.62+_tnVal(u*54+9,v*8+5,54)*0.38;
-    const k=0.72+n*0.48;
+    const k=0.80+n*0.34;
     const g=Math.max(0,Math.min(255,k*255))|0,i=(y*N+x)*4;
     d[i]=g;d[i+1]=g;d[i+2]=g;d[i+3]=255; }
   c.putImageData(img,0,0); },1);}
@@ -958,7 +966,7 @@ function leafTex(){ return _mkTex('leaf',256,(c,N)=>{
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const u=x/N,v=y/N;
     let n=_tnVal(u*7,v*7,7)*0.5+_tnVal(u*19+13,v*19+29,19)*0.32+_tnVal(u*48+3,v*48+41,48)*0.18;
-    const k=0.66+Math.pow(n,0.85)*0.62;
+    const k=0.74+Math.pow(n,0.85)*0.44;
     const g=Math.max(0,Math.min(255,k*255))|0,i=(y*N+x)*4;
     d[i]=g;d[i+1]=g;d[i+2]=g;d[i+3]=255; }
   c.putImageData(img,0,0); },2);}
@@ -1535,12 +1543,13 @@ function claimVillage(v,owner){ claimVillageSilent(v,owner);
 // gold-BEARING OUTCROP now: the same slab formation as the iron, cut in warm ochre stone with the
 // bright gold worked into seams across it. The owner's rule from b62 still holds - gold reads gold
 // and stone reads grey at a glance - it just reads as a mine rather than a cheese.
-const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xc4a254,roughness:.72,metalness:.10,map:stoneTex(),flatShading:true});
-const GOLD_STONE_D=new THREE.MeshStandardMaterial({color:0xa38443,roughness:.80,metalness:.08,map:stoneTex(),flatShading:true});
+const GOLD_STONE=new THREE.MeshStandardMaterial({color:0xd8ac3e,roughness:.66,metalness:.18,map:stoneTex(),flatShading:true});
+const GOLD_STONE_D=new THREE.MeshStandardMaterial({color:0xb08c2e,roughness:.74,metalness:.14,map:stoneTex(),flatShading:true});
 function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
   // b242: this was the worst of it on screen - six rounded lumps sprawled across three tiles,
   // reading as a heap of bread. Three angular masses inside a tight footprint, two broken shards.
-  g.add(rockSlab(GOLD_STONE,1.50,1.95,1.30, 0,1.00,0, n.tx+21));
+  g.add(rockSlab(GOLD_STONE,1.42,2.15,1.22, 0,1.05,0, n.tx+21));
+  g.add(rockSlab(GOLD_STONE,0.78,0.95,0.72, 0.10,2.05,-0.05, n.tx+27));   // the peak
   g.add(rockSlab(GOLD_STONE_D,1.00,1.20,0.95, 0.92,0.60,0.32, n.ty+22));
   g.add(rockSlab(GOLD_STONE,0.82,1.45,0.92, -0.85,0.75,-0.28, n.tx+n.ty+23));
   g.add(rockSlab(GOLD_STONE_D,0.52,0.44,0.52, -0.95,0.22,0.80, n.tx+24, true));
@@ -1667,12 +1676,13 @@ const _shardGeo=new THREE.OctahedronGeometry(1,0);
 function rockSlab(mat,sx,sy,sz,px,py,pz,seed,shard){
   const m=new THREE.Mesh(shard?_shardGeo:_slabGeo,mat);
   m.scale.set(sx,sy,sz); m.position.set(px,py,pz);
-  m.rotation.set((hashN(seed,11)-0.5)*0.34, hashN(seed,13)*6.28, (hashN(seed,17)-0.5)*0.30);
+  m.rotation.set((hashN(seed,11)-0.5)*0.95, hashN(seed,13)*6.28, (hashN(seed,17)-0.5)*0.85);
   m.castShadow=true; return m; }
 function addRock(n){const g=new THREE.Group();g.scale.setScalar(2);
   // b242: three masses, not seven, and inside a tight footprint. The sprawl was the fault - six
   // pieces spread to +/-1.7 read as a heap rather than an outcrop.
-  g.add(rockSlab(ironGrey,1.55,2.05,1.35, 0,1.05,0, n.tx+1));
+  g.add(rockSlab(ironGrey,1.48,2.25,1.28, 0,1.10,0, n.tx+1));
+  g.add(rockSlab(ironGrey,0.80,1.00,0.75, -0.08,2.15,0.06, n.tx+7));   // the peak
   g.add(rockSlab(ironGreyD,1.05,1.25,1.00, -0.95,0.62,0.35, n.ty+2));
   g.add(rockSlab(ironGrey,0.85,1.55,0.95, 0.88,0.80,-0.30, n.tx+n.ty));
   g.add(rockSlab(ironGreyD,0.55,0.45,0.55, 0.95,0.24,0.85, n.tx+3, true));
