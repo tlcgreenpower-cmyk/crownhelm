@@ -14,7 +14,6 @@ assets/animals/*
 !assets/animals/Sheep.glb
 assets/nature/*
 assets/*.zip
-WORKLOG.md
 !assets/med/neutral/wall_straight.gltf
 !assets/med/neutral/wall_straight.bin
 !assets/med/neutral/wall_straight_gate.gltf
