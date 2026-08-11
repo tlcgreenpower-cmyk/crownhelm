@@ -3580,6 +3580,11 @@ function nextJob(e,prefer){
 // Off by default — one null check per phase. window.TF.profile(120) turns it on for N steps.
 let _prof=null,_animK=2,_animNear=900,_animFull=0;const ANIM_FULL_CAP=80;
 function _pt(k,t0){ if(!_prof)return 0; const n=performance.now(); _prof[k]=(_prof[k]||0)+(n-t0); return n; }
+// b277: the same profiler, one level down. `units` is the biggest phase in the step and it was a
+// single number — six milliseconds of "something in updateUnit". These split it by section.
+// Free when the profiler is off: one null check per marker.
+let _ut=0;
+function _u(k){ if(!_prof)return; const n=performance.now(); _prof[k]=(_prof[k]||0)+(n-_ut); _ut=n; }
 // b140: THE HARVEST CHAIN. Grain is worth little until a Mill grinds it, flour is worth more
 // once a Bakery bakes it, and a town that eats only one crop eats badly. Surveyed once a second.
 let econT=0;
@@ -3945,7 +3950,7 @@ function separateUnits(){ const cell=3, grid=new Map();
           e.x-=nx*push*fE;e.z-=nz*push*fE;o.x+=nx*push*fO;o.z+=nz*push*fO; }
         else if(d<=1e-4){ const a2=(e.id*2.4)%6.283; o.x+=Math.cos(a2)*0.5; o.z+=Math.sin(a2)*0.5; } } } } }
 const _toolV=new THREE.Vector3();
-function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
+function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.atk-=dt;
   // b144: NOBODY LIVES IN THE TREES. Whatever put a man on ground he cannot stand on — a formation
   // place in the woods, a shove from the crowd, an old save — he finds his way back out.
   // (b153: this runs BEFORE `moving` is read. It can order a new path — or fail and clear the old
@@ -3960,14 +3965,22 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       if(out){ if(!orderPath(e,out[0],out[1],0)){   // walled in on every side — he pushes out on foot
           const ox=wx(out[0])-e.x,oz=wz(out[1])-e.z,od2=Math.hypot(ox,oz)||1,st=Math.min(od2,UNIT[e.type].speed*dt*8);
           e.x+=ox/od2*st; e.z+=oz/od2*st; } } } }
+  _u('u_stuck');
   const moving=e.path&&e.pi<e.path.length;
   if(e._sc!==e.cmd){e._sc=e.cmd;clearStall(e);
     if(e.cmd!=='tend')e._onDeck=false;   // b250: one central clear beats remembering nine of them
 
     if(e.cmd!=='move'&&e.cmd!=='amove'&&e.cmd!=='idle')e.slot=null;}   // fresh orders, fresh patience — and he leaves the line
+  // b277: THE ART IS ONLY OWED TO MEN YOU CAN SEE. More than half of everything below this line
+  // moves meshes — the held tool pinned to the fist, the walk bob, the health bar turned to face
+  // the camera, the body itself placed on the ground. It ran thirty times a second for every man
+  // in the world, including the ones drawn by the instanced far rank (which reads e.x/e.z, never
+  // the mesh) and the ones hidden in fog or inside a garrison, which are not drawn at all.
+  // updateUnitLOD has already decided who is on screen; this just believes it.
+  const _vis=e.mesh.visible;
   if(e.flinch>0){ e.flinch-=dt; const kf=Math.max(0,e.flinch)/0.15;   // struck men visibly flinch
-    e.mesh.scale.y=1-Math.sin(kf*Math.PI)*0.14; if(e.flinch<=0)e.mesh.scale.y=1; }
-  { const ud=e.mesh.userData;
+    if(_vis){ e.mesh.scale.y=1-Math.sin(kf*Math.PI)*0.14; if(e.flinch<=0)e.mesh.scale.y=1; } }
+  if(_vis){ const ud=e.mesh.userData;
     if(ud.gun){ const gt=(e.cmd==='gather'&&e.gather)?e.gather.type:null;
       const wantG=e.cmd==='hunt', wantA=gt==='wood', wantP=gt==='metal'||gt==='gold';
       if(ud.gun.visible!==wantG)ud.gun.visible=wantG;
@@ -3988,6 +4001,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2;
       const held=tl||(wantG?ud.gun:null);
       if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } }   // pin the tool to the swinging fist
+  _u('u_tool');
   if(moving&&e.path&&e.pi<e.path.length){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;
@@ -4019,6 +4033,7 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
       e.x+=sdx/sd*st; e.z+=sdz/sd*st; e.walk+=dt; e.dir=Math.atan2(sdz,sdx); e.formed=false; }
     else { e.x=e.slot.x; e.z=e.slot.z; e.dir=e.slot.dir; e.formed=true; }   // stood to, and holding
   } else e.formed=false;
+  _u('u_move');
   switch(e.cmd){
     case 'move':if(arrived)e.cmd='idle';autoAcq(e,true);break;
     case 'amove':if(arrived){if(e.patrol)patrolFlip(e);else e.cmd='idle';}autoAcq(e,false);break;
@@ -4195,12 +4210,15 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
           if(Math.random()<0.8)spawnPart(e.x,Math.max(farmSurfaceY(b,e.x,e.z),heightAtWorld(e.x,e.z))+0.7,e.z,'chip'); } }
       break;}
   }
-  // mesh transforms
-  placeMesh(e);
-  let dd=e.dir-e.disp;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;e.disp+=dd*Math.min(1,dt*(UNIT[e.type].siege?6:14));
-  e.mesh.rotation.y=-e.disp+Math.PI/2;
-  const anim=e.mesh.userData.anim;if(anim&&!e.mesh.userData.noBob){const bob=moving?Math.abs(Math.sin(e.walk*10))*0.28:0;anim.position.y=bob;anim.rotation.x=(e.atk>0?-0.5:moving?Math.sin(e.walk*10)*0.08:0);}
+  _u('u_cmd');
+  // mesh transforms — skipped whole-cloth for men the LOD pass hid last frame (imposter rank
+  // reads e.x/e.z straight off the entity, never the mesh, so this owes nothing to them)
+  if(_vis){ placeMesh(e);
+    let dd=e.dir-e.disp;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;e.disp+=dd*Math.min(1,dt*(UNIT[e.type].siege?6:14));
+    e.mesh.rotation.y=-e.disp+Math.PI/2;
+    const anim=e.mesh.userData.anim;if(anim&&!e.mesh.userData.noBob){const bob=moving?Math.abs(Math.sin(e.walk*10))*0.28:0;anim.position.y=bob;anim.rotation.x=(e.atk>0?-0.5:moving?Math.sin(e.walk*10)*0.08:0);} }
   const ud=e.mesh.userData;
+  _u('u_mesh');
   if(ud.mixer&&!e.mesh.visible){ /* imposter LOD: no skinning while hidden */ }
   else if(ud.mixer){ const dcx=e.x-camTarget.x,dcz=e.z-camTarget.z,d2a=dcx*dcx+dcz*dcz;
     // b144: skinning IS the cost of a big army — 7ms of a 9ms step at 290 men. Men close to the
@@ -4223,12 +4241,14 @@ function updateUnit(e,dt){e.cd-=dt;if(e.atk>0)e.atk-=dt;
     if(mv){ const s=Math.sin(e.walk*10)*0.65;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
     else for(const k in ud.limbs) ud.limbs[k].rotation.x*=Math.max(0,1-dt*8); }
-  const bn=e.mesh.userData.banner;if(bn)bn.rotation.y=Math.sin(elapsed*4+e.id)*0.4;
-  const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;
-    const hr=clamp(e.hp/e.maxHp,0,1);   // a man on the frame he dies in has negative hp; keep the fill inside its track
-    hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*hb.userData.hw;
-    hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
-    hb.quaternion.copy(e.mesh.quaternion).invert().multiply(camera.quaternion);}else hb.visible=false;}
+  _u('u_anim');
+  if(_vis){ const bn=e.mesh.userData.banner;if(bn)bn.rotation.y=Math.sin(elapsed*4+e.id)*0.4;
+    const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;
+      const hr=clamp(e.hp/e.maxHp,0,1);   // a man on the frame he dies in has negative hp; keep the fill inside its track
+      hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*hb.userData.hw;
+      hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
+      hb.quaternion.copy(e.mesh.quaternion).invert().multiply(camera.quaternion);}else hb.visible=false;} }
+  _u('u_hb');
 }
 function nextBuildSite(e){ let best=null,bd=200;
   for(const b of blds)if(b.owner===e.owner&&!b.done){ const d=Math.hypot(e.x-b.cx,e.z-b.cz);
