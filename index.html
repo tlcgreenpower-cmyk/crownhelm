@@ -4106,7 +4106,12 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     // itself. A flat 7.6 was smaller than a 3x3 Keep — the nearest ground a man can stand on is
     // 8.00 from its middle — so a worker hauling to the Keep, which is where every game begins,
     // could not put his load down at all except by a lucky jostle. It scales with the building now.
-    case 'return':{const dp=nearestDrop(e);if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
+    // b279: nearestDrop is a scan of every building the man owns, and it ran EVERY STEP a worker
+    // spent walking home — which for a laden man on the far side of the map can be ten seconds of
+    // steps to reach a store that never moved. Cached now, re-surveyed at the same cadence as the
+    // harvest chain (once a second is plenty for a target that only changes when a store is built
+    // or razed) and dropped instantly if the cached store itself goes.
+    case 'return':{if(!e._drop||e._drop._gone||(e._dropT=(e._dropT||0)-dt)<=0){e._drop=nearestDrop(e);e._dropT=1;}const dp=e._drop;if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}   // can't get the load home — stand down rather than shuffle
         else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
     case 'build':{const b=e.build;if(!b||b._gone||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
