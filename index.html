@@ -4126,8 +4126,12 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
         b.gar.push(e.id); e.inGar=b.id; e.garB=null; e.mesh.visible=false; e.path=null; e.cmd='inside';
         selected=selected.filter(id=>id!==e.id); refreshUI(); }
       else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
+    // b280: same fix as nearestDrop (b279) — homeMarket is a blds scan and it ran every step for
+    // every cart on the road, not just when a route actually needs re-checking. Cached, and
+    // dropped the instant the cached market itself goes so a razed home is never trusted stale.
     case 'trade':{ const to=e.tradeTo;
-      const home=homeMarket(e.owner);
+      if(!e._home||e._home._gone)e._home=homeMarket(e.owner);
+      const home=e._home;
       if(!home){ e.cmd='idle'; e.tradeTo=null; break; }                 // market razed: the run is over
       if(!to||to._gone||!to.done||isHostile(e.owner,to.owner)){         // war closed the route
         const nt=tradePartner(e.owner);
