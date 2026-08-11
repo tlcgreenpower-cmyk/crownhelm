@@ -3583,7 +3583,7 @@ function _pt(k,t0){ if(!_prof)return 0; const n=performance.now(); _prof[k]=(_pr
 // b277: the same profiler, one level down. `units` is the biggest phase in the step and it was a
 // single number — six milliseconds of "something in updateUnit". These split it by section.
 // Free when the profiler is off: one null check per marker.
-let _ut=0;
+let _ut=0,_selSet=null;
 function _u(k){ if(!_prof)return; const n=performance.now(); _prof[k]=(_prof[k]||0)+(n-_ut); _ut=n; }
 // b140: THE HARVEST CHAIN. Grain is worth little until a Mill grinds it, flour is worth more
 // once a Bakery bakes it, and a town that eats only one crop eats badly. Surveyed once a second.
@@ -3656,6 +3656,11 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   _animNear=camDist<28?2200:camDist<46?900:0;                  // and pulled back far enough, nobody needs 30 frames a second
   _animFull=0;
   let _t=_prof?performance.now():0;
+  // b277: same fix as foesOfOwner (b192) — a health bar asks "am I selected?" once per visible
+  // man per step, and selected.includes() is a linear scan of the selection. A box-select of two
+  // hundred men made that two hundred men times two hundred comparisons, thirty times a second,
+  // just to decide whether to draw a bar. One Set, built once here, answers it in one step.
+  _selSet=selected.length?new Set(selected):null;
   for(const e of ents)updateUnit(e,dt);
   _t=_pt('units',_t);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
@@ -4243,7 +4248,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     else for(const k in ud.limbs) ud.limbs[k].rotation.x*=Math.max(0,1-dt*8); }
   _u('u_anim');
   if(_vis){ const bn=e.mesh.userData.banner;if(bn)bn.rotation.y=Math.sin(elapsed*4+e.id)*0.4;
-    const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||selected.includes(e.id)){hb.visible=true;
+    const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||(_selSet&&_selSet.has(e.id))){hb.visible=true;
       const hr=clamp(e.hp/e.maxHp,0,1);   // a man on the frame he dies in has negative hp; keep the fill inside its track
       hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*hb.userData.hw;
       hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
