@@ -1489,6 +1489,52 @@ function stampShade(tx,ty,r,al){ if(!groundCtx)return; const TW=groundCv.width,T
   const px=(tx+0.5)/MAP_W*TW, py=(ty+0.5)/MAP_H*TH, rr=r/MAP_W*TW;
   groundCtx.fillStyle='rgba(24,44,20,'+al+')';
   groundCtx.beginPath(); groundCtx.ellipse(px,py,rr,rr*0.8,0,0,7); groundCtx.fill(); }
+// b281: SEE ONLY WHAT THE CAMERA CAN SEE.
+// Every instanced scatter below - grass, flowers, bushes, rocks, every part of every tree - was
+// built as ONE mesh holding every instance across the WHOLE MAP. Three.js decides whether to draw
+// a mesh using ONE bounding sphere for the whole thing; a mesh whose instances are scattered edge
+// to edge has a bounding sphere that covers the whole map, so that check can never say "skip this"
+// - every instance is uploaded to the GPU every frame, wherever the camera is looking. Measured on
+// the owner's own save: 152,210 ambient instances, near 15 million triangles, submitted every
+// frame, at 2fps - on a map where the camera can only ever see a slice of that at once. Graphics
+// quality never touched this: "low" only turns off shadows.
+// This runs AFTER a category is fully built, unchanged, and re-buckets what is already there into
+// a grid of smaller meshes, each covering only its own patch of ground. Nothing about density,
+// placement or seeding changes above this line - only how many pieces the result is cut into, so
+// Three's existing culling can actually drop the pieces that are off-screen.
+const AMBIENT_GRID_N=8;
+function _ambCell(x,z){
+  const cx=clamp(Math.floor((x+HALF_W)/Math.max(WORLD_W,1)*AMBIENT_GRID_N),0,AMBIENT_GRID_N-1);
+  const cz=clamp(Math.floor((z+HALF_H)/Math.max(WORLD_H,1)*AMBIENT_GRID_N),0,AMBIENT_GRID_N-1);
+  return cx*AMBIENT_GRID_N+cz; }
+const _cm4=new THREE.Matrix4(),_cv3=new THREE.Vector3(),_cq3=new THREE.Quaternion(),_cs3=new THREE.Vector3(),_cc3=new THREE.Color();
+// Splits one fully-built InstancedMesh into a grid of smaller ones over the same instances, same
+// shared geometry and material throughout - no extra GPU memory, no extra shader compiles, only
+// more (smaller) draw calls. Returns the new meshes and a remap (old instance index -> {mesh,
+// index}) so code holding a {mesh,index} pair into the original can be repointed at the split.
+function chunkInstancedMesh(mesh){
+  const n=mesh.count; const out=[],remap=new Array(n);
+  if(n<=0)return {meshes:out,remap};
+  const hasColor=!!mesh.instanceColor;
+  const cells=new Map();
+  for(let i=0;i<n;i++){ mesh.getMatrixAt(i,_cm4); _cm4.decompose(_cv3,_cq3,_cs3);
+    const k=_ambCell(_cv3.x,_cv3.z); let a=cells.get(k); if(!a){a=[];cells.set(k,a);} a.push(i); }
+  for(const idxs of cells.values()){
+    const cm=new THREE.InstancedMesh(mesh.geometry,mesh.material,idxs.length);
+    cm.castShadow=mesh.castShadow; cm.receiveShadow=mesh.receiveShadow;
+    for(let j=0;j<idxs.length;j++){ const oi=idxs[j];
+      mesh.getMatrixAt(oi,_cm4); cm.setMatrixAt(j,_cm4);
+      if(hasColor){ mesh.getColorAt(oi,_cc3); cm.setColorAt(j,_cc3); }
+      remap[oi]={mesh:cm,index:j}; }
+    cm.count=idxs.length; out.push(cm); }
+  return {meshes:out,remap}; }
+// The simple case: a category nothing outside this file holds a reference into (every scatter
+// pass in buildAmbient - grass, flowers, wildlife dressing, none of it individually addressable).
+// Chunk every InstancedMesh child of the group and swap it in place.
+function chunkGroupInPlace(group){
+  for(const child of [...group.children]){ if(!child.isInstancedMesh)continue;
+    const {meshes}=chunkInstancedMesh(child);
+    group.remove(child); for(const m of meshes)group.add(m); } }
 function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THREE.Group();scene.add(decorGroup);
   rebuildTreeGrid();
   for(const n of woodNodes)stampShade(n.tx,n.ty,0.85,0.16);
@@ -1693,8 +1739,17 @@ function buildTreesInstanced(){
     // off. At Fast quality the shadow map is switched off entirely and none of this costs anything.
     const im=new THREE.InstancedMesh(geo,mat,counts[key]);im.castShadow=true;im.receiveShadow=false;decorGroup.add(im);ims[key]=im;idx[key]=0; }
   for(const pl of plans){ const n=pl.n; n.px=pl.px;n.py=pl.py;n.pz=pl.pz;n.ry=pl.ry;n.rz=pl.rz;n.ts=pl.ts;
-    n.tim=pl.parts.map(pp=>({im:ims[pp[0]],i:idx[pp[0]]++,l:pp[1]}));
-    n.mesh=null; setTreeK(n,1); } }
+    n.tim=pl.parts.map(pp=>({im:ims[pp[0]],i:idx[pp[0]]++,l:pp[1],key:pp[0]}));
+    n.mesh=null; setTreeK(n,1); }
+  // b281: every part's matrix is written now - split each big per-key mesh into a culling grid and
+  // repoint every tree's {im,i} at its chunk. setTreeK and fellTree only ever call
+  // pt.im.setMatrixAt(pt.i,...), so this is invisible to both - they just end up pointed at a
+  // smaller mesh. This is where the bulk of the map's triangles were: a big forest's trunks and
+  // canopies were as map-spanning as the grass, and there are far more of them per instance.
+  const _remaps={};
+  for(const key in ims){ const {meshes,remap}=chunkInstancedMesh(ims[key]);
+    decorGroup.remove(ims[key]); for(const m of meshes)decorGroup.add(m); _remaps[key]=remap; }
+  for(const pl of plans)for(const pt of pl.n.tim){ const r=_remaps[pt.key][pt.i]; pt.im=r.mesh; pt.i=r.index; } }
 const ironGrey=new THREE.MeshStandardMaterial({color:0x8d939a,roughness:.9,map:stoneTex(),flatShading:true});
 const ironGreyD=new THREE.MeshStandardMaterial({color:0x5c6167,roughness:.95,flatShading:true});
 // b238 STAGE 3 - ROCK FORMATIONS, NOT LUMPS.
@@ -1913,6 +1968,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
       s3.setScalar(.6+hashN(ty2*3,tx2)*0.8); m4.compose(v3,q0,s3); lily.setMatrixAt(ly,m4); ly++; }
     if((tx2+ty2)%7===0)_fishSpots.push([x,z]); }
   foam.count=fo; lily.count=ly; ambientGroup.add(foam); ambientGroup.add(lily);
+  chunkGroupInPlace(ambientGroup);   // b281: split every category above into a culling-friendly grid
   buildLeaves();
   if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
   const bm=new THREE.MeshBasicMaterial({color:0x2a2f36,side:THREE.DoubleSide});
