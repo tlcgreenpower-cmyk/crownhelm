@@ -2381,6 +2381,20 @@ function armUnit(g,type){ const a=ARMS[type]; if(!a)return;
   const w=src.clone(true); w.position.set(a[1]*MAN_SCALE,a[2]*MAN_SCALE,a[3]*MAN_SCALE); w.scale.setScalar(MAN_SCALE);
   w.rotation.x=a[4]; w.rotation.z=a[5];
   g.add(w); g.userData.weapon=w; }
+// b284: THE CHOSEN ACCENT. Age's own answer to "whose man is this" is never to repaint the whole
+// model - it masks one small part (a banner, a shield boss) to the player's colour and leaves
+// the armour and skin alone, so a Roman and a Frank both still look like themselves. Crownhelm
+// already did this for the procedural units (coat:true - spear, infantry, grenadier, dragoon,
+// the unique guards) via the coat material `tm` below. Every character-library type never got
+// it: archers, monks, the hero, highlanders, samurai, privateers, vikings, workers, and every
+// mounted rider all `return g` before `tm` is ever touched, so two realms' archers were
+// byte-for-byte identical - the team ring (since removed, b283) was carrying the WHOLE weight of
+// telling them apart. One small cape, the same accent the highlander already wore alone, now
+// goes on everyone the coat material never reached.
+function addTeamAccent(g,owner,y,s){ const tm=ownerMats(owner).A;
+  const cape=new THREE.Mesh(new THREE.PlaneGeometry(0.62*s,0.92*s),
+    new THREE.MeshStandardMaterial({color:tm.color,side:THREE.DoubleSide,roughness:.75}));
+  cape.position.set(0,y,-0.28*s); cape.rotation.x=0.18; g.add(cape); }
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // mounted cavalry: real animated horse with a rider seated on top
   const HORSE_OF={knight:'HorseW',dragoon:'HorseA',wolfrider:'HorseA',cuirassier:'HorseW'};
@@ -2422,6 +2436,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     if(sit){rmix.clipAction(sit).play();rmix.update(0.85);}   // frozen mid-sit — a posed rider, no per-frame cost
     g.add(rider);
     armUnit(g,type); if(g.userData.weapon)g.userData.weapon.position.y+=saddleY+0.35*MAN_SCALE;   // b148: a horseman carries his too
+    addTeamAccent(g,owner,saddleY+1.75*MAN_SCALE,MAN_SCALE);   // b284: the rider's cape, over the saddle
     g.userData.noBob=true;
     // Health bars draw with depthTest off, so this does not hide behind the man — it paints across
     // him. At 3.4 it was already crossing the old rider's helmet (top 3.57); with a full-size rider
@@ -2479,6 +2494,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     deSync(g.userData);
     if(g.userData.idleA)g.userData.idleA.play();
     g.userData.noBob=true;
+    addTeamAccent(g,owner,(type==='hero'?2.35:type==='highlander'?2.15:type==='samurai'?2.1:type==='cardinal'?2.05:1.85)*MAN_SCALE,(type==='hero'?1.2:1)*MAN_SCALE);
     const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
     return g; }
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
@@ -5220,52 +5236,10 @@ const impGeo=(()=>{ const body=new THREE.CapsuleGeometry(.42,1.0,3,6); body.tran
   const shld=new THREE.BoxGeometry(1.0,.30,.46); shld.translate(0,1.52,0);
   const g=BGU.mergeGeometries([body,head,shld],false); return g||body; })();
 // ---- b173 WHOSE MAN IS THAT: a team ring under every soldier ----
-// Player and enemy unit meshes were byte-for-byte identical — same two white vertex-colour
-// carriers, nothing tinted, nothing owned. In a scrap of thirty men you could not tell your
-// soldiers from theirs except by watching which way they walked. The ring takes its colour from
-// the same place the minimap dot does, so a realm is the one colour wherever you look at it.
-const TEAMR_CAP=900;
-const teamRingGeo=(()=>{const g=new THREE.RingGeometry(0.60,0.92,20);g.rotateX(-Math.PI/2);return g;})();
-const teamRingMesh=new THREE.InstancedMesh(teamRingGeo,
-  new THREE.MeshBasicMaterial({transparent:true,opacity:0.62,depthWrite:false}),TEAMR_CAP);
-teamRingMesh.count=0; teamRingMesh.frustumCulled=false; teamRingMesh.renderOrder=994;
-teamRingMesh.castShadow=false; teamRingMesh.receiveShadow=false; scene.add(teamRingMesh);
-const _trM=new THREE.Matrix4(), _trC=new THREE.Color(), _trV=new THREE.Vector3(), _trQ=new THREE.Quaternion(), _trS=new THREE.Vector3();
-// A realm keeps its own hue, but a coat colour is not a marker colour — the player's is a navy so
-// dark (#2b3040) that a ring drawn in it is just a grey scuff on the grass. Take the hue, force it
-// bright and saturated, and every realm gets a signal you can pick out at a glance.
-const _trCache={}, _trHSL={};
-function teamRingCol(o){ const k=o+'_'+faction[o]; let c=_trCache[k];
-  if(!c){ c=new THREE.Color().copy(ownerMats(o).A.color);
-    c.getHSL(_trHSL,THREE.SRGBColorSpace);
-    c.setHSL(_trHSL.h,Math.max(0.78,_trHSL.s),o==='player'?0.62:0.52,THREE.SRGBColorSpace);
-    _trCache[k]=c; }
-  return c; }
-function updateTeamRings(){
-  let n=0;
-  for(const e of ents){ if(n>=TEAMR_CAP)break;
-    if(e.inGar||e._off)continue;                        // garrisoned or off-screen: no ring to draw
-    const tx=txFromW(e.x),tz=tzFromW(e.z);
-    if(e.owner!=='player'&&(!inB(tx,tz)||visNow[ti(tx,tz)]!==1))continue;   // and never through the fog
-    const u=UNIT[e.type]||{r:1};
-    const rr=(u.r||1)*(u.cav?0.95:0.72)*MAN_SCALE;   // b229: and the team ring under him
-    // Sit the ring above the HIGHEST ground it spans, not the ground under the man's boots — a flat
-    // ring pinned to the centre height buries its uphill edge and reads as a broken arc. Floating a
-    // hair above a slope is far less noticeable than half a ring, and it keeps depth testing on, so
-    // rings still go behind the trees and hills they should.
-    let ym=heightAtWorld(e.x,e.z);
-    const h1=heightAtWorld(e.x+rr,e.z),h2=heightAtWorld(e.x-rr,e.z),h3=heightAtWorld(e.x,e.z+rr),h4=heightAtWorld(e.x,e.z-rr);
-    if(h1>ym)ym=h1; if(h2>ym)ym=h2; if(h3>ym)ym=h3; if(h4>ym)ym=h4;
-    _trV.set(e.x,ym+0.09,e.z);
-    _trS.setScalar(rr);
-    _trM.compose(_trV,_trQ,_trS);
-    teamRingMesh.setMatrixAt(n,_trM);
-    _trC.copy(teamRingCol(e.owner));
-    teamRingMesh.setColorAt(n,_trC);
-    n++; }
-  teamRingMesh.count=n;
-  if(n){ teamRingMesh.instanceMatrix.needsUpdate=true;
-    if(teamRingMesh.instanceColor)teamRingMesh.instanceColor.needsUpdate=true; } }
+// b283: THE OWNER ONLY WANTED THE SELECTION RING. The team ring (a permanent coloured ring under
+// every man, always on, so a realm could be told apart at a glance) doubled up with the selection
+// ring on anyone selected and read as visual clutter rather than a helpful signal. Cut outright,
+// not just switched off, per the project's own rule for dead things.
 const impMat=new THREE.MeshStandardMaterial({roughness:.85});
 const impMesh=new THREE.InstancedMesh(impGeo,impMat,IMP_CAP);
 impMesh.castShadow=false; impMesh.count=0; impMesh.frustumCulled=false; scene.add(impMesh);
@@ -6161,7 +6135,7 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
     if(steps)updateHUD(); }
   else{ updateCamera(frame); if(paused)simAcc=0; }
   _fogSweepT-=frame; if(_fogSweepT<=0){_fogSweepT=1.5;fogSweep();}   // newly built things join the fog
-  updateGhost();updateGarHint();updateRings();updateUnitLOD();updateTeamRings();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateCloudShade(frame);updateSunShafts(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
+  updateGhost();updateGarHint();updateRings();updateUnitLOD();updateMoveMarks(frame);updateRubble(frame);updateFallingTrees(frame);updateAmbient(frame,now);updateSheep(frame);updateAmbience(frame);updateRain(frame);updateCloudShade(frame);updateSunShafts(frame);updateDayNight();waterUniforms.uTime.value=now;if(waterMesh)waterMesh.position.y=waterY;
   { const aa=document.getElementById('atkArrow');
     if(running&&!gameOver&&atkPing.t<6){ _aaV.set(atkPing.x,heightAtWorld(atkPing.x,atkPing.z),atkPing.z).project(camera);
       const sx=(_aaV.x+1)/2*vw, sy=(-_aaV.y+1)/2*vh;
@@ -6223,7 +6197,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       // off the render loop, so a headless soak that only calls update() never sees them at all.
       fellTree,get fallingTrees(){return fallingTrees;},drawMini,drawMiniTerrain,viewQuad,
       frame(dt,now){ updateCamera(dt);updateMoveMarks(dt);updateRubble(dt);updateFallingTrees(dt);updateAmbient(dt,now||performance.now()/1000);
-        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateCloudShade(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();updateTeamRings();
+        updateSheep(dt);updateAmbience(dt);updateRain(dt);updateCloudShade(dt);updateSunShafts(dt);updateDayNight();updateUnitLOD();
         updateRings();fogSweep();
         // the water is SEATED by the render loop, not by the sim. Leaving this out of the driver
         // parked the sea at y=0 while the waterline is 1.87, so every shallow river bed came out
