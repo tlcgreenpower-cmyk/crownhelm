@@ -442,19 +442,26 @@ setMap(curMapId);
 // regardless of type, a Villager and a Knight take the same one slot. Every pop:N below matched
 // that model except it scaled cavalry/siege/heroes up to 3-5, which is a Crownhelm-specific
 // design that was never actually AoE's. Flattened to 1 across the board.
+// b297: METAL BECOMES STONE, NOT A SECOND GOLD. AoE2's Stone is scarce and almost never touches
+// a unit - it pays for Castles, Walls, Towers, Wonders, structural things, full stop; the
+// resource that pays for military is Gold. Metal here was doing both jobs at once (every
+// mid-tier unit AND the buildings), which is why it never felt like Stone even though it
+// filled Stone's structural slot. Every unit's metal cost below is now paid in gold instead -
+// buildings are the only thing left that spend metal, same list as before, untouched.
 const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:1,time:8,age:1}, archer:{f:35,w:45,pop:1,time:9,age:1},
-  infantry:{f:45,m:35,pop:1,time:9,age:1}, grenadier:{f:50,m:45,pop:1,time:11,age:1}, dragoon:{f:60,m:55,pop:1,time:13,age:2},
-  highlander:{f:120,m:90,g:80,pop:1,time:17,age:3}, grenguard:{f:100,m:100,g:80,pop:1,time:16,age:3}, wolfrider:{f:110,m:100,g:90,pop:1,time:16,age:3}, cuirassier:{f:140,m:110,g:100,pop:1,time:18,age:3},
-  knight:{f:70,m:60,pop:1,time:14,age:2}, catapult:{w:120,m:100,pop:1,time:20,age:2}, ram:{w:110,m:40,pop:1,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:1,time:11,age:2}, hoplite:{f:80,m:60,g:30,pop:1,time:14,age:2},
-  cannon:{w:100,m:120,pop:1,time:20,age:2}, howitzer:{w:130,m:140,pop:1,time:22,age:2},
-  hero:{f:150,w:80,m:150,pop:1,time:24,age:1},
-  tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:1,time:10,age:1}, priest:{f:90,pop:1,time:12,age:1}, doctor:{f:70,w:20,pop:1,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:1,time:20,age:2},
-  warboat:{w:80,m:50,pop:1,time:13,age:2}, privateer:{f:80,m:60,g:40,pop:1,time:14,age:2}, viking:{f:60,w:30,pop:1,time:9,age:1}, samurai:{f:90,m:70,g:50,pop:1,time:14,age:2},
+  infantry:{f:45,g:35,pop:1,time:9,age:1}, grenadier:{f:50,g:45,pop:1,time:11,age:1}, dragoon:{f:60,g:55,pop:1,time:13,age:2},
+  highlander:{f:120,g:170,pop:1,time:17,age:3}, grenguard:{f:100,g:180,pop:1,time:16,age:3}, wolfrider:{f:110,g:190,pop:1,time:16,age:3}, cuirassier:{f:140,g:210,pop:1,time:18,age:3},
+  knight:{f:70,g:60,pop:1,time:14,age:2}, catapult:{w:120,g:100,pop:1,time:20,age:2}, ram:{w:110,g:40,pop:1,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:1,time:11,age:2}, hoplite:{f:80,g:90,pop:1,time:14,age:2},
+  cannon:{w:100,g:120,pop:1,time:20,age:2}, howitzer:{w:130,g:140,pop:1,time:22,age:2},
+  hero:{f:150,w:80,g:150,pop:1,time:24,age:1},
+  tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:1,time:10,age:1}, priest:{f:90,pop:1,time:12,age:1}, doctor:{f:70,w:20,pop:1,time:11,age:1}, cardinal:{f:180,g:120,pop:1,time:20,age:2},
+  warboat:{w:80,g:50,pop:1,time:13,age:2}, privateer:{f:80,g:100,pop:1,time:14,age:2}, viking:{f:60,w:30,pop:1,time:9,age:1}, samurai:{f:90,g:120,pop:1,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},gate:{w:30,m:20},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},bakery:{w:80,m:20,age:2},armourer:{w:120,m:60},
   statue:{m:30,g:20},garden:{w:25},bridge:{w:35},range:{w:100},stable:{w:110,m:20,age:2},
+  miningcamp:{w:60,m:20},
 };
 const FACTIONS={
   scottish:{name:'Scottish Black Watch',coat:0x2b303a,trim:0x5a6578,accent:0x8a95a5,emo:'🏴',bonus:'Tough infantry (+15% HP)'},
@@ -513,21 +520,30 @@ const UNIT={
   samurai:{hp:210,speed:13.5,range:2.6,dmg:26,cd:.8,r:1.1,vis:9,dom:'land',color:0xb03a3a,name:'Samurai'},
 };
 for(const k in UNIT)UNIT[k].speed=Math.round(UNIT[k].speed*0.7*10)/10;   // b124: the whole world walks 30% slower (owner request) — battles and marches read better
+// b298: SEPARATE CAMPS FOR SEPARATE MATERIALS. AoE2 never lets a Lumber Camp take gold or a
+// Mining Camp take wood - the Town Center is the only universal drop-off, everything else is
+// resource-typed. `drop` is now what a building actually ACCEPTS - 'all' (the Keep, same as a
+// Town Center), or a single resource key - rather than a bare true that took anything from
+// anyone. The Storehouse keeps the Woodcutter Hut visual it already had (b201) and narrows to
+// wood only; the Mill - which already existed but never accepted a delivery - becomes the food
+// camp; and Mining Camp is new, the one thing this roster genuinely didn't have, for gold and
+// metal both (metal is this game's Stone - see b297).
 const BLD={
-  hall:{w:3,h:3,hp:2400,name:'Keep',vis:11,drop:true}, house:{w:2,h:2,hp:900,name:'House',vis:6},
-  farm:{w:2,h:2,hp:480,name:'Farm',vis:5}, storehouse:{w:2,h:2,hp:1000,name:'Storehouse',vis:6,drop:true},
+  hall:{w:3,h:3,hp:2400,name:'Keep',vis:11,drop:'all'}, house:{w:2,h:2,hp:900,name:'House',vis:6},
+  farm:{w:2,h:2,hp:480,name:'Farm',vis:5}, storehouse:{w:2,h:2,hp:1000,name:'Storehouse',vis:6,drop:'wood'},
   barracks:{w:3,h:2,hp:1500,name:'Barracks',vis:7}, siege:{w:3,h:2,hp:1500,name:'Siege Workshop',vis:7},
   gunshop:{w:3,h:2,hp:1500,name:'Gun Shop',vis:7}, church:{w:2,h:3,hp:1800,name:'Church',vis:7},
   castle:{w:4,h:4,hp:4800,name:'Castle',vis:14,fort:true}, wall:{w:1,h:1,hp:1800,name:'Wall',vis:4}, gate:{w:1,h:1,hp:2000,name:'Gate',vis:4},
-  mill:{w:2,h:2,hp:1000,name:'Mill',vis:6}, watch:{w:2,h:2,hp:850,name:'Watch House',vis:10}, market:{w:2,h:2,hp:1500,name:'Market',vis:6},
+  mill:{w:2,h:2,hp:1000,name:'Mill',vis:6,drop:'food'}, watch:{w:2,h:2,hp:850,name:'Watch House',vis:10}, market:{w:2,h:2,hp:1500,name:'Market',vis:6},
   bakery:{w:2,h:2,hp:1100,name:'Bakery',vis:6}, armourer:{w:3,h:2,hp:1500,name:'Armourer',vis:7},
   statue:{w:1,h:1,hp:400,name:'Statue',vis:3}, garden:{w:2,h:2,hp:300,name:'Garden',vis:3},
   bridge:{w:1,h:1,hp:800,name:'Bridge',vis:3},
   range:{w:3,h:2,hp:1400,name:'Archery Range',vis:7}, stable:{w:3,h:2,hp:1400,name:'Stable',vis:7},
   dock:{w:3,h:2,hp:1500,name:'Dock',vis:8}, tower:{w:1,h:1,hp:1000,name:'Tower',vis:11},
+  miningcamp:{w:2,h:2,hp:900,name:'Mining Camp',vis:6,drop:'ore'},
 };
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
-const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55};
+const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55,miningcamp:30};
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
@@ -3659,7 +3675,16 @@ function beastTipHTML(s){ const nm=s.kind==='boar'?'\uD83D\uDC17 Wild boar':s.ki
   return '<b style="color:#ff9a6a">'+nm+'</b> <span style="color:#7fa8bd">\u2014 FOOD, on the hoof</span>'
     +'<br><span style="font-size:11px;color:#bcd6e6">'+(s.meat||90)+' meat once it is down</span>'
     +'<br><span style="font-size:11px;color:#6f93a8">Right-click with workers selected to hunt it</span>'; }
-function nearestDrop(e){let best=null,bd=1e9;for(const b of blds)if(b.owner===e.owner&&b.done&&BLD[b.type].drop){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}return best;}
+// b298: a camp only takes what it's FOR. 'all' (the Keep) takes anything; 'ore' (Mining Camp)
+// takes gold and metal, the two things actually dug rather than grown or felled; everything
+// else matches its own resource key exactly.
+function dropAccepts(dropType,carryType){ if(dropType==='all')return true;
+  if(dropType==='ore')return carryType==='gold'||carryType==='metal';
+  return dropType===carryType; }
+function nearestDrop(e,carryType){let best=null,bd=1e9;
+  for(const b of blds)if(b.owner===e.owner&&b.done&&BLD[b.type].drop&&dropAccepts(BLD[b.type].drop,carryType||e.carryType)){
+    const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}
+  return best;}
 function chopReachable(n){ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){ const x=n.tx+dx,y=n.ty+dy; if(inB(x,y)&&passable(x,y,0,'land'))return true; } return false; }   // only forest-EDGE trees can be worked
 function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNodes:type==='gold'?goldNodes:type==='food'?meatNodes:metalNodes;for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(type==='wood'&&!chopReachable(n))continue;const d=Math.hypot(e.x-wx(n.tx),e.z-wz(n.ty));if(d<bd){bd=d;best=n;}}return best;}
 // b163: a man who finished a seam used to set off across the whole map for another of the SAME
@@ -4240,7 +4265,11 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     // steps to reach a store that never moved. Cached now, re-surveyed at the same cadence as the
     // harvest chain (once a second is plenty for a target that only changes when a store is built
     // or razed) and dropped instantly if the cached store itself goes.
-    case 'return':{if(!e._drop||e._drop._gone||(e._dropT=(e._dropT||0)-dt)<=0){e._drop=nearestDrop(e);e._dropT=1;}const dp=e._drop;if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
+    // b298: the cache now also breaks the moment the load he's carrying stops matching what the
+    // cached camp actually takes - a man switching from wood to gold between loads used to keep
+    // walking to the Lumber camp regardless, since the cache only ever checked "does it still
+    // exist", never "does it still take this".
+    case 'return':{if(!e._drop||e._drop._gone||e._dropCT!==e.carryType||(e._dropT=(e._dropT||0)-dt)<=0){e._drop=nearestDrop(e,e.carryType);e._dropCT=e.carryType;e._dropT=1;}const dp=e._drop;if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}   // can't get the load home — stand down rather than shuffle
         else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
     case 'build':{const b=e.build;if(!b||b._gone||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
@@ -4439,13 +4468,34 @@ function playOnce(e,key){ const ud=e.mesh.userData; const a=ud&&ud[key]; if(!a||
   ud.oneA=a; ud.oneT=Math.max(0.3,a.getClip().duration*0.9);
   const cur=ud.animMode==='walk'?ud.walkA:ud.idleA; if(cur)cur.fadeOut(0.1);
   a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.fadeIn(0.1).play(); }
-function counterBonus(e,t){const U=UNIT[e.type],T=UNIT[t.type];let b=0;
-  if(e.type==='spear'&&T.cav)b=16;
-  if(e.type==='samurai'&&T.uniq)b=10;
-  if(U.cav&&T.ranged&&!T.siege)b=6;
-  if(e.type==='archer'&&(t.type==='spear'||t.type==='viking'))b=5;
-  if(e.type==='viking'&&T.siege)b=10;
-  return b;}
+// b296: THE COUNTER TRIANGLE. Combat used to run on five hardcoded one-off matchups (spear vs
+// cavalry, samurai vs uniques, cavalry vs ranged, archer vs spear-or-viking, viking vs siege)
+// with no stated design, and several whole unit types - dragoon, grenadier, hoplite, wolfrider,
+// cuirassier, chukonu, highlander, grenguard - untouched by any of them. Replaced with what
+// AoE2 actually runs combat on: every fighting unit gets ONE class, and a class beats exactly
+// one other class hard - a real rock-paper-scissors loop, not a pile of exceptions.
+//   Spear   beats Cavalry   (a pike line stops a charge)
+//   Cavalry beats Ranged    (closes the gap before a second volley)
+//   Ranged  beats Melee     (kites what it can't outrun)
+//   Melee   beats Spear     (a shield wall has no answer for close-order infantry)
+// And separately: anything that reaches a siege engine - cannon, howitzer, catapult, ram -
+// hits it harder still, whichever of the four classes it belongs to. That is the other half of
+// the classic AoE2 read: send fast melee or cavalry at an exposed siege line, not only knights.
+const UNIT_CLASS={
+  spear:'spear', hoplite:'spear',
+  knight:'cavalry', dragoon:'cavalry', wolfrider:'cavalry', cuirassier:'cavalry',
+  archer:'ranged', infantry:'ranged', grenadier:'ranged', grenguard:'ranged', chukonu:'ranged',
+    cannon:'ranged', howitzer:'ranged', catapult:'ranged', warboat:'ranged', privateer:'ranged',
+  hero:'melee', highlander:'melee', viking:'melee', samurai:'melee',
+};
+const SIEGE_TYPES=new Set(['cannon','howitzer','catapult','ram']);
+const CLASS_BEATS={spear:'cavalry',cavalry:'ranged',ranged:'melee',melee:'spear'};
+const COUNTER_MULT=1.75, SIEGE_MULT=2.0;   // a hard counter roughly doubles the fight, not nudges it
+function counterBonus(e,t){
+  const ec=UNIT_CLASS[e.type], tc=UNIT_CLASS[t.type]; if(!ec||!tc)return 0;
+  let mult=(CLASS_BEATS[ec]===tc)?COUNTER_MULT:1;
+  if(SIEGE_TYPES.has(t.type)&&ec!=='ranged')mult=Math.max(mult,SIEGE_MULT);   // siege's own ranged kin get no special bonus against it - only what reaches it
+  return mult>1?effDmg(e)*(mult-1):0;}
 function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk||UNIT[e.type].ramOnly)return;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e)+counterBonus(e,t),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player'){sfxWhere(e.x,e.z);U.siege?SFX.boom():SFX.bow();}}
   else{t.hp-=effDmg(e)+counterBonus(e,t);t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
@@ -5563,10 +5613,11 @@ document.getElementById('gmResume').onclick=closeGameMenu;
 const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deliveries. Lose it and the realm falls.',
   house:'+8 population room (Attic upgrade +4). Lose houses and training stops until rebuilt.',
   farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Every field sows its own crop and each behaves differently: Wheat and Barley are poor until a Mill grinds them; Cabbage, Pumpkin and Turnip feed the town straight from the field; Flax feeds little but sells as linen (more beside a Market). Farm three different kinds and the whole harvest rises 15%. Irrigation +50%.',
-  mill:'Automatic flour, +2 food/s, no labour. Also grinds the grain of every Wheat and Barley farm within 30 paces — those fields yield 50% more instead of 10% less. Great Millstones (Age II) and Windworks (Age III) double its own output.',
+  mill:'Automatic flour, +2 food/s, no labour. Also takes deliveries — workers carrying FOOD walk here, not the Keep — and grinds the grain of every Wheat and Barley farm within 30 paces, yielding 50% more instead of 10% less. Great Millstones (Age II) and Windworks (Age III) double its own output.',
   armourer:'The forge where harness is made. Armour research costs 20% less and takes 30% less time here than at the Barracks, and only an Armourer can forge Tempered Plate (Age II) — every soldier raised after it stands 10% tougher. The coals glow brighter and sparks fly while the smiths are working.',
   bakery:'Bakes the flour into bread (Age II). Needs ground grain nearby: it counts the milled grain farms within 34 paces and bakes up to +3.2 food/s. Every farm near a Bakery yields 15% more.',
-  storehouse:'Drop-off point for goods — build near forests & mines; +15% gathering nearby. Keeps a woodpile.',
+  storehouse:'Timber drop-off — workers carrying WOOD walk here, not the Keep. Build near forests; +15% gathering nearby. Keeps a woodpile.',
+  miningcamp:'Gold & metal drop-off — workers carrying either walk here, not the Keep. Build near veins; +15% gathering nearby.',
   market:'Trade wood, food and metal for gold — and back again.',
   church:'Trains Monks, Priests and Doctors; Cardinals at Age II.',
   garden:'Beauty with a purpose — villagers stroll here, and each garden adds +2 population room.', statue:'Beauty in stone.',
@@ -5597,7 +5648,7 @@ const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. 
 function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.built)return; g.dataset.built='1';
   const cost=c=>c?[c.f?c.f+'🍖':'',c.w?c.w+'🌲':'',c.m?c.m+'⛏️':'',c.g?c.g+'💰':''].filter(Boolean).join(' '):'';
   const card=(ic,name,c2,desc)=>'<div style="background:#122b3a;border:1px solid #2c5164;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start"><div style="font-size:30px;flex:none">'+ic+'</div><div><b style="color:#e8f4fb">'+name+'</b> <small style="color:#c9a44a">'+c2+'</small><div style="color:#9fc0d2;font-size:12.5px;line-height:1.45">'+desc+'</div></div></div>';
-  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',bakery:'🍞',armourer:'🛡',storehouse:'📦',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',range:'🏹',stable:'🐎',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
+  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',bakery:'🍞',armourer:'🛡',storehouse:'📦',miningcamp:'⛏️',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',range:'🏹',stable:'🐎',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
   let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font:700 22px Georgia,serif;color:#f3e4be;letter-spacing:2px">📖 THE KINGDOM GUIDE</b><button class="big" id="guideClose" style="padding:6px 14px;cursor:pointer">✕ Close</button></div>';
   h+='<div style="font:600 15px Georgia,serif;color:#c9a44a;margin:8px 0">BUILDINGS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
   for(const k in BLD_DESC)h+=card(BICON[k]||'🏠',BLD[k].name,cost(COST[k]),BLD_DESC[k]);
@@ -5763,7 +5814,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       info.appendChild(fr); }
     if(sel.some(e=>e.type==='worker')){
       const CATS={
-        town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
+        town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['miningcamp','⛏️','Mining Camp'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
         mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['armourer','🛡','Armourer'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
         def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House'],['bridge','🌉','Bridge']]}};
       const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
