@@ -86,7 +86,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b288</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b292</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1510,7 +1510,15 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
           col*=mix(1.0,uCldDepth,smoothstep(0.46,0.74,cn)*uCldAmt); }
         if(uFogOn>0.5){ float fg=texture2D(uFogTex,clamp(uv,0.002,0.998)).r;   // b141: unsailed water lies in the dark too
           { float hd=length(uCam-vW);   // b182: the sea recedes with the land it lies beside
-            col=mix(col,uHazeCol,(1.0-exp(-hd*hd*uHazeK))*fg); }
+            // b293: THE SEA WAS TURNING TO PAINT. uHazeK scales with the weather's fog value (up to
+            // 4.6 in a storm against 1.0 clear), and this blend runs on hd SQUARED - a modest,
+            // reasonable-looking rise in k became a hard wall of pure haze colour (0xc9dceb, close
+            // to white) across most of the open sea the moment the weather turned, while the small
+            // lake inside town stayed fine because it never gets far enough from the camera to hit
+            // it. Capped so distant water in weather still reads as hazy water, not a solid sheet -
+            // the owner's own report was "what happened to colour and sea" and a fully-blown-out
+            // haze IS the loss of colour, not an intensified version of the intended effect.
+            col=mix(col,uHazeCol,min(0.78,1.0-exp(-hd*hd*uHazeK))*fg); }
           col=mix(col*vec3(0.10,0.13,0.20),col,fg);
           alpha=mix(1.0,alpha,fg); }   // and turns opaque, so the bright sky cannot shine through the dark sea
         gl_FragColor=vec4(col,alpha);}`});
@@ -4754,7 +4762,10 @@ function fogPatch(m){ if(m.userData._fog||fogSkip(m))return false; m.userData._f
       // Multiplying the haze by that same visibility factor is the whole trick: ground you have
       // walked recedes into the distance properly, ground you have never seen stays as dark as the
       // owner asked for it back in b141.
-      +'    gl_FragColor.rgb=mix(gl_FragColor.rgb,uHazeCol,(1.0-exp(-vFogDist*vFogDist*uHazeK))*_fg);\n'
+      // b293: same cap as the water (same formula, same fault) - hd-squared times a weather-scaled
+      // k was reaching a hard wall of pure haze colour on distant trees and terrain the moment the
+      // weather turned, which is what "beeches look shit" and the whited-out treeline both were.
+      +'    gl_FragColor.rgb=mix(gl_FragColor.rgb,uHazeCol,min(0.78,1.0-exp(-vFogDist*vFogDist*uHazeK))*_fg);\n'
       +'    gl_FragColor.rgb=mix(gl_FragColor.rgb*vec3(0.055,0.065,0.10),gl_FragColor.rgb,_fg); }');
   };
   m.needsUpdate=true; return true; }
