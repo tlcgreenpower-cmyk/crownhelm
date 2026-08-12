@@ -2525,7 +2525,9 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     deSync(g.userData);
     if(g.userData.idleA)g.userData.idleA.play();
     g.userData.noBob=true;
-    addTeamAccent(g,owner,(type==='hero'?2.35:type==='highlander'?2.15:type==='samurai'?2.1:type==='cardinal'?2.05:1.85)*MAN_SCALE,(type==='hero'?1.2:1)*MAN_SCALE);
+    // b289: the owner didn't like the cape on peasants - a flag stuck to a woman hauling wood
+    // just reads wrong, however good the colour-coding is. Soldiers keep it; workers go without.
+    if(type!=='worker')addTeamAccent(g,owner,(type==='hero'?2.35:type==='highlander'?2.15:type==='samurai'?2.1:type==='cardinal'?2.05:1.85)*MAN_SCALE,(type==='hero'?1.2:1)*MAN_SCALE);
     const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
     return g; }
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
