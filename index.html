@@ -35,7 +35,14 @@
   #mini{position:absolute;right:10px;bottom:10px;border:1px solid #2c5164;background:#04101a;z-index:4;cursor:pointer;}
   #demoBtn{position:absolute;right:10px;bottom:158px;z-index:5;width:64px;height:64px;font-size:34px;line-height:1;cursor:pointer;background:#17303f;border:2px solid #2c5164;color:#dff0f9;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.5);transition:transform .1s,border-color .12s;}
   #demoBtn:hover{transform:scale(1.08);border-color:#7fc4e8;}
-  #botbar{display:flex;gap:12px;padding:6px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;min-height:72px;max-height:110px;align-items:flex-start;}
+  /* b294: this used to be min-height:72px;max-height:110px - a 38px range that grew every time a
+     unit was selected (info text + formation buttons) and shrank on Esc. #stage above it fills
+     whatever's left with flex:1, so the game viewport itself resized on every select/deselect -
+     "the screen jumps" every time a unit was clicked. Fixed height instead: the bar is always
+     110px, #selInfo already scrolls its own overflow, so nothing that fit before is cut off -
+     it just means blank space at the bottom when nothing is selected, which is a fair trade for
+     the viewport never moving under you again. */
+  #botbar{display:flex;gap:12px;padding:6px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;height:110px;align-items:flex-start;}
   #selInfo{width:335px;font-size:12.5px;line-height:1.4;color:#9fc0d2;max-height:118px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
   #cmds{flex:1;display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;}
   .btn{min-width:94px;padding:7px 9px;background:#17303f;border:1px solid #2c5164;border-radius:8px;color:#dff0f9;font-size:12px;cursor:pointer;line-height:1.25;}
@@ -431,15 +438,19 @@ function setMap(id){ if(!MAPS[id])id='heartlands'; curMapId=id; const m=MAPS[id]
   MAP_W=m.w;MAP_H=m.h;WORLD_W=MAP_W*TILE;WORLD_H=MAP_H*TILE;HALF_W=WORLD_W/2;HALF_H=WORLD_H/2;
   REALM_SITES=realmSitesFor(MAP_W,MAP_H); }
 setMap(curMapId);
+// b295: "a unit is a unit" (owner's call) - AoE2 itself charges flat 1 population per unit
+// regardless of type, a Villager and a Knight take the same one slot. Every pop:N below matched
+// that model except it scaled cavalry/siege/heroes up to 3-5, which is a Crownhelm-specific
+// design that was never actually AoE's. Flattened to 1 across the board.
 const COST={
-  worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:2,time:8,age:1}, archer:{f:35,w:45,pop:2,time:9,age:1},
-  infantry:{f:45,m:35,pop:2,time:9,age:1}, grenadier:{f:50,m:45,pop:2,time:11,age:1}, dragoon:{f:60,m:55,pop:3,time:13,age:2},
-  highlander:{f:120,m:90,g:80,pop:4,time:17,age:3}, grenguard:{f:100,m:100,g:80,pop:3,time:16,age:3}, wolfrider:{f:110,m:100,g:90,pop:4,time:16,age:3}, cuirassier:{f:140,m:110,g:100,pop:4,time:18,age:3},
-  knight:{f:70,m:60,pop:3,time:14,age:2}, catapult:{w:120,m:100,pop:4,time:20,age:2}, ram:{w:110,m:40,pop:3,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:2,time:11,age:2}, hoplite:{f:80,m:60,g:30,pop:3,time:14,age:2},
-  cannon:{w:100,m:120,pop:4,time:20,age:2}, howitzer:{w:130,m:140,pop:4,time:22,age:2},
-  hero:{f:150,w:80,m:150,pop:5,time:24,age:1},
-  tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:2,time:10,age:1}, priest:{f:90,pop:2,time:12,age:1}, doctor:{f:70,w:20,pop:2,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:4,time:20,age:2},
-  warboat:{w:80,m:50,pop:3,time:13,age:2}, privateer:{f:80,m:60,g:40,pop:3,time:14,age:2}, viking:{f:60,w:30,pop:2,time:9,age:1}, samurai:{f:90,m:70,g:50,pop:3,time:14,age:2},
+  worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:1,time:8,age:1}, archer:{f:35,w:45,pop:1,time:9,age:1},
+  infantry:{f:45,m:35,pop:1,time:9,age:1}, grenadier:{f:50,m:45,pop:1,time:11,age:1}, dragoon:{f:60,m:55,pop:1,time:13,age:2},
+  highlander:{f:120,m:90,g:80,pop:1,time:17,age:3}, grenguard:{f:100,m:100,g:80,pop:1,time:16,age:3}, wolfrider:{f:110,m:100,g:90,pop:1,time:16,age:3}, cuirassier:{f:140,m:110,g:100,pop:1,time:18,age:3},
+  knight:{f:70,m:60,pop:1,time:14,age:2}, catapult:{w:120,m:100,pop:1,time:20,age:2}, ram:{w:110,m:40,pop:1,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:1,time:11,age:2}, hoplite:{f:80,m:60,g:30,pop:1,time:14,age:2},
+  cannon:{w:100,m:120,pop:1,time:20,age:2}, howitzer:{w:130,m:140,pop:1,time:22,age:2},
+  hero:{f:150,w:80,m:150,pop:1,time:24,age:1},
+  tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:1,time:10,age:1}, priest:{f:90,pop:1,time:12,age:1}, doctor:{f:70,w:20,pop:1,time:11,age:1}, cardinal:{f:180,m:60,g:60,pop:1,time:20,age:2},
+  warboat:{w:80,m:50,pop:1,time:13,age:2}, privateer:{f:80,m:60,g:40,pop:1,time:14,age:2}, viking:{f:60,w:30,pop:1,time:9,age:1}, samurai:{f:90,m:70,g:50,pop:1,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
   gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},gate:{w:30,m:20},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},bakery:{w:80,m:20,age:2},armourer:{w:120,m:60},
