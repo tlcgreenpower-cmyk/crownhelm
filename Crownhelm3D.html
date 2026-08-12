@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b299</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b300</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -458,7 +458,7 @@ const COST={
   tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:1,time:10,age:1}, priest:{f:90,pop:1,time:12,age:1}, doctor:{f:70,w:20,pop:1,time:11,age:1}, cardinal:{f:180,g:120,pop:1,time:20,age:2},
   warboat:{w:80,g:50,pop:1,time:13,age:2}, privateer:{f:80,g:100,pop:1,time:14,age:2}, viking:{f:60,w:30,pop:1,time:9,age:1}, samurai:{f:90,g:120,pop:1,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
-  gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wall:{w:15},gate:{w:30,m:20},
+  gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wonder:{w:400,m:250,g:250,f:100,age:3},wall:{w:15},gate:{w:30,m:20},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},bakery:{w:80,m:20,age:2},armourer:{w:120,m:60},
   statue:{m:30,g:20},garden:{w:25},bridge:{w:35},range:{w:100},stable:{w:110,m:20,age:2},
   miningcamp:{w:60,m:20},
@@ -502,7 +502,7 @@ const UNIT={
   cannon:{hp:120,speed:7,range:30,dmg:26,cd:3.2,r:1.7,vis:10,dom:'land',color:0x44444c,name:'Cannon',siege:true,ranged:true},
   howitzer:{hp:110,speed:6.5,range:35,dmg:22,cd:3.8,r:1.7,vis:10,dom:'land',color:0x55554a,name:'Howitzer',siege:true,ranged:true,arc:true},
   hero:{hp:470,speed:15,range:3,dmg:34,cd:.7,r:1.5,vis:12,dom:'land',color:0xf2d24a,name:'King',coat:true,noConv:true},   // a King does not change his colours
-  monk:{hp:60,speed:11,range:0,dmg:0,cd:1,r:1.0,vis:9,dom:'land',color:0x7a5a34,name:'Monk',heal:5,healrad:7,noAtk:true,conv:true,convrad:8,convt:7},
+  monk:{hp:60,speed:11,range:0,dmg:0,cd:1,r:1.0,vis:9,dom:'land',color:0x7a5a34,name:'Monk',heal:5,healrad:7,noAtk:true,conv:true,convrad:8,convt:7,relic:true},
   priest:{hp:72,speed:11,range:0,dmg:0,cd:1,r:1.0,vis:9,dom:'land',color:0xe8e2d0,name:'Priest',heal:8,healrad:7,noAtk:true,conv:true,convrad:9,convt:6},
   doctor:{hp:66,speed:12,range:0,dmg:0,cd:1,r:1.0,vis:8,dom:'land',color:0xf2f2f2,name:'Doctor',heal:12,healrad:6,noAtk:true},
   cardinal:{hp:220,speed:11,range:0,dmg:0,cd:1,r:1.25,vis:11,dom:'land',color:0xc23a3a,name:'Cardinal',heal:14,healrad:12,aura:true,noAtk:true,conv:true,convrad:11,convt:5},
@@ -533,7 +533,7 @@ const BLD={
   farm:{w:2,h:2,hp:480,name:'Farm',vis:5}, storehouse:{w:2,h:2,hp:1000,name:'Storehouse',vis:6,drop:'wood'},
   barracks:{w:3,h:2,hp:1500,name:'Barracks',vis:7}, siege:{w:3,h:2,hp:1500,name:'Siege Workshop',vis:7},
   gunshop:{w:3,h:2,hp:1500,name:'Gun Shop',vis:7}, church:{w:2,h:3,hp:1800,name:'Church',vis:7},
-  castle:{w:4,h:4,hp:4800,name:'Castle',vis:14,fort:true}, wall:{w:1,h:1,hp:1800,name:'Wall',vis:4}, gate:{w:1,h:1,hp:2000,name:'Gate',vis:4},
+  castle:{w:4,h:4,hp:4800,name:'Castle',vis:14,fort:true}, wonder:{w:5,h:5,hp:6000,name:'Wonder',vis:16}, wall:{w:1,h:1,hp:1800,name:'Wall',vis:4}, gate:{w:1,h:1,hp:2000,name:'Gate',vis:4},
   mill:{w:2,h:2,hp:1000,name:'Mill',vis:6,drop:'food'}, watch:{w:2,h:2,hp:850,name:'Watch House',vis:10}, market:{w:2,h:2,hp:1500,name:'Market',vis:6},
   bakery:{w:2,h:2,hp:1100,name:'Bakery',vis:6}, armourer:{w:3,h:2,hp:1500,name:'Armourer',vis:7},
   statue:{w:1,h:1,hp:400,name:'Statue',vis:3}, garden:{w:2,h:2,hp:300,name:'Garden',vis:3},
@@ -543,7 +543,7 @@ const BLD={
   miningcamp:{w:2,h:2,hp:900,name:'Mining Camp',vis:6,drop:'ore'},
 };
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
-const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55,miningcamp:30};
+const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wonder:320,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55,miningcamp:30};
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
@@ -555,7 +555,7 @@ const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',
 // ==================================================== STATE
 let elev,hc,buildGrid,explored,visNow;
 let woodNodes=[],metalNodes=[],goldNodes=[],ents=[],blds=[],projs=[],parts=[],idc=1;
-let citizens=[],villages=[],corpses=[];
+let citizens=[],villages=[],corpses=[],relics=[];
 let res={},tech={},realmAI={};
 function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
   for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,ageTimer:0}; }
@@ -1092,6 +1092,8 @@ M.roofP=new THREE.MeshStandardMaterial({color:0x2a4a68,roughness:.85,flatShading
 M.roofE=new THREE.MeshStandardMaterial({color:0x6a2a20,roughness:.85,flatShading:true});
 M.skin=new THREE.MeshStandardMaterial({color:0xe0b48c,roughness:.7,flatShading:true});
 M.gold=new THREE.MeshStandardMaterial({color:0xe8c25a,roughness:.4,metalness:.5,flatShading:true});
+M.relicGem=new THREE.MeshStandardMaterial({color:0x9a5fd6,emissive:0x8a3fe0,emissiveIntensity:1.1,roughness:.3,metalness:.2,flatShading:true});
+M.relicGold=new THREE.MeshStandardMaterial({color:0xd8b452,roughness:.4,metalness:.6,flatShading:true});
 const unitMat={};for(const k in UNIT)unitMat[k]=new THREE.MeshStandardMaterial({color:UNIT[k].color,roughness:.5,flatShading:true});
 
 // ==================================================== MAP
@@ -1151,6 +1153,18 @@ function genMap(){
     for(const o of REALMS){const s=REALM_SITES[o];if(Math.hypot(x-s[0],y-s[1])<15)ok=false;}
     for(const v of villages)if(Math.hypot(x-v.tx,y-v.ty)<12)ok=false;
     if(ok)villages.push({tx:x,ty:y,claimed:null}); }
+  // b300: Relics — a handful of map pickups a Monk can carry home to a Church for a slow gold
+  // trickle, the way AoE2's relic economy works. Placed sparsely, well clear of any realm's start.
+  relics=[];
+  const rcap=Math.min(7,3+Math.round(2*areaScale()));
+  for(let tries=0;tries<400&&relics.length<rcap;tries++){
+    const x=4+Math.floor(hashN(tries*3.7,tries*1.3)*(MAP_W-8)), y=4+Math.floor(hashN(tries*1.9+9,tries*4.1)*(MAP_H-8));
+    const e=elev[ti(x,y)]; if(e<1.7||e>2.9)continue;
+    let ok=true;
+    for(const o of REALMS){const s=REALM_SITES[o];if(Math.hypot(x-s[0],y-s[1])<20)ok=false;}
+    for(const r of relics)if(Math.hypot(x-r.tx,y-r.ty)<14)ok=false;
+    if(ok)relics.push({tx:x,ty:y});
+  }
 }
 const VILLAGE_NAMES=['Alderbrook','Thornby','Wrenfield','Mossgate','Harrowden','Foxholt','Elmsworth','Dunmarsh','Kestrelford','Bramblewick','Oxcombe','Larkstone','Netherby','Gullswick','Ashenfell','Windmere'];
 // clustered ore/gold — big clear deposits you can spot from a hilltop
@@ -1607,7 +1621,8 @@ function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THR
   for(const n of goldNodes)stampShade(n.tx,n.ty,0.7,0.2);
   if(groundTex)groundTex.needsUpdate=true;
   buildTreesInstanced();for(const n of metalNodes)n.mesh=addRock(n);for(const n of goldNodes)n.mesh=addGold(n);
-  for(const v of villages)v.mesh=addVillage(v);}
+  for(const v of villages)v.mesh=addVillage(v);
+  for(const r of relics)r.mesh=addRelic(r);}
 const cotStone=new THREE.MeshStandardMaterial({color:0xa8a49a,roughness:.95,flatShading:true});
 const cotCream=new THREE.MeshStandardMaterial({color:0xe8dcc0,roughness:.9,flatShading:true});
 const cotBeam=new THREE.MeshStandardMaterial({color:0x5a4630,roughness:.9,flatShading:true});
@@ -1697,6 +1712,17 @@ function addGold(n){const g=new THREE.Group();g.scale.setScalar(2);
   for(const[dx,dy,dz,sc]of[[.74,1.62,.52,.42],[-.72,1.30,.62,.36],[.22,2.30,-.52,.34],[1.02,0.92,-.46,.30],[-.34,0.52,.92,.28]]){
     const v=new THREE.Mesh(new THREE.IcosahedronGeometry(sc,0),M.gold);v.position.set(dx,dy,dz);v.castShadow=true;g.add(v);}
   g.position.set(wx(n.tx),heightAtWorld(wx(n.tx),wz(n.ty)),wz(n.ty));decorGroup.add(g);return g;}
+// b300: a relic sits in a small reliquary on a stone plinth — the glowing gem is what should catch
+// the eye from across the map, so it's oversized and emissive rather than realistically scaled.
+function addRelic(r){const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(.62,.74,.5,8),M.stone);base.position.y=.25;base.castShadow=true;g.add(base);
+  const box=new THREE.Mesh(new THREE.BoxGeometry(.62,.4,.42),M.relicGold);box.position.y=.72;box.rotation.y=.3;box.castShadow=true;g.add(box);
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(.32,0),M.relicGem);gem.position.y=1.28;gem.castShadow=true;g.add(gem);
+  const glow=new THREE.PointLight(0x9a5fd6,1.4,9);glow.position.y=1.3;g.add(glow);
+  g.userData.gem=gem;g.userData.t0=Math.random()*10;
+  g.position.set(wx(r.tx),heightAtWorld(wx(r.tx),wz(r.ty)),wz(r.ty));decorGroup.add(g);return g;}
+function spawnRelic(x,z){const tx=clamp(txFromW(x),0,MAP_W-1),ty=clamp(tzFromW(z),0,MAP_H-1);
+  const r={tx,ty};r.mesh=addRelic(r);relics.push(r);return r;}
 const LEAF_MATS=[0x4aa844,0x5cbb50,0x6ac957,0x41a53f,0x76c24a,0x3a9a4c,0x86c05a,0x549e3e].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,map:leafTex(),flatShading:true}));   // b243
 const PINE_MATS=[0x338549,0x3a9553,0x2e7742].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.9,map:leafTex(),flatShading:true}));   // b243
 function addTree(n){const g=new THREE.Group();const h1=hashN(n.tx*1.3,n.ty*2.7),h2=hashN(n.ty*3.1,n.tx*1.9),h3=hashN(n.tx*2.9,n.ty*1.7);
@@ -2990,16 +3016,23 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     const hedge=new THREE.Mesh(new THREE.BoxGeometry(wpx*.94,.5,.3),M.leafA);hedge.position.set(0,.5,hpx*.45);g.add(hedge);
     const hedge2=hedge.clone();hedge2.position.z=-hpx*.45;g.add(hedge2);
     const hbg=makeHealthBar();hbg.position.y=3;g.add(hbg);g.userData.hb=hbg;return g;}
-  const wallH=type==='hall'?5.5:type==='castle'?6.5:type==='tower'?7.5:(type==='barracks'||type==='siege'||type==='gunshop'||type==='dock'||type==='church')?4:3.4;
+  const wallH=type==='wonder'?9:type==='hall'?5.5:type==='castle'?6.5:type==='tower'?7.5:(type==='barracks'||type==='siege'||type==='gunshop'||type==='dock'||type==='church')?4:3.4;
   const foot=new THREE.Mesh(new THREE.BoxGeometry(wpx*.92,.7,hpx*.92),M.stoneD);foot.position.y=.35;foot.receiveShadow=true;g.add(foot);
-  const isStone=type==='hall'||type==='tower'||type==='castle';
+  const isStone=type==='hall'||type==='tower'||type==='castle'||type==='wonder';
   const walls=new THREE.Mesh(new THREE.BoxGeometry(wpx*.82,wallH,hpx*.82),isStone?M.stone:A);walls.position.y=wallH/2+.4;walls.castShadow=true;walls.receiveShadow=true;g.add(walls);
-  if(isStone){const n=type==='hall'?4:type==='castle'?5:2;const step=wpx*.82/n;
+  if(isStone){const n=type==='wonder'?7:type==='hall'?4:type==='castle'?5:2;const step=wpx*.82/n;
     for(let i=0;i<=n;i++)for(const zz of[-hpx*.41,hpx*.41]){const m=new THREE.Mesh(new THREE.BoxGeometry(step*.5,.7,.5),M.stone);m.position.set(-wpx*.41+i*step,wallH+.75,zz);m.castShadow=true;g.add(m);}
     for(let i=0;i<=Math.round(hpx*.82/step);i++)for(const xx of[-wpx*.41,wpx*.41]){const m=new THREE.Mesh(new THREE.BoxGeometry(.5,.7,step*.5),M.stone);m.position.set(xx,wallH+.75,-hpx*.41+i*step);m.castShadow=true;g.add(m);}
     if(type==='hall'){const keep=new THREE.Mesh(new THREE.BoxGeometry(wpx*.4,wallH*.7,hpx*.4),M.stone);keep.position.y=wallH+wallH*.35+.4;keep.castShadow=true;g.add(keep);const kr=new THREE.Mesh(new THREE.ConeGeometry(wpx*.34,2.4,4),roof);kr.position.y=wallH*1.7+1.6;kr.rotation.y=Math.PI/4;kr.castShadow=true;g.add(kr);}
     if(type==='castle'){for(const cx of[-wpx*.38,wpx*.38])for(const cz of[-hpx*.38,hpx*.38]){const tw=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.3,wallH+2.5,10),M.stone);tw.position.set(cx,(wallH+2.5)/2+.4,cz);tw.castShadow=true;g.add(tw);const tc=new THREE.Mesh(new THREE.ConeGeometry(1.5,2,8),roof);tc.position.set(cx,wallH+3.7,cz);tc.castShadow=true;g.add(tc);}
       const keep=new THREE.Mesh(new THREE.BoxGeometry(wpx*.32,wallH*.9,hpx*.32),M.stone);keep.position.y=wallH+wallH*.45+.4;keep.castShadow=true;g.add(keep);}
+    // b300: the Wonder reads as a monument, not another castle — four slender corner towers, a tall
+    // drum rising from the roofline, and a gilded dome that catches the light from across the map.
+    if(type==='wonder'){for(const cx of[-wpx*.4,wpx*.4])for(const cz of[-hpx*.4,hpx*.4]){const tw=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.2,wallH+4,10),M.stone);tw.position.set(cx,(wallH+4)/2+.4,cz);tw.castShadow=true;g.add(tw);const tc=new THREE.Mesh(new THREE.ConeGeometry(1.3,1.8,8),roof);tc.position.set(cx,wallH+6.3,cz);tc.castShadow=true;g.add(tc);}
+      const drum=new THREE.Mesh(new THREE.CylinderGeometry(wpx*.26,wpx*.3,wallH*.9,12),M.stone);drum.position.y=wallH+wallH*.45+.4;drum.castShadow=true;g.add(drum);
+      const dome=new THREE.Mesh(new THREE.SphereGeometry(wpx*.26,14,10,0,Math.PI*2,0,Math.PI/2),M.relicGold);dome.position.y=wallH*1.9+.4;dome.castShadow=true;g.add(dome);
+      const spire=new THREE.Mesh(new THREE.ConeGeometry(.3,2.4,6),M.relicGold);spire.position.y=wallH*1.9+wpx*.26+1.2;spire.castShadow=true;g.add(spire);
+      const glow=new THREE.PointLight(0xe8c25a,1.1,14);glow.position.y=wallH*1.9+wpx*.26+.4;g.add(glow);}
   } else {
     // b175: the roof was a SQUARE pyramid sized to Math.max(wpx,hpx) — so on an oblong building it
     // was cut to the long side and overhung the short one by two whole units each way, eaves right
@@ -3082,10 +3115,10 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
     const sack=new THREE.Mesh(new THREE.BoxGeometry(.5,.6,.42),M.thatch);sack.position.set(-wpx*.42,.7,-hpx*.3);sack.rotation.y=.4;g.add(sack);}
   if(type==='dock'){const plank=new THREE.Mesh(new THREE.BoxGeometry(wpx*.3,.3,hpx*1.4),M.wood);plank.position.set(wpx*.3,.6,0);g.add(plank);}
   const lan2=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),LANTERN_MAT);lan2.position.set(-wpx*.34,2.0,hpx*.40);g.add(lan2);
-  const bigF=type==='hall'||type==='castle';
+  const bigF=type==='hall'||type==='castle'||type==='wonder';
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,bigF?4:2.6,5),M.trunk);pole.position.set(wpx*.36,wallH+(bigF?3:1.8),hpx*.36);g.add(pole);
   const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.9),new THREE.MeshStandardMaterial({color:FACTIONS[faction[owner]].coat,side:THREE.DoubleSide,roughness:.8}));flag.position.set(wpx*.36+.75,wallH+(bigF?4:2.6),hpx*.36);g.add(flag);g.userData.flag=flag;
-  const hb=makeHealthBar();hb.scale.setScalar(1.8);hb.position.y=wallH+(type==='castle'?9:5);g.add(hb);g.userData.hb=hb;
+  const hb=makeHealthBar();hb.scale.setScalar(1.8);hb.position.y=wallH+(type==='wonder'?13:type==='castle'?9:5);g.add(hb);g.userData.hb=hb;
   return g;}
 
 function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owner].armor*0.15)*(tech[owner].plate?1.1:1);const fac=faction[owner];
@@ -3524,6 +3557,11 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
     if(gb&&mil.length){ mil.forEach(u=>{u.cmd='gar';u.garB=gb;u.target=null;u.gather=null;u.build=null;orderPath(u,gb.tx+(gb.w>>1),gb.ty+gb.h,gb.id);});
       spawnMoveMark(gb.cx,gb.cz,0x9fd6ec); flashMsg('⛨ Garrison the '+BLD[gb.type].name+'! Select it and Sally Forth to release them');
       const rest=list.filter(e=>!mil.includes(e)); if(rest.length)commandMove(rest,x,z); SFX.cmd(); return; } }
+  const relic=relicAt(x,z),monks=list.filter(e=>UNIT[e.type].relic);
+  if(relic&&!relic._taken&&monks.length){ monks.forEach(e=>relicOrder(e,relic));
+    spawnNodeFlash(wx(relic.tx),wz(relic.ty),0xc98fe8);
+    flashMsg('✨ Off to fetch the relic — carry it home to a Church');
+    const rest=list.filter(e=>!monks.includes(e)); if(rest.length)commandMove(rest,x,z); SFX.cmd(); return; }
   const node=nodeAt(x,z),workers=list.filter(e=>e.type==='worker');if(node&&workers.length){
     // a crew sent to one tree fans out across the grove — two men per tree, nearest first
     const arr2=node.type==='wood'?woodNodes:node.type==='gold'?goldNodes:node.type==='food'?meatNodes:metalNodes;
@@ -3576,6 +3614,8 @@ function repairOrder(e,b){ if(e.type!=='worker'||!b||b.owner!==e.owner||!b.done|
 // than a slow-acting poison. Afterwards the monk's faith is spent and takes CONV_REST to come
 // back, so one monk cannot roll up a whole regiment on his own.
 const CONV_REST=26;
+const RELIC_RATE=0.22;   // gold/s per relic housed in a Church — a slow trickle, matching AoE2's relic economy
+const WONDER_SURVIVE=300;   // seconds a completed Wonder must stand for its owner to win outright
 function convertOrder(e,t){ const U=UNIT[e.type];
   if(!U.conv||!t||t.owner===e.owner||UNIT[t.type].noConv)return false;
   if(e.owner==='player'&&t.owner!=='player'&&!isHostile('player',t.owner))declareWar(t.owner,'player');
@@ -3646,9 +3686,14 @@ function pathToNode(e,n){ let bx=n.tx,by=n.ty,bd2=1e9;   // b124: walk to a SPEC
 function gatherOrder(e,node){if(e.type!=='worker')return;e._onDeck=false;e.cmd='gather';e.gather=node;e.target=null;e.build=null;e.tendB=null;clearStall(e);
   e.gBoost=blds.some(b=>b.owner===e.owner&&b.type==='storehouse'&&b.done&&Math.hypot(b.cx-wx(node.tx),b.cz-wz(node.ty))<14)?1.15:1;
   pathToNode(e,node);}
+function relicOrder(e,r){if(!UNIT[e.type].relic||r._taken)return;e._onDeck=false;e.cmd='relic';e.relicTgt=r;e.target=null;e.gather=null;e.build=null;e.tendB=null;clearStall(e);orderPath(e,r.tx,r.ty,0);}
+function nearestChurch(e){let best=null,bd=1e9;for(const b of blds)if(b.owner===e.owner&&b.done&&b.type==='church'){const d=Math.hypot(e.x-b.cx,e.z-b.cz);if(d<bd){bd=d;best=b;}}return best;}
 function entAt(x,z,my){let best=null,bd=3;for(const e of ents)if(e.owner!==my&&!e.inGar){const d=Math.hypot(x-e.x,z-e.z);if(d<bd+UNIT[e.type].r){bd=d;best=e;}}return best;}
 function bldAt(x,z,my){const tx=txFromW(x),ty=tzFromW(z),id=inB(tx,ty)?buildGrid[ti(tx,ty)]:0;if(!id)return null;const b=blds.find(b=>b.id===id);return(b&&b.owner!==my)?b:null;}
 function nodeAt(x,z){for(const n of woodNodes.concat(metalNodes,goldNodes,meatNodes))if(n.amount>0&&Math.hypot(x-wx(n.tx),z-wz(n.ty))<3.2)return n;return null;}
+function relicAt(x,z){for(const r of relics)if(Math.hypot(x-wx(r.tx),z-wz(r.ty))<3.2)return r;return null;}
+function relicTipHTML(){ return '<b style="color:#c98fe8">✨ Relic</b> <span style="color:#7fa8bd">— a slow trickle of gold, once housed</span>'
+  +'<br><span style="font-size:11px;color:#6f93a8">Right-click with a Monk selected to carry it to a Church</span>'; }
 // ---- What am I looking at? -------------------------------------------------------------
 // The hover tip used to read "\uD83C\uDF32 Timber: 240" and nothing else, which tells you a number
 // but never what the thing IS, how much of it you have already taken, or why your men will not
@@ -3784,6 +3829,7 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
       const sx=b.cx+BLD.bakery.w*TILE*.36,sz=b.cz-BLD.bakery.h*TILE*.18;spawnPart(sx,heightAtWorld(sx,sz)+5.2,sz,'smoke');} }   // the oven is lit
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=0.8*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.5*dt;               // villages pay tribute
+  for(const b of blds)if(b.type==='church'&&b.done&&b.relics)res[b.owner].g+=RELIC_RATE*b.relics*dt;   // b300: relics trickle gold
   // b154: a building only ever fell where the code that hurt it remembered to knock it down.
   // Anything that reaches zero by any other road used to stand there as a ruin nobody could kill,
   // holding its ground tiles and its garrison inside it forever. Now zero means down, always.
@@ -3846,7 +3892,8 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   _t=_pt('towers',_t);
   updateProjectiles(dt);updateParticles(dt);updateCorpses(dt);updateCitizens(dt);updateCarts(dt);updateVillages(dt);advanceAge(dt);
   _t=_pt('misc',_t);
-  ents=ents.filter(e=>{if(e.hp<=0){for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
+  ents=ents.filter(e=>{if(e.hp<=0){if(e.carryRelic)spawnRelic(e.x,e.z);   // b300: the relic hits the ground, not the grave
+    for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
     const udd=e.mesh.userData;
     if(udd.mixer&&udd.deathA){ if(udd.walkA)udd.walkA.stop(); if(udd.idleA)udd.idleA.stop(); if(udd.oneA)udd.oneA.stop();
       udd.deathA.reset(); udd.deathA.setLoop(THREE.LoopOnce,1); udd.deathA.clampWhenFinished=true; udd.deathA.play();
@@ -4018,7 +4065,8 @@ function townBell(){ if(!running||gameOver)return;
             :'\uD83D\uDD14 The bell tolls, but there is not a garrison space in the realm'); }
 const NOTABLE=new Set(['hall','castle','barracks','gunshop','range','stable','siege','tower','watch','market','church','armourer','dock']);
 let _newsT=-99;   // last time word of a rival war reached the player
-function destroyBuilding(b){ if(b.gar&&b.gar.length){ for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
+function destroyBuilding(b){ if(b.type==='church'&&b.relics){for(let i=0;i<b.relics;i++)spawnRelic(b.cx+(Math.random()-.5)*6,b.cz+(Math.random()-.5)*6);b.relics=0;}   // b300: a sacked Church spills its relics, not burns them
+  if(b.gar&&b.gar.length){ for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
     u.inGar=null; u.cmd='idle'; u.hp=Math.max(1,Math.round(u.hp*0.5));   // the garrison scrambles clear, battered
     u.x=b.cx+(Math.random()-.5)*4; u.z=b.cz+(Math.random()-.5)*4; u.mesh.visible=true; placeMesh(u); } b.gar=[]; }
   // b144 reported EVERY notable enemy building lost, which was right when the player was the only
@@ -4038,7 +4086,7 @@ function destroyBuilding(b){ if(b.gar&&b.gar.length){ for(const id of b.gar){ co
   sfxWhere(b.cx,b.cz);SFX.boom();removeBuilding(b);}
 function fleeWater(e){const tx=txFromW(e.x),ty=tzFromW(e.z);let best=null,bd=1e9;for(let r=1;r<=6;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const x=tx+dx,y=ty+dy;if(passable(x,y,0,'land')){const d=dx*dx+dy*dy;if(d<bd){bd=d;best=[x,y];}}}if(best){e.cmd='move';orderPath(e,best[0],best[1],0);}}
 // b149: how tall a thing stands, for the rise out of the ground while it is built
-function bldHeight(t){ return t==='wall'?3.4:t==='gate'?7.0:t==='tower'?11:t==='watch'?7:(t==='hall'||t==='castle')?10:t==='church'?8:t==='farm'?1.2:5.5; }
+function bldHeight(t){ return t==='wall'?3.4:t==='gate'?7.0:t==='tower'?11:t==='watch'?7:t==='wonder'?15:(t==='hall'||t==='castle')?10:t==='church'?8:t==='farm'?1.2:5.5; }
 function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
   // it RISES out of the ground now instead of stretching up like rubber: full-size masonry all
   // the way, hauled up course by course, with the ground hiding whatever has not come up yet.
@@ -4272,9 +4320,32 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     case 'return':{if(!e._drop||e._drop._gone||e._dropCT!==e.carryType||(e._dropT=(e._dropT||0)-dt)<=0){e._drop=nearestDrop(e,e.carryType);e._dropCT=e.carryType;e._dropT=1;}const dp=e._drop;if(!dp){e.cmd='idle';break;}if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){const amt=Math.round(e.carry);if(e.carryType==='wood')res[e.owner].w+=amt;else if(e.carryType==='gold')res[e.owner].g+=amt;else if(e.carryType==='food')res[e.owner].f+=amt;else res[e.owner].m+=amt;e.carry=0;if(e.gather&&e.gather.amount>0)gatherOrder(e,e.gather);else{const n2=nextJob(e,e.carryType||'wood');if(n2)gatherOrder(e,n2);else e.cmd='idle';}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}   // can't get the load home — stand down rather than shuffle
         else orderPath(e,txFromW(dp.cx),tzFromW(dp.cz),dp.id); } break;}
+    // b300: relics are a one-shot carry, not a repeating harvest — a Monk walks to the pickup,
+    // claims it (first to arrive wins if two are sent), then walks it home to a Church and
+    // deposits it for good. No church anywhere = he just stands there holding it, same as a
+    // worker with nowhere to drop a load.
+    case 'relic':{const r=e.relicTgt;
+      if(!r||r._taken){e.cmd='idle';e.relicTgt=null;break;}
+      const nx=wx(r.tx),nz=wz(r.ty);
+      if(Math.hypot(e.x-nx,e.z-nz)<3.4){ r._taken=true; if(r.mesh){scene.remove(r.mesh);}relics.splice(relics.indexOf(r),1);
+        e.carryRelic=true; e.carry=1; e.carryType='relic'; e.cmd='relicret'; e._drop=null;
+        if(e.owner==='player')flashMsg('✨ Relic recovered — carry it to a Church for a trickle of gold');
+      } else if(arrived){
+        if(stalled(e,Math.hypot(e.x-nx,e.z-nz))){clearStall(e);e.cmd='idle';e.relicTgt=null;e.noWork=elapsed+8;}
+        else orderPath(e,r.tx,r.ty,0);
+      } break;}
+    case 'relicret':{ if(!e._drop||e._drop._gone||(e._dropT=(e._dropT||0)-dt)<=0){e._drop=nearestChurch(e);e._dropT=1;}
+      const dp=e._drop; if(!dp){break;}
+      if(Math.hypot(e.x-dp.cx,e.z-dp.cz)<Math.max(dp.w,dp.h)*TILE*0.5+TILE*1.3){
+        dp.relics=(dp.relics||0)+1; e.carryRelic=false; e.carry=0; e.carryType=null; e.cmd='idle';
+        if(e.owner==='player')flashMsg('⛪ Relic enshrined at the '+BLD[dp.type].name+' — the gold trickles in now');
+      } else if(arrived){ if(stalled(e,Math.hypot(e.x-dp.cx,e.z-dp.cz))){clearStall(e);e.cmd='idle';e.noWork=elapsed+8;}
+        else orderPath(e,dp.tx+(dp.w>>1),dp.ty+dp.h,dp.id); } break;}
     case 'build':{const b=e.build;if(!b||b._gone||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}}}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
+      if(b.type==='wonder'){ b.wonderStart=elapsed;
+        flashMsg((b.owner==='player'?'🏛️ Your Wonder stands complete — hold it ':'🏛️ '+realmName(b.owner)+' raises a Wonder — deny them ')+Math.floor(WONDER_SURVIVE/60)+' minutes and '+(b.owner==='player'?'the realm is yours':'they win the realm outright')+'!'); }}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-b.cx,e.z-b.cz))){clearStall(e);e.cmd='idle';e.build=null;e.noWork=elapsed+8;}   // can't reach the site — stop treading water
         else orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id); } break;}
     case 'gar':{const b=e.garB;if(!b||b._gone||!b.done){e.cmd='idle';e.garB=null;break;}
@@ -5109,6 +5180,12 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(T.age===1&&T.ageTimer<=0&&barr.length&&r.f>=AGE2.f&&r.w>=AGE2.w){r.f-=AGE2.f;r.w-=AGE2.w;T.ageTimer=AGE2.time;T.ageTo=2;return;}
   if(T.age===2&&T.ageTimer<=0&&hasBld(o,'castle')&&r.f>=AGE3.f&&r.w>=AGE3.w&&r.m>=AGE3.m){r.f-=AGE3.f;r.w-=AGE3.w;r.m-=AGE3.m;T.ageTimer=AGE3.time;T.ageTo=3;return;}
   if(T.age===2){if(countBld(o,'castle')<1&&r.w>=220&&r.m>=150){if(placeAI(o,'castle'))return;}if(countBld(o,'siege')<1&&r.w>=130&&r.m>=60){if(placeAI(o,'siege'))return;}if(barrAll<2&&r.w>=110){if(placeAI(o,'barracks'))return;}}
+  // b300: an Age III realm with resources to spare occasionally reaches for a Wonder — a real
+  // threat, not a guaranteed one. Low odds per tick so it doesn't race the player every game.
+  if(T.age>=3&&countBld(o,'wonder')<1&&!pend('wonder')&&r.w>=400&&r.m>=250&&r.g>=250&&r.f>=100&&Math.random()<.02){
+    // placeAI deducts wood+metal itself (the only costs any other AI-built type has) — gold and
+    // food are new with the Wonder, so they're taken here and given back if no site was found.
+    r.g-=250;r.f-=100;if(placeAI(o,'wonder'))return;else{r.g+=250;r.f+=100;} }
   if(countBld(o,'tower')<(T.age>=2?TASTE.tower+1:TASTE.tower)&&r.w>=60&&r.m>=40&&barr.length){if(placeAI(o,'tower'))return;}
   if(T.age>=2)for(const tb of blds)if(tb.owner===o&&tb.type==='tower'&&tb.done&&!tb.up&&r.w>=80&&r.m>=60&&Math.random()<.25){r.w-=80;r.m-=60;tb.up=true;break;}
   if(barr.length&&!T.rsch)for(const rk of ['weapon','armor']){ const D=RSCH[rk],tier=T[rk]||0;
@@ -5276,7 +5353,7 @@ function updateGhost(){
   else if(ghost.rotation.y)ghost.rotation.y=0;
   let gy=heightAtWorld(cx,cz)+0.1; if(placing==='bridge')gy=waterY+0.1;
   ghost.position.set(cx,gy,cz);}
-function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverTile.ty;if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(res.player.w<(c.w||0)||res.player.m<(c.m||0)||res.player.f<(c.f||0)){flashMsg('Not enough resources');return;}
+function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverTile.ty;if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(res.player.w<(c.w||0)||res.player.m<(c.m||0)||res.player.f<(c.f||0)||res.player.g<(c.g||0)){flashMsg('Not enough resources');return;}
   let inherit=null;
   if((type==='gate'||type==='tower')&&inB(tx,ty)){ const wid=buildGrid[ti(tx,ty)];
     const wb=blds.find(x=>x.id===wid&&x.type==='wall'&&x.owner==='player'&&x.done);
@@ -5457,9 +5534,9 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
     camTarget.z=clamp(panDrag.cz-(dxp*rgt[1]+dyp*fwd[1])*f,-HALF_H,HALF_H); }const g=raycastGround(p.x,p.y);hoverWorld.copy(g);hoverTile={tx:clamp(txFromW(g.x),0,MAP_W-1),ty:clamp(tzFromW(g.z),0,MAP_H-1)};
   updateGarHint();   // so the garrison ring and its tip answer the very first flick of the mouse
   { const tip=document.getElementById('nodeTip'); const free=(running&&!placing&&!dragging&&!rDrag);
-    const nd=free?nodeAt(g.x,g.z):null, bs=(free&&!nd)?beastAt(g.x,g.z):null;
-    if(nd||bs){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
-      tip.innerHTML=nd?resTipHTML(nd):beastTipHTML(bs); }
+    const nd=free?nodeAt(g.x,g.z):null, bs=(free&&!nd)?beastAt(g.x,g.z):null, rl=(free&&!nd&&!bs)?relicAt(g.x,g.z):null;
+    if(nd||bs||rl){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
+      tip.innerHTML=nd?resTipHTML(nd):bs?beastTipHTML(bs):relicTipHTML(); }
     // b167: what grows in a field is decided by the ground it stands on, so say so BEFORE it is
     // built. Otherwise siting a Mill and a Bakery is a guess — as it was for me, laying four farms
     // in a row and getting four vegetable plots with a Bakery next door that could bake nothing.
@@ -5611,7 +5688,7 @@ document.getElementById('gmenuBtn').onclick=()=>{ const gm=document.getElementBy
 document.getElementById('gmResume').onclick=closeGameMenu;
 // ---- b125: the Kingdom Guide — every building & person, with pictures and plain words ----
 const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deliveries. Lose it and the realm falls.',
-  house:'+8 population room (Attic upgrade +4). Lose houses and training stops until rebuilt.',
+  house:'+5 population room (Attic upgrade makes it +9). Lose houses and training stops until rebuilt.',
   farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Every field sows its own crop and each behaves differently: Wheat and Barley are poor until a Mill grinds them; Cabbage, Pumpkin and Turnip feed the town straight from the field; Flax feeds little but sells as linen (more beside a Market). Farm three different kinds and the whole harvest rises 15%. Irrigation +50%.',
   mill:'Automatic flour, +2 food/s, no labour. Also takes deliveries — workers carrying FOOD walk here, not the Keep — and grinds the grain of every Wheat and Barley farm within 30 paces, yielding 50% more instead of 10% less. Great Millstones (Age II) and Windworks (Age III) double its own output.',
   armourer:'The forge where harness is made. Armour research costs 20% less and takes 30% less time here than at the Barracks, and only an Armourer can forge Tempered Plate (Age II) — every soldier raised after it stands 10% tougher. The coals glow brighter and sparks fly while the smiths are working.',
@@ -5619,8 +5696,9 @@ const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deli
   storehouse:'Timber drop-off — workers carrying WOOD walk here, not the Keep. Build near forests; +15% gathering nearby. Keeps a woodpile.',
   miningcamp:'Gold & metal drop-off — workers carrying either walk here, not the Keep. Build near veins; +15% gathering nearby.',
   market:'Trade wood, food and metal for gold — and back again.',
-  church:'Trains Monks, Priests and Doctors; Cardinals at Age II.',
-  garden:'Beauty with a purpose — villagers stroll here, and each garden adds +2 population room.', statue:'Beauty in stone.',
+  church:'Trains Monks, Priests and Doctors; Cardinals at Age II. Send a Monk to a Relic and he’ll carry it home here — each one enshrined trickles gold for good.',
+  garden:'Beauty, plain and simple — villagers stroll here and admire the flowers.', statue:'Beauty in stone.',
+  wonder:'A monument to your reign (Age III). Once it stands complete, hold it for '+Math.floor(WONDER_SURVIVE/60)+' minutes and the realm is yours outright — win by glory, not the sword. Losing it before then costs you nothing but the work.',
   barracks:'Trains melee & ranged troops; forges Weapons and Armor research (staged, takes time).',
   gunshop:'Muskets and Grenadiers; Cannon & Howitzer from Age II.',
   siege:'Catapults and Battering Rams (Age II).',
@@ -5648,7 +5726,7 @@ const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. 
 function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.built)return; g.dataset.built='1';
   const cost=c=>c?[c.f?c.f+'🍖':'',c.w?c.w+'🌲':'',c.m?c.m+'⛏️':'',c.g?c.g+'💰':''].filter(Boolean).join(' '):'';
   const card=(ic,name,c2,desc)=>'<div style="background:#122b3a;border:1px solid #2c5164;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start"><div style="font-size:30px;flex:none">'+ic+'</div><div><b style="color:#e8f4fb">'+name+'</b> <small style="color:#c9a44a">'+c2+'</small><div style="color:#9fc0d2;font-size:12.5px;line-height:1.45">'+desc+'</div></div></div>';
-  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',bakery:'🍞',armourer:'🛡',storehouse:'📦',miningcamp:'⛏️',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',barracks:'⚔',range:'🏹',stable:'🐎',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
+  const BICON={hall:'🏰',house:'🏠',farm:'🌾',mill:'🌬️',bakery:'🍞',armourer:'🛡',storehouse:'📦',miningcamp:'⛏️',market:'⚖️',church:'⛪',garden:'🌷',statue:'🗽',wonder:'🏛️',barracks:'⚔',range:'🏹',stable:'🐎',gunshop:'🔫',siege:'⊙',dock:'⚓',castle:'🏯',wall:'🧱',gate:'🚪',tower:'🗼',watch:'🔭',bridge:'🌉'};
   let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font:700 22px Georgia,serif;color:#f3e4be;letter-spacing:2px">📖 THE KINGDOM GUIDE</b><button class="big" id="guideClose" style="padding:6px 14px;cursor:pointer">✕ Close</button></div>';
   h+='<div style="font:600 15px Georgia,serif;color:#c9a44a;margin:8px 0">BUILDINGS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
   for(const k in BLD_DESC)h+=card(BICON[k]||'🏠',BLD[k].name,cost(COST[k]),BLD_DESC[k]);
@@ -5814,7 +5892,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       info.appendChild(fr); }
     if(sel.some(e=>e.type==='worker')){
       const CATS={
-        town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['miningcamp','⛏️','Mining Camp'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue']]},
+        town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['miningcamp','⛏️','Mining Camp'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue'],['wonder','🏛️','Wonder',3]]},
         mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['armourer','🛡','Armourer'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
         def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House'],['bridge','🌉','Bridge']]}};
       const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
@@ -6115,9 +6193,18 @@ function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&
   for(const o of AI_REALMS){ if(_fallen[o]==='gone')continue;
     if(!blds.some(b=>b.owner===o)&&!ents.some(e=>e.owner===o)){ _fallen[o]='gone';
       SFX.age(); flashMsg('👑 '+realmName(o)+' is destroyed! Not a stone nor a soul remains'); } }
+  // b300: Wonder victory — the first realm whose finished Wonder stands undisturbed for
+  // WONDER_SURVIVE seconds wins outright, the same as running every rival keep to ruin.
+  if(!freePlay)for(const b of blds){ if(b.type!=='wonder'||!b.done||b.wonderStart===undefined)continue;
+    const left=WONDER_SURVIVE-(elapsed-b.wonderStart);
+    if(left<=0){ const msg=b.owner==='player'?'Your Wonder stood the age unshaken — every rival crown bows to it.':'Their Wonder stood the age unshaken — the realm bows to '+realmName(b.owner)+'.';
+      endGame(b.owner==='player',msg); return; }
+    if(b.owner==='player'){
+      if(left<=60&&!b._warn60){b._warn60=1;flashMsg('🏛️ Your Wonder stands undisturbed — '+Math.ceil(left/60)+' minute'+(Math.ceil(left/60)===1?'':'s')+' left');}
+      if(left<=10&&!b._warn10){b._warn10=1;flashMsg('🏛️ '+Math.ceil(left)+' seconds — hold the Wonder!');} } }
   const others=AI_REALMS.some(o=>blds.some(b=>b.owner===o&&b.type==='hall'));
   if(!others&&!freePlay)endGame(true);else if(!ph)endGame(false);}
-function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom();
+function endGame(win,msg){gameOver=true;running=false;if(win)SFX.age();else SFX.boom();
   const vets=ents.filter(e=>e.owner==='player'&&(e.rank||0)>0).length;
   const vils=villages.filter(v=>v.claimed==='player').length;
   const bldsUp=blds.filter(b=>b.owner==='player'&&b.done).length;
@@ -6125,7 +6212,7 @@ function endGame(win){gameOver=true;running=false;if(win)SFX.age();else SFX.boom
   const ov=$('overlay');ov.classList.remove('hidden');
   ov.innerHTML=`<div style="font-size:56px">${win?'🏆':'⚔️'}</div>
     <h1>${win?'You Rule the <span>Realm</span>':'Your <span style="color:#ff7a6a">Kingdom</span> Has Fallen'}</h1>
-    <p>${win?'Every rival keep lies in ruins. From coast to coast, the land answers to your crown.':'Your Keep is lost. Another crown will rule these lands — but crowns can be won back.'}</p>
+    <p>${msg||(win?'Every rival keep lies in ruins. From coast to coast, the land answers to your crown.':'Your Keep is lost. Another crown will rule these lands — but crowns can be won back.')}</p>
     <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:10px 0 4px">
       ${stat('👑','Reign',Math.floor(elapsed/60)+'m '+Math.floor(elapsed%60)+'s')}
       ${stat('🗡','Foes felled',statKills)}
@@ -6324,6 +6411,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
       newGame,standardView,VIEW_DIST,VIEW_PITCH,setManScale,get MAN_SCALE(){return MAN_SCALE;},trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
+      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
