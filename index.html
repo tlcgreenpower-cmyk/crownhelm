@@ -843,6 +843,15 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   loader.load('assets/worker-Meiya_rigged.glb',g=>{lib['Meiya']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
+  // b287: Lisa, rigged the same way Meiya was (b201) - Blender 5.2 headless: mesh cleaned
+  // (merge doubles + consistent normals) so automatic weighting would actually take, decimated
+  // 39,990 -> 16,000 tris, an 18-bone humanoid skeleton fitted to her measured silhouette,
+  // 99.96% of verts weighted (3 stray out of 7,988). Five clips authored to the names this
+  // engine already looks for - Walk / Idle / SwordSlash / Death / Victory - so she runs the
+  // standard animated-character path with no special-casing. Normal/roughness/metalness maps
+  // dropped and the base colour shrunk to 512 - this engine bakes vertex colour and never asked
+  // for a full PBR stack. 12.05 MB source -> 1.21 MB.
+  loader.load('assets/Lisa-peasant_rigged.glb',g=>{lib['Lisa']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
   loader.load('assets/animals/Sheep.glb',g=>{lib['SheepA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};},undefined,()=>{});
   loader.load('assets/animals/Horse.glb',g=>{lib['HorseA']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
   loader.load('assets/animals/White Horse.glb',g=>{lib['HorseW']={scene:mergeSkinnedModel(g.scene),clips:g.animations};refreshUnitModels();},undefined,()=>{});
@@ -2470,7 +2479,8 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   // Every fighting type now carries its weapon, shouldered at a fixed angle in the unit's own
   // space (not pinned to the hand bone) so it costs nothing per frame and always sits right.
   if(type==='worker'){} // workers keep their bone-mounted tools, below
-  let ckey=UNIT_CHAR[type]; if(type==='worker'&&CHAR_LIB&&CHAR_LIB.lib.WorkerM)ckey=Math.random()<0.5?'WorkerM':'WorkerF';
+  let ckey=UNIT_CHAR[type];
+  if(type==='worker'&&CHAR_LIB&&CHAR_LIB.lib.WorkerM){ const opts=['WorkerM','WorkerF']; if(CHAR_LIB.lib.Lisa)opts.push('Lisa'); ckey=opts[(Math.random()*opts.length)|0]; }
   if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
     const src=CHAR_LIB.lib[ckey];
     const ch=CHAR_LIB.clone(src.scene);
