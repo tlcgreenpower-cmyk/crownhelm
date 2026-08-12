@@ -159,7 +159,7 @@
           <div><div class="aorKick">Controls</div><ul class="aorList">
             <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
             <li><b>WASD / arrows / edges</b> pan · <b>wheel</b> zoom · <b>hold wheel &amp; drag</b> look around · <b>Shift+wheel-drag</b> pan · <b>Q / E</b> rotate</li>
-            <li><b>C</b> standard view · <b>\</b> idle soldiers · <b>M</b> man size · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
+            <li><b>C</b> standard view · <b>\</b> idle soldiers · <b>M</b> man size · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>T</b> formation · <b>Delete</b> disband selection · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
             <li>Double-click a unit = select all of its kind on screen</li>
           </ul></div>
           <div><div class="aorKick">How to play</div><ul class="aorList">
@@ -2527,7 +2527,12 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     g.userData.noBob=true;
     // b289: the owner didn't like the cape on peasants - a flag stuck to a woman hauling wood
     // just reads wrong, however good the colour-coding is. Soldiers keep it; workers go without.
-    if(type!=='worker')addTeamAccent(g,owner,(type==='hero'?2.35:type==='highlander'?2.15:type==='samurai'?2.1:type==='cardinal'?2.05:1.85)*MAN_SCALE,(type==='hero'?1.2:1)*MAN_SCALE);
+    // b290: and not the King either - Meiya's chibi proportions sit nothing like the generic
+    // adult-height fractions this was positioned from, so on her it landed at head height, not
+    // the back, and at the extra-large size hero gets it read as a shapeless coloured blob
+    // rather than as her. "A King does not change his colours" was already the rule for her
+    // coat (b148); the same rule covers this.
+    if(type!=='worker'&&type!=='hero')addTeamAccent(g,owner,(type==='highlander'?2.15:type==='samurai'?2.1:type==='cardinal'?2.05:1.85)*MAN_SCALE,MAN_SCALE);
     const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
     return g; }
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
@@ -3812,7 +3817,7 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   _t=_pt('ai',_t);
   atkPing.t+=dt;computeVision();if(!paradeMode)checkWin();
   _pt('vision',_t);}
-function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of Empire — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}
+function advanceAge(dt){for(const o of REALMS){const t=tech[o];if(t.ageTimer>0){t.ageTimer-=dt;if(t.ageTimer<=0){t.age=t.ageTo||t.age+1;if(o==='player'){SFX.age();flashMsg(t.age>=3?'You reach the Age of the Crown — '+UNIT[FACTION_UNIT[faction.player]].name+' unlocked at your Castle!':'You reach the Age of the Drowned Coast — Knights, Cannon & Docks unlocked!');}}}
   if(t.rsch){t.rsch.t-=dt;if(t.rsch.t<=0){const k=t.rsch.k;t[k]=Math.min(3,(t[k]||0)+1);t.rsch=null;
     if(k==='armor'&&o==='player')bumpHp();
     if(o==='player'){SFX.build();flashMsg('✅ '+RSCH[k].name+' '+t[k]+' forged — '+(k==='weapon'?'blades and shot bite deeper':'coats and mail turn more blows'));refreshUI();}}}}}
@@ -4096,7 +4101,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       if(ud.gun.visible!==wantG)ud.gun.visible=wantG;
       if(ud.axe&&ud.axe.visible!==wantA)ud.axe.visible=wantA;
       if(ud.pick&&ud.pick.visible!==wantP)ud.pick.visible=wantP;
-      { const carrying=e.carry>3, ct=e.carryType;   // each load looks like what it is
+      { const carrying=e.carry>3&&e.cmd==='return', ct=e.carryType;   // b291: the load only goes on his back once the job is actually done and he's walking it home - not mid-swing, still three-quarters through the tree
         const wS=carrying&&(ct==='food'||!ct), wL=carrying&&ct==='wood', wO=carrying&&ct==='metal', wG2=carrying&&ct==='gold';
         if(ud.sack&&ud.sack.visible!==wS)ud.sack.visible=wS;
         if(ud.log&&ud.log.visible!==wL)ud.log.visible=wL;
@@ -5463,6 +5468,10 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
   if(k==='z'){const s=selUnits().filter(e=>e.type!=='worker');if(s.length){const ks=Object.keys(STANCE);setStance(s,ks[(ks.indexOf(s[0].stance||'aggro')+1)%ks.length]);}}
   if(k==='r'&&selUnits().length){patrolMode=true;attackMove=false;canvas.style.cursor='crosshair';flashMsg('\uD83D\uDEA9 Patrol \u2014 click where the line should end');}
   if(k==='x'){selUnits().forEach(e=>{e.cmd='idle';e.path=null;e.target=null;e.march=null;e.slot=null;e.patrol=null;});flashMsg('\u{1F6D1} Halted — the men stand where they are');}
+  // b292: the owner asked for a Delete key that does what the hammer does to a man, but to the
+  // whole selection at once — the same effect (hp=0, the ordinary death pipeline takes it from
+  // there), not a special-cased instant despawn.
+  if(k==='delete'){const s=selUnits();if(s.length){for(const e of s){for(let i=0;i<8;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'smoke');e.hp=0;}flashMsg('🔨 '+s.length+' stood down — their place in the muster is free again');SFX.cmd();refreshUI();}}
   if(k==='p')togglePause();
   if(k==='+'||k==='=')setSpeed(gameSpeed+1);
   if(k==='-'||k==='_')setSpeed(gameSpeed-1);
@@ -5618,8 +5627,8 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
   if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){info.innerHTML=`<b>${BLD[b.type].name}</b> <span style="color:#7fa8bd">(${b.owner})</span> · HP ${Math.max(0,Math.round(b.hp))}/${b.maxHp}`+(b.done?'':` · <span style="color:#e0c878">building ${Math.round(b.progress*100)}%</span>`)+(b.done&&TRAINERS.has(b.type)&&b.owner==='player'?'<br><span id="qline">'+qlineHTML(b)+'</span><br><span style="color:#6f93a8;font-size:11px">'+(b.rally?'🚩 rally set — right-click ground moves it':'right-click ground = rally flag')+'</span>':'');
     if(b.owner==='player'&&b.done){if(b.type==='hall'){trainBtn(cmds,b,'worker','⚒','Worker',can);const T=tech.player;
         if(T.age===1){const c={f:AGE2.f,w:AGE2.w};techBtn(cmds,'⏫','Advance to Age II',`${AGE2.f}🍖 ${AGE2.w}🌲`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;T.ageTimer=AGE2.time;T.ageTo=2;flashMsg('Advancing to the Age of the Drowned Coast…');refreshUI();});}
-        else if(T.age===2){const c={f:AGE3.f,w:AGE3.w,m:AGE3.m};techBtn(cmds,'⏫','Advance to Age III',`${AGE3.f}🍖 ${AGE3.w}🌲 ${AGE3.m}⛏️`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;res.player.m-=c.m;T.ageTimer=AGE3.time;T.ageTo=3;flashMsg('Advancing to the Age of Empire…');refreshUI();});}
-        else info.innerHTML+='<br><span style="color:#e0c878">Age of Empire reached</span>';
+        else if(T.age===2){const c={f:AGE3.f,w:AGE3.w,m:AGE3.m};techBtn(cmds,'⏫','Advance to Age III',`${AGE3.f}🍖 ${AGE3.w}🌲 ${AGE3.m}⛏️`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;res.player.m-=c.m;T.ageTimer=AGE3.time;T.ageTo=3;flashMsg('Advancing to the Age of the Crown…');refreshUI();});}
+        else info.innerHTML+='<br><span style="color:#e0c878">Age of the Crown reached</span>';
         if(T.ageTimer>0){const tot=T.ageTo===3?AGE3.time:AGE2.time;
           info.innerHTML+='<br><span id="ageLine" style="color:#8fd4f0">⏫ Advancing to Age '+(T.ageTo||T.age+1)+' — '+Math.ceil(T.ageTimer)+'s</span>'
             +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="ageBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#1c4d6d,#7fc4e8);width:'+Math.round((1-T.ageTimer/tot)*100)+'%"></div></div>';}}
@@ -5815,7 +5824,7 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
       mb.style.borderColor=nm?'#c9a44a':'#2c5164'; mb.style.color=nm?'#f3e4be':'#5f7f92'; mb.style.opacity=nm?'1':'.6'; } }
   const bb=$('bellBtn'); if(bb){ bb.style.borderColor=bellRung?'#e0554a':'#2c5164'; bb.style.color=bellRung?'#ffd9d3':'#dff0f9';
     bb.style.background=bellRung?'#4a1c18':'#17303f'; $('bellLbl').textContent=bellRung?'Back to work':'Bell'; }
-  $('age').textContent=tech.player.ageTimer>0?'Advancing… '+Math.ceil(tech.player.ageTimer)+'s':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of Empire');
+  $('age').textContent=tech.player.ageTimer>0?'Advancing… '+Math.ceil(tech.player.ageTimer)+'s':(tech.player.age===1?'Age of Refuge':tech.player.age===2?'Age of the Drowned Coast':'Age of the Crown');
   if(tech.player.ageTimer>0){const T2=tech.player,tot2=T2.ageTo===3?AGE3.time:AGE2.time;
     const al=document.getElementById('ageLine'); if(al)al.textContent='⏫ Advancing to Age '+(T2.ageTo||T2.age+1)+' — '+Math.ceil(T2.ageTimer)+'s';
     const ab=document.getElementById('ageBar'); if(ab)ab.style.width=Math.round((1-T2.ageTimer/tot2)*100)+'%';}
