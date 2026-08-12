@@ -8,10 +8,20 @@
   *{box-sizing:border-box;} html,body{margin:0;padding:0;height:100%;background:#05101a;color:#cfe3f0;
     font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none;}
   #wrap{display:flex;flex-direction:column;height:100%;}
-  #topbar{display:flex;gap:18px;align-items:center;padding:6px 16px;background:#0b1a26;border-bottom:1px solid #1d3a4a;font-size:14px;z-index:5;flex:0 0 auto;}
-  .res{display:flex;align-items:center;gap:6px;font-weight:600;min-width:100px;} .dot{width:12px;height:12px;border-radius:3px;}
+  #topbar{display:flex;gap:8px;align-items:center;padding:6px 12px;background:#0b1a26;border-bottom:1px solid #1d3a4a;font-size:14px;z-index:5;flex:0 0 auto;}
+  .res{display:flex;align-items:center;gap:5px;font-weight:600;min-width:64px;} .dot{width:12px;height:12px;border-radius:3px;}
   .res span{font-variant-numeric:tabular-nums;}
-  .spacer{flex:1;} #age{color:#e0c878;font-weight:700;letter-spacing:.4px;}
+  /* b285: the bar was one flat row of eighteen things at equal weight - resources, buttons and
+     meta info all fighting for the same attention. These group the things that belong together
+     (resources with resources, actions with actions) with a tight internal gap, and .topDiv marks
+     the seam between groups so the eye has somewhere to break instead of reading eighteen items
+     in one pass. */
+  .resGroup,.actGroup,.infoGroup{display:flex;align-items:center;gap:5px;}
+  .topDiv{width:1px;align-self:stretch;margin:3px 0;background:#1d3a4a;}
+  .spacer{flex:1;}
+  #age{display:flex;align-items:center;gap:4px;color:#f0dca0;font-weight:700;letter-spacing:.3px;
+    background:linear-gradient(180deg,#3a2f14,#221a0a);border:1px solid #6b5423;border-radius:8px;
+    padding:3px 9px;box-shadow:0 2px 6px rgba(0,0,0,.35);white-space:nowrap;font-size:13px;}
   #gameMenu{position:absolute;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;background:rgba(4,10,16,.55);}
   #gameMenu.hidden{display:none;}
   .gmb{cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:8px;padding:12px 14px;font-size:16px;text-align:left;transition:background .12s;}
@@ -47,23 +57,34 @@
 <body>
 <div id="wrap">
   <div id="topbar">
-    <div class="res" title="Food — from Farms & Mills">🍖 <span id="food">0</span></div>
-    <div class="res" title="Wood — chop forests">🌲 <span id="wood">0</span></div>
-    <div class="res" title="Metal — mine grey rocks">⛏️ <span id="metal">0</span></div>
-    <div class="res" title="Gold — gold veins, Markets & village tribute">💰 <span id="gold">0</span></div>
-    <div class="res" title="Population / cap — Houses +8, Halls +15, Castles +12">👥 <span id="pop">0/0</span></div>
-    <div class="res" title="Your workers — the hands of the kingdom">⚒ <span id="wrkN">0</span></div>
+    <div class="resGroup">
+      <div class="res" title="Food — from Farms & Mills">🍖 <span id="food">0</span></div>
+      <div class="res" title="Wood — chop forests">🌲 <span id="wood">0</span></div>
+      <div class="res" title="Metal — mine grey rocks">⛏️ <span id="metal">0</span></div>
+      <div class="res" title="Gold — gold veins, Markets & village tribute">💰 <span id="gold">0</span></div>
+    </div>
+    <div class="topDiv"></div>
+    <div class="resGroup">
+      <div class="res" title="Population / cap — Houses +8, Halls +15, Castles +12">👥 <span id="pop">0/0</span></div>
+      <div class="res" title="Your workers — the hands of the kingdom">⚒ <span id="wrkN">0</span></div>
+    </div>
+    <div class="topDiv"></div>
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
     <button id="gmenuBtn" title="Game menu — sound, graphics, saves & more (pauses the game)" style="cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:4px 16px;font-size:13px;font-weight:600;">☰ Menu</button>
-    <div class="spacer"></div>
-    <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤⚒️ <span id="idleN">0</span> <span style="font-size:10px;color:#8fa7bc">workers</span></button>
-    <button id="idleMilBtn" title="Select every soldier standing idle (´ or \ key) — the men who are not marching, fighting or garrisoned" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🛡 <span id="idleMilN">0</span> <span style="font-size:10px;color:#8fa7bc">idle</span></button>
-    <button id="bellBtn" title="Town Bell (B) — every villager drops their work and shelters in the nearest garrison. Ring again to send them back." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔔 <span id="bellLbl">Bell</span></button>
-    <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
-    <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
-    <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
-    <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
+    <div class="topDiv"></div>
+    <div class="actGroup">
+      <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤⚒️ <span id="idleN">0</span> <span style="font-size:10px;color:#8fa7bc">workers</span></button>
+      <button id="idleMilBtn" title="Select every soldier standing idle (´ or \ key) — the men who are not marching, fighting or garrisoned" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🛡 <span id="idleMilN">0</span> <span style="font-size:10px;color:#8fa7bc">idle</span></button>
+      <button id="bellBtn" title="Town Bell (B) — every villager drops their work and shelters in the nearest garrison. Ring again to send them back." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔔 <span id="bellLbl">Bell</span></button>
+      <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
+      <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
+    </div>
+    <div class="topDiv"></div>
+    <div class="infoGroup">
+      <button id="forcesBtn" title="Your forces (V) — click a row to select that whole regiment" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">⚔ Forces</button>
+      <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
+    </div>
     <span id="clock">0:00</span>
     <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#557085;font-size:10px;margin-left:6px;">b276</span>
   </div>
@@ -4789,10 +4810,27 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   if(ai.tradeT<=0){ ai.tradeT=50+Math.random()*20;
     if(diplo[o].stance!=='war'&&diplo[o].score>=60){ res.player.g+=40; res[o].g=Math.max(0,res[o].g-10);
       SFX.cmd(); flashMsg('🐎 A trade caravan arrives from '+realmName(o)+' (+40 gold)'); } }
-  // relations drift: aggressive realms sour toward war unless befriended
+  // b286: HOSTILITY NEEDS A REASON. This drift used to run on a blind timer for every realm,
+  // every 1.5 to 3 minutes, always downward, with nothing ever pushing back except the player
+  // manually gifting gold. That is a random walk with a one-way floor — given long enough
+  // (owner logged 200+ hours) EVERY realm reaches -30 and declares war with certainty, having
+  // done nothing to earn it and the player having done nothing to provoke it. Age's own AI does
+  // not work that way: a realm the player never goes near, and who is not the aggressive
+  // personality, can leave them alone the whole game.
+  // Two changes. A realm more than a third of the map's diagonal from the player's own hall is
+  // simply not a neighbour and is never touched by this at all - distance is the first gate, not
+  // an afterthought. And a NEAR realm's own aggro (its fixed personality, rolled once at game
+  // start) decides how OFTEN it even rolls for friction, not just how hard - a passive
+  // personality near the player mostly does nothing; an aggressive one presses far more often.
+  // Left alone, a neutral relationship now settles back toward calm instead of only ever
+  // eroding, so staying out of a realm's way is a real strategy, not a stay of execution.
   if(ai.warCheck<=0){ ai.warCheck=90+Math.random()*90;
-    if(diplo[o].stance==='neutral'){ diplo[o].score-=Math.random()*ai.aggro*0.3*dif().aggro;
-      if(diplo[o].score<-30)declareWar(o,'ai'); }
+    if(diplo[o].stance==='neutral'){
+      const hall=blds.find(b=>b.owner===o&&b.type==='hall'), ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
+      const d=(hall&&ph)?Math.hypot(hall.cx-ph.cx,hall.cz-ph.cz):9e9, near=d<Math.hypot(WORLD_W,WORLD_H)*0.35;
+      if(near&&Math.random()<(ai.aggro/140)*dif().aggro){ diplo[o].score-=4+Math.random()*10;
+        if(diplo[o].score<-30)declareWar(o,'ai'); }
+      else if(diplo[o].score<40)diplo[o].score=Math.min(40,diplo[o].score+1.5); }
     else if(diplo[o].stance==='war'&&diplo[o].score>20){diplo[o].stance='neutral';flashMsg(realmName(o)+' agrees to peace.');}
     // b156: THE REALMS HAVE THEIR OWN QUARRELS. Rivals only ever went to war when they joined one
     // of YOURS, so a player who kept the peace watched seven kingdoms build side by side forever.
