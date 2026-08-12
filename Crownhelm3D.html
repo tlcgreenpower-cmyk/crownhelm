@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b292</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b299</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3298,8 +3298,8 @@ function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; remo
 function removeBuilding(bl){bl._gone=1;scene.remove(bl.mesh);removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
 
 // ==================================================== POP / TECH
-function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='hall')c+=15;else if(b.type==='house')c+=(b.up?12:8);else if(b.type==='castle')c+=12;else if(b.type==='garden')c+=2;}
-  c+=villages.filter(v=>v.claimed===o).length*6; return Math.min(c,400);}   // b126: ceiling 400 (owner request) — grand armies welcome
+function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='house')c+=(b.up?9:5);else if(b.type==='hall')c+=10;}
+  return Math.min(c,200);}   // b299: AoE2 model — flat +5/house (Attic tech still adds +4), Keep covers its own founding garrison, hard cap 200, castle/garden/villages no longer contribute
 function popUsed(o){let p=0;for(const e of ents)if(e.owner===o)p+=COST[e.type].pop;return p;}
 // b143: men already ordered but not yet trained still need a bed. Without this every click
 // measured the SAME free space and a queue of ten could sail 20 past the cap.
