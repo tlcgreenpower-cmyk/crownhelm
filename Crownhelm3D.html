@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b300</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b301</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -550,6 +550,7 @@ const RSCH={
   weapon:{ic:'⚔',name:'Weapons',costs:[{m:80,f:80},{m:150,f:120},{m:220,f:180}],times:[70,110,150],age:[1,2,3]},
   armor:{ic:'🛡',name:'Armor',costs:[{w:80,f:80},{w:150,f:120},{w:220,f:180}],times:[60,100,140],age:[1,2,3]}};
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=2.6,MILL_FOOD=2.0,CARRY=12,MINE=6.5,AGE2={f:300,w:250,time:70},AGE3={f:600,w:400,m:200,time:100};
+const GERM_TIME=25;   // b301 (owner request): a freshly-sown field takes this long, tended, before it's yielding in full
 const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu',sacred:'hoplite'};
 
 // ==================================================== STATE
@@ -2772,12 +2773,15 @@ function cropMat(i,w){const k=i+w;return _cropMats[k]||(_cropMats[k]=new THREE.M
 const FARM_SOIL=new THREE.MeshStandardMaterial({color:0x5b3d24,roughness:1,flatShading:true});
 const FARM_RIDGE=new THREE.MeshStandardMaterial({color:0x77532f,roughness:1,flatShading:true});
 function makeFarmField(seed){
-  const g=new THREE.Group(),parts=new THREE.Group(),wpx=BLD.farm.w*TILE,hpx=BLD.farm.h*TILE;
+  const g=new THREE.Group(),parts=new THREE.Group(),cropParts=new THREE.Group(),wpx=BLD.farm.w*TILE,hpx=BLD.farm.h*TILE;
   const S=(a,b)=>hashN(seed*7.3+a*1.7+3.1,seed*3.1+b*2.3+1.7);
   const ci=farmCropIndex(seed),C=FARM_CROPS[ci];
   g.userData.crop=C.n;
   const soil=new THREE.Mesh(new THREE.BoxGeometry(wpx*.94,.28,hpx*.94),FARM_SOIL);soil.position.y=.11;parts.add(soil);
-  // ridge-and-furrow: long raised beds with the crop planted thick along each crown
+  // ridge-and-furrow: long raised beds with the crop planted thick along each crown. The ridges
+  // themselves (tilled, sown ground) are in the static group and there from the day it's built —
+  // b301: it's the CROP on top of them that grows in over GERM_TIME, so it's a separate group
+  // (cropParts) scaled up from the ground as it matures rather than appearing full-grown at once.
   const B=.46,round=C.k==='round',ma=cropMat(ci,'a'),mb=cropMat(ci,'b');
   const ROWS=round?5:7,PER=round?6:11,rowGap=hpx*.74/ROWS,colGap=wpx*.76/PER;
   for(let r=0;r<ROWS;r++){
@@ -2785,12 +2789,12 @@ function makeFarmField(seed){
     const ridge=new THREE.Mesh(new THREE.BoxGeometry(wpx*.86,.16,rowGap*.72),FARM_RIDGE);ridge.position.set(0,.38,rz);parts.add(ridge);
     for(let p=0;p<PER;p++){
       const px=(p-(PER-1)/2)*colGap+(S(r,p)-.5)*.16,pz=rz+(S(p,r)-.5)*.16,hj=.8+S(r+9,p)*.5,m=(r+p)%2?ma:mb;
-      if(C.k==='grain'){const w=new THREE.Mesh(new THREE.ConeGeometry(.2,1.05*hj,5),m);w.position.set(px,B+.52*hj,pz);w.rotation.z=(S(p,r+4)-.5)*.3;parts.add(w);}
-      else if(round){const w=new THREE.Mesh(new THREE.SphereGeometry(.36*hj,7,5),m);w.position.set(px,B+.14+.26*hj,pz);w.scale.y=.78;parts.add(w);
-        const st=new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,.24,4),M.leafA);st.position.set(px,B+.18+.5*hj,pz);parts.add(st);}
-      else if(C.k==='stalk'){const st=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.8*hj,4),M.leafA);st.position.set(px,B+.4*hj,pz);parts.add(st);
-        const fl=new THREE.Mesh(new THREE.SphereGeometry(.12,5,4),m);fl.position.set(px,B+.82*hj,pz);parts.add(fl);}
-      else{const lf=new THREE.Mesh(new THREE.ConeGeometry(.28,.6*hj,5),m);lf.position.set(px,B+.3*hj,pz);lf.rotation.z=(S(r,p+3)-.5)*.45;parts.add(lf);}
+      if(C.k==='grain'){const w=new THREE.Mesh(new THREE.ConeGeometry(.2,1.05*hj,5),m);w.position.set(px,B+.52*hj,pz);w.rotation.z=(S(p,r+4)-.5)*.3;cropParts.add(w);}
+      else if(round){const w=new THREE.Mesh(new THREE.SphereGeometry(.36*hj,7,5),m);w.position.set(px,B+.14+.26*hj,pz);w.scale.y=.78;cropParts.add(w);
+        const st=new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,.24,4),M.leafA);st.position.set(px,B+.18+.5*hj,pz);cropParts.add(st);}
+      else if(C.k==='stalk'){const st=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.8*hj,4),M.leafA);st.position.set(px,B+.4*hj,pz);cropParts.add(st);
+        const fl=new THREE.Mesh(new THREE.SphereGeometry(.12,5,4),m);fl.position.set(px,B+.82*hj,pz);cropParts.add(fl);}
+      else{const lf=new THREE.Mesh(new THREE.ConeGeometry(.28,.6*hj,5),m);lf.position.set(px,B+.3*hj,pz);lf.rotation.z=(S(r,p+3)-.5)*.45;cropParts.add(lf);}
     } }
   // post-and-rail fence with a gate gap on the near side
   const fx=wpx*.51,fz=hpx*.51,N=4;
@@ -2824,6 +2828,9 @@ function makeFarmField(seed){
   const merged=BGU?mergeStaticModel(parts):parts;
   merged.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
   g.add(merged);
+  const cropMerged=BGU?mergeStaticModel(cropParts):cropParts;
+  cropMerged.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  const cropG=new THREE.Group();cropG.add(cropMerged);g.add(cropG);g.userData.cropG=cropG;
   return g;
 }
 // ---- b258: what a working building leaves lying about --------------------------------------
@@ -3821,8 +3828,10 @@ function foesOfOwner(o){ if(_foeStamp!==_stepN){_foeMap={};_foeStamp=_stepN;}
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
-    res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*(b._yield||1)*tenders*dt;
-    if(b._gold)res[b.owner].g+=b._gold*tenders*dt; }}   // b99: one farmhand sows each farm — no farmhand, no harvest
+    if(tenders>0)b._grow=Math.min(1,(b._grow||0)+dt/GERM_TIME);   // b301: the crop grows in, it doesn't just appear — no farmhand, no growth, and growth never goes backward once tended
+    const gf=b._grow||0;
+    res[b.owner].f+=FARM_FOOD*(b.up?1.5:1)*(b._yield||1)*tenders*gf*dt;
+    if(b._gold)res[b.owner].g+=b._gold*tenders*gf*dt; }}   // b99: one farmhand sows each farm — no farmhand, no harvest
   for(const b of blds)if(b.type==='mill'&&b.done)res[b.owner].f+=MILL_FOOD*(b.up?1.5:1)*(b.up2?1.5:1)*dt;
   for(const b of blds)if(b.type==='bakery'&&b.done){res[b.owner].f+=(b._bakeRate||0)*dt;   // bread, only where there is flour to bake
     if(b._bakeRate>0&&Math.random()<dt*1.7&&Math.hypot(b.cx-camTarget.x,b.cz-camTarget.z)<110){
@@ -4124,6 +4133,8 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
       spawnPart(ax,heightAtWorld(ax,az)+1.3,az,'spark'); } }
   if(b.mesh.userData.flag)b.mesh.userData.flag.rotation.y=Math.sin(elapsed*3+b.id)*0.3;
   if(b.mesh.userData.blades)b.mesh.userData.blades.rotation.z+=dt*1.4;
+  // b301: the crop rises out of the ridges as it germinates — sprouts at 15% height, full-grown at 100%
+  if(b.type==='farm'&&b.mesh.userData.cropG){const s=0.15+0.85*Math.min(1,b._grow||0);b.mesh.userData.cropG.scale.set(1,s,1);}
   if((b.type==='house'||b.type==='hall')&&Math.random()<dt*0.7&&(b.owner==='player'||tileVis(b.cx,b.cz)))spawnPart(b.cx,heightAtWorld(b.cx,b.cz)+(b.type==='hall'?9:5),b.cz,'smoke');
   if(b.queue.length){ if(b.queue[0].t>0)b.queue[0].t-=dt;
     // b143: the last gate — a finished man still needs a bed. If the housing has gone
@@ -5689,7 +5700,7 @@ document.getElementById('gmResume').onclick=closeGameMenu;
 // ---- b125: the Kingdom Guide — every building & person, with pictures and plain words ----
 const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deliveries. Lose it and the realm falls.',
   house:'+5 population room (Attic upgrade makes it +9). Lose houses and training stops until rebuilt.',
-  farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). Every field sows its own crop and each behaves differently: Wheat and Barley are poor until a Mill grinds them; Cabbage, Pumpkin and Turnip feed the town straight from the field; Flax feeds little but sells as linen (more beside a Market). Farm three different kinds and the whole harvest rises 15%. Irrigation +50%.',
+  farm:'Grows food — but ONLY with a farmhand on it (right-click the farm with a worker). The crop needs '+GERM_TIME+'s of tending to come in — it grows visibly, and yield ramps up with it, so a fresh field feeds little at first. Every field sows its own crop and each behaves differently: Wheat and Barley are poor until a Mill grinds them; Cabbage, Pumpkin and Turnip feed the town straight from the field; Flax feeds little but sells as linen (more beside a Market). Farm three different kinds and the whole harvest rises 15%. Irrigation +50%.',
   mill:'Automatic flour, +2 food/s, no labour. Also takes deliveries — workers carrying FOOD walk here, not the Keep — and grinds the grain of every Wheat and Barley farm within 30 paces, yielding 50% more instead of 10% less. Great Millstones (Age II) and Windworks (Age III) double its own output.',
   armourer:'The forge where harness is made. Armour research costs 20% less and takes 30% less time here than at the Barracks, and only an Armourer can forge Tempered Plate (Age II) — every soldier raised after it stands 10% tougher. The coals glow brighter and sparks fly while the smiths are working.',
   bakery:'Bakes the flour into bread (Age II). Needs ground grain nearby: it counts the milled grain farms within 34 paces and bakes up to +3.2 food/s. Every farm near a Bakery yields 15% more.',
@@ -5832,6 +5843,8 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         const crp=b.crop||(b.mesh&&b.mesh.userData.crop);
         if(crp){ const kind=CROP_KIND[crp]||'veg';
           info.innerHTML+='<br>🌱 Crop: <span style="color:#e8d08a">'+crp+'</span> — <span style="color:#9fe8b0">'+Math.round((b._yield||1)*100)+'% yield</span>';
+          const gpct=Math.round((b._grow||0)*100);
+          info.innerHTML+=gpct>=100?'':'<br><span style="color:#e0a878;font-size:11px">🌾 Growing — '+gpct+'% — food comes in slow till it\'s in</span>';
           if(kind==='grain')info.innerHTML+=b._mill?'<br><span style="color:#9fe8b0">🌬️ A Mill grinds this grain (+50%)</span>':'<br><span style="color:#e0a878;font-size:11px">🌬️ No Mill within 30 paces — the grain goes unground (-10%)</span>';
           if(kind==='flax')info.innerHTML+=b._mkt?'<br><span style="color:#9fe8b0">⚖️ Linen sells at the Market (+gold)</span>':'<br><span style="color:#e0a878;font-size:11px">⚖️ A Market would double the linen money</span>';
           if(b._bake)info.innerHTML+='<br><span style="color:#9fe8b0">🍞 A Bakery takes this harvest (+15%)</span>';
