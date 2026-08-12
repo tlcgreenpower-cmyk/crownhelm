@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b302</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b303</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -5569,6 +5569,12 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
     else if(garHintB){ tip.style.display='block'; tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+10)+'px';
       tip.innerHTML='⛨ Right-click to man the '+BLD[garHintB.type].name+' — '+(garHintB.gar||[]).length+'/'+GAR_CAP[garHintB.type]; }
     else tip.style.display='none'; }
+  // b303: a sword cursor over anything a right-click would attack, with an army selected — matches
+  // commandTarget's own target order (unit before building), so the cursor never promises a fight
+  // the click won't actually pick.
+  if(running&&!placing&&!dragging&&!rDrag&&!patrolMode&&!attackMove&&!demoMode&&!orbitDrag&&!panDrag&&!wallDrag){
+    const atkTgt=selUnits().length?(entAt(g.x,g.z,'player')||bldAt(g.x,g.z,'player')):null;
+    canvas.style.cursor=atkTgt?swordCur:'default'; }
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}
   if(rDrag){ const dx=g.x-rDrag.gx,dz=g.z-rDrag.gz,d=Math.hypot(dx,dz);
     if(!rDrag.moved&&d>3)rDrag.moved=true;
@@ -5653,7 +5659,7 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
   if(k==='.'&&running)selectIdle();
   if(k==='b'&&running)townBell();
   if(k===' '&&running&&atkPing.t<45){ev.preventDefault();camTarget.set(atkPing.x,0,atkPing.z);}
-  if(k==='v'&&running){const fp=$('forces');fp.classList.toggle('hidden');renderForces();}
+  if(k==='v'&&running){const fp=$('forces');$('diplo').classList.add('hidden');fp.classList.toggle('hidden');renderForces();}
   if(k==='t'&&selUnits().some(e=>e.type!=='worker')){const ks=Object.keys(FORMS);formation=ks[(ks.indexOf(formation)+1)%ks.length];flashMsg('Formation: '+FORMS[formation].name);refreshUI();}
   if(k>='1'&&k<='5'){if(keys['control']||ev.ctrlKey){groups[k]=selUnits().map(e=>e.id);flashMsg('Group '+k+' set');}else{const g=groups[k];if(g&&g.length){selected=g.filter(id=>ents.some(e=>e.id===id));selBuilding=null;const e=ents.find(u=>u.id===selected[0]);if(e)camTarget.set(e.x,0,e.z);SFX.select();refreshUI();}}}});
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
@@ -5775,6 +5781,10 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
 document.getElementById('guideBtn').onclick=()=>{ closeGameMenu(); buildGuide(); document.getElementById('guide').classList.remove('hidden'); };
 // ---- demolish hammer: a roaming tool instead of a per-building button ----
 const hammerCur=(()=>{try{const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d');x.font='26px serif';x.textBaseline='top';x.fillText('🔨',2,2);return 'url('+c.toDataURL()+') 5 24, crosshair';}catch(e){return 'crosshair';}})();
+// b303 (owner request): a sword cursor over anything a right-click would actually attack, so the
+// player isn't guessing whether a click orders an attack or just a move — same drawn-cursor trick
+// as the demolish hammer above.
+const swordCur=(()=>{try{const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d');x.font='26px serif';x.textBaseline='top';x.fillText('⚔️',2,2);return 'url('+c.toDataURL()+') 5 24, pointer';}catch(e){return 'pointer';}})();
 function setDemo(on){demoMode=on;const bt=document.getElementById('demoBtn');
   bt.style.borderColor=on?'#c9a44a':'#2c5164';bt.style.background=on?'#3a2c17':'#17303f';bt.style.color=on?'#f3e4be':'#dff0f9';
   canvas.style.cursor=on?hammerCur:'default';
@@ -6039,7 +6049,7 @@ window._war=o=>{declareWar(o,'player');renderDiplo();};
 window._peace=o=>{if(res.player.g<200){flashMsg('Not enough gold');return;}res.player.g-=200;diplo[o].stance='neutral';diplo[o].score=Math.max(diplo[o].score,5);
   for(const k of Object.keys(aiWars))if(k.includes(o))delete aiWars[k];   // allied wars end with yours
   SFX.cmd();flashMsg('Peace with '+realmName(o)+'.');renderDiplo();updateHUD();};
-document.getElementById('realmsBtn').onclick=()=>{const p=$('diplo');p.classList.toggle('hidden');renderDiplo();};
+document.getElementById('realmsBtn').onclick=()=>{const p=$('diplo');$('forces').classList.add('hidden');p.classList.toggle('hidden');renderDiplo();};
 function renderForces(){const p=$('forces');if(p.classList.contains('hidden'))return;
   const counts={};for(const e of ents)if(e.owner==='player'&&!e.inGar)counts[e.type]=(counts[e.type]||0)+1;
   p.innerHTML='<b style="color:#f3e4be">⚔ Your Forces</b> <span style="color:#7fa8bd;font-size:11px">— click: regiment · Shift+click: add · +1: one unit</span><br>';
@@ -6072,7 +6082,7 @@ document.getElementById('qualBtn').onclick=()=>{QUAL=QUAL==='med'?'low':QUAL==='
   flashMsg('⚙ Graphics: '+(QUAL==='high'?'High — full shadows':QUAL==='med'?'Medium — balanced':'Fast — smoothest, no shadows'));};
 applyQuality();
 if(location.protocol==='file:')document.getElementById('wrongDoor').style.display='block';
-document.getElementById('forcesBtn').onclick=()=>{const p=$('forces');p.classList.toggle('hidden');renderForces();};
+document.getElementById('forcesBtn').onclick=()=>{const p=$('forces');$('diplo').classList.add('hidden');p.classList.toggle('hidden');renderForces();};
 setInterval(renderDiplo,2000);
 
 // ==================================================== SELECTION RINGS + MINIMAP
