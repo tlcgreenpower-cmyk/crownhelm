@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b311</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b312</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -186,6 +186,12 @@
                 <option value="normal">Moderate — a fair fight</option>
                 <option value="hard">Hard — wolves at every border</option>
                 <option value="hardest">Hardest — every crown covets yours</option>
+              </select></label>
+            <label class="setRow"><span class="setLbl">Victory</span>
+              <select id="winModeSel" class="setSel">
+                <option value="conquest">Conquest — break every rival Keep (or hold your Wonder)</option>
+                <option value="regicide">Regicide — a realm falls the moment its King dies</option>
+                <option value="relicrace">Relic Race — first to enshrine 3 relics wins</option>
               </select></label>
             <label class="setRow"><span class="setLbl">Realms at war</span>
               <select id="plSel" class="setSel">
@@ -458,7 +464,7 @@ setMap(curMapId);
 // buildings are the only thing left that spend metal, same list as before, untouched.
 const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:1,time:8,age:1}, archer:{f:35,w:45,pop:1,time:9,age:1},
-  scout:{f:30,w:25,pop:1,time:7,age:1}, petard:{w:50,g:40,pop:1,time:10,age:2}, trebuchet:{w:150,m:130,pop:1,time:26,age:2},
+  scout:{f:30,w:25,pop:1,time:7,age:1}, petard:{w:50,g:40,pop:1,time:10,age:2}, trebuchet:{w:150,m:130,pop:1,time:26,age:2}, siegetower:{w:180,m:60,pop:1,time:28,age:2},
   infantry:{f:45,g:35,pop:1,time:9,age:1}, grenadier:{f:50,g:45,pop:1,time:11,age:1}, dragoon:{f:60,g:55,pop:1,time:13,age:2},
   highlander:{f:120,g:170,pop:1,time:17,age:3}, grenguard:{f:100,g:180,pop:1,time:16,age:3}, wolfrider:{f:110,g:190,pop:1,time:16,age:3}, cuirassier:{f:140,g:210,pop:1,time:18,age:3},
   knight:{f:70,g:60,pop:1,time:14,age:2}, catapult:{w:120,g:100,pop:1,time:20,age:2}, ram:{w:110,g:40,pop:1,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:1,time:11,age:2}, hoplite:{f:80,g:90,pop:1,time:14,age:2},
@@ -520,6 +526,12 @@ const UNIT={
   // enforced in case 'attackb'), repacks the instant it's given a new move order (commandMove).
   // Real building-breaking power to reward committing to the setup/teardown decision.
   trebuchet:{hp:140,speed:5,range:32,dmg:34,cd:4,r:1.6,vis:9,dom:'land',color:0x7a6a52,name:'Trebuchet',siege:true,ranged:true,arc:true,ramOnly:true,unpack:3},
+  // b311: Siege Tower — same board/carry mechanic the Warboat transport uses (the `transport` flag
+  // is generic, not warboat-specific), but its own commandTarget branch is what actually earns it a
+  // place next to the Ram/Petard/Trebuchet: pushed up against an enemy wall or gate, it drops its
+  // passengers on the far side, over the wall instead of through the gate. No combat stats of its
+  // own — the payoff is entirely in what it carries.
+  siegetower:{hp:200,speed:6,range:0,dmg:0,cd:2,r:1.6,vis:8,dom:'land',color:0x5a4a34,name:'Siege Tower',noAtk:true,transport:true,cargoCap:6},
   knight:{hp:195,speed:19,range:2.8,dmg:20,cd:.9,r:1.2,vis:9,dom:'land',color:0xe0894d,name:'Knight',cav:true},
   cannon:{hp:120,speed:7,range:30,dmg:26,cd:3.2,r:1.7,vis:10,dom:'land',color:0x44444c,name:'Cannon',siege:true,ranged:true},
   howitzer:{hp:110,speed:6.5,range:35,dmg:22,cd:3.8,r:1.7,vis:10,dom:'land',color:0x55554a,name:'Howitzer',siege:true,ranged:true,arc:true},
@@ -3650,6 +3662,18 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
       ?'\uD83D\uDE4F Preach to the '+UNIT[eu.type].name+' \u2014 keep him in reach and he will come over'
       :'⚔ Attack! Your men charge the '+(UNIT[eu.type].name)+(mk.length?' \u2014 the holy men preach to him':''));
     SFX.cmd();return;}
+  // b311: a laden Siege Tower pushed up against an enemy wall or gate crosses it instead of
+  // attacking it — checked BEFORE the general building-attack branch below, so it only ever
+  // pre-empts a wall/gate click specifically, never a normal siege order against anything else.
+  { const wtgt=bldAt(x,z,'player');
+    const tower=list.find(e=>e.type==='siegetower'&&e.cargo&&e.cargo.length);
+    if(wtgt&&(wtgt.type==='wall'||wtgt.type==='gate')&&tower&&Math.hypot(tower.x-wtgt.cx,tower.z-wtgt.cz)<Math.max(wtgt.w,wtgt.h)*TILE*0.5+4){
+      const ids=tower.cargo.slice(); tower.cargo=[];
+      const dx=wtgt.cx-tower.x,dz=wtgt.cz-tower.z,dd=Math.hypot(dx,dz)||1;
+      ids.forEach(id=>{ const u=ents.find(en=>en.id===id); if(!u)return;
+        u.inGar=null; u.mesh.visible=true;
+        u.x=wtgt.cx+dx/dd*3+(Math.random()-0.5)*2; u.z=wtgt.cz+dz/dd*3+(Math.random()-0.5)*2; u.cmd='idle'; placeMesh(u); });
+      spawnMoveMark(wtgt.cx,wtgt.cz,0xff9a6a); flashMsg('🗼 Over the wall!'); SFX.cmd(); return; } }
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
   // right-click your own DAMAGED building with workers = mend it
   { const rtx=txFromW(x),rty=tzFromW(z),rid=inB(rtx,rty)?buildGrid[ti(rtx,rty)]:0;
@@ -5124,6 +5148,7 @@ function declareWar(o,by){ if(!diplo[o])return; if(diplo[o].stance!=='war'){ dip
     setTimeout(()=>flashMsg('🤝 '+realmName(f)+' joins your war against '+realmName(o)+'!'),1800); }
   refreshUI(); } }
 let difficulty=localStorage.getItem('crownhelm_diff')||'normal';
+let winMode=localStorage.getItem('crownhelm_winmode')||'conquest';
 // b304 (owner request): AoE runs five difficulty tiers, not three — Easiest/Easy/Moderate/Hard/
 // Hardest. The three original keys are kept exactly as they were (a saved game with dif:'normal'
 // or dif:'hard' must still load into the same tier it was saved on) — easiest and hardest are pure
@@ -5895,6 +5920,7 @@ const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. 
   scout:'Fast, far-sighted, barely armed — bought to find the land and the neighbours, not to fight either.',
   petard:'Cannot fight soldiers at all — runs at a wall or gate and blows it open, spending itself on the one blast.',
   trebuchet:'Cannot fight soldiers, and cannot fire on the move — needs 3s to unpack before it can shoot, and re-packs the instant you order it elsewhere. Devastating against buildings once set up.',
+  siegetower:'Cannot fight at all. Board it with soldiers (right-click it, same as a Warboat), push it up against an enemy wall or gate, then right-click that wall — your men come down on the far side, over it instead of through it.',
   spear:'Cheap line infantry; bonus vs cavalry.', archer:'Fast ranged harass.',
   viking:'Tough axe infantry; bonus vs siege engines.', samurai:'Duelist — bonus vs enemy champions (Age II).',
   knight:'Heavy shock cavalry (Age II).', dragoon:'Mounted musket — fast flanker (Age II).',
@@ -5991,7 +6017,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2){trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);rschButtons(cmds,['faith']);}}
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);rschButtons(cmds,['spy']);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3){trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);rschButtons(cmds,['unique']);}}
-      if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);trainBtn(cmds,b,'petard','💥','Petard',can);trainBtn(cmds,b,'trebuchet','🪨','Trebuchet',can);}
+      if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);trainBtn(cmds,b,'petard','💥','Petard',can);trainBtn(cmds,b,'trebuchet','🪨','Trebuchet',can);trainBtn(cmds,b,'siegetower','🗼','Siege Tower',can);}
       if(b.type==='dock'){trainBtn(cmds,b,'warboat','⛵','Warboat',can);if(tech.player.age>=2)trainBtn(cmds,b,'privateer','🏴‍☠️','Privateer',can);}
       const UPG={tower:['🗿','Boulder Thrower','80🌲 60⛏️',{w:80,m:60},'Hurls splash boulders (2× damage)'],
         wall:['🧱','Fortify','40⛏️',{m:40},'+50% wall strength'],
@@ -6380,6 +6406,8 @@ function viewQuad(){camera.updateMatrixWorld();const o=camera.position,far=camDi
 // ==================================================== WIN / LOOP
 function ownerCss(o){return '#'+FACTIONS[faction[o]].coat.toString(16).padStart(6,'0');}
 const _fallen={};
+let _regHad={},_regDone={};   // b311: reset per newGame — see newGame()
+const RELIC_GOAL=3;
 function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&&b.type==='hall');
   // b144 (owner request): you are TOLD when a rival goes under, not left to work it out from the minimap
   for(const o of AI_REALMS){ if(_fallen[o])continue;
@@ -6400,8 +6428,23 @@ function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&
     if(b.owner==='player'){
       if(left<=60&&!b._warn60){b._warn60=1;flashMsg('🏛️ Your Wonder stands undisturbed — '+Math.ceil(left/60)+' minute'+(Math.ceil(left/60)===1?'':'s')+' left');}
       if(left<=10&&!b._warn10){b._warn10=1;flashMsg('🏛️ '+Math.ceil(left)+' seconds — hold the Wonder!');} } }
+  // b311: Regicide — a King (hero unit) that's died once and never comes back ends that realm's
+  // game on the spot, Conquest/Wonder rules aside entirely. _regHad tracks "this realm has fielded
+  // a King at some point" so a realm that never trains one isn't auto-defeated by having none.
+  if(winMode==='regicide')for(const o of REALMS){ if(_regDone[o])continue;
+    const hasKing=ents.some(e=>e.owner===o&&e.type==='hero');
+    if(hasKing)_regHad[o]=true;
+    else if(_regHad[o]){ _regDone[o]=1;
+      if(o==='player')endGame(false,'Your King has fallen. Regicide — the reign ends here.');
+      else endGame(true,realmName(o)+"'s King has fallen. Regicide — the realm is yours."); return; } }
+  // b311: Relic Race — first realm to enshrine RELIC_GOAL relics across all their Churches wins.
+  if(winMode==='relicrace'&&!freePlay){ const totals={};
+    for(const b of blds)if(b.type==='church'&&b.done&&b.relics)totals[b.owner]=(totals[b.owner]||0)+b.relics;
+    for(const o in totals)if(totals[o]>=RELIC_GOAL){
+      if(o==='player')endGame(true,'Three relics enshrined — the faithful crown you the victor.');
+      else endGame(false,realmName(o)+' has enshrined three relics first. Relic Race — you\'ve lost the crown.'); return; } }
   const others=AI_REALMS.some(o=>blds.some(b=>b.owner===o&&b.type==='hall'));
-  if(!others&&!freePlay)endGame(true);else if(!ph)endGame(false);}
+  if(!others&&!freePlay&&winMode==='conquest')endGame(true);else if(!ph&&winMode==='conquest')endGame(false);}
 function endGame(win,msg){gameOver=true;running=false;if(win)SFX.age();else SFX.boom();
   const vets=ents.filter(e=>e.owner==='player'&&(e.rank||0)>0).length;
   const vils=villages.filter(v=>v.claimed==='player').length;
@@ -6449,6 +6492,7 @@ function refitShadows(){ const sc=sun.shadow.camera; sc.left=-HALF_W;sc.right=HA
 // and starting a new world only ever took the first. Load a save five times and you were dragging
 // five worlds worth of orphaned scaffolding around behind you. Carts were adrift the same way.
 function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(const b of blds){scene.remove(b.mesh);removeBuildUI(b);}
+  _regHad={};_regDone={};   // b311: Regicide/Relic Race state — must not carry over from a previous game
   for(const c of carts)scene.remove(c.mesh); carts.length=0;
   // b206: particles no longer own meshes — the pools live for the session and are simply emptied
   parts.length=0; for(const k in partIM)partIM[k].im.count=0;
@@ -6469,7 +6513,8 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   for(const o of REALMS){ const [hx,hy]=REALM_SITES[o];
     addBuilding('hall',hx,hy,o,true);
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
-    spawnUnit('spear',o,hx+3,hy+3); spawnUnit('infantry',o,hx-2,hy+3); }
+    spawnUnit('spear',o,hx+3,hy+3); spawnUnit('infantry',o,hx-2,hy+3);
+    if(winMode==='regicide')spawnUnit('hero',o,hx,hy+4); }   // b311: every realm needs a King on the board from turn one, or Regicide has nothing to actually win by
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);standardView(true);
   for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal
@@ -6609,7 +6654,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
       newGame,standardView,VIEW_DIST,VIEW_PITCH,setManScale,get MAN_SCALE(){return MAN_SCALE;},trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
-      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,elevAt,elevMult,get elev(){return elev;},effDmg,healNearby,get _fishSpots(){return _fishSpots;},canPlaceDock,commandTarget,isFlooded,
+      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,elevAt,elevMult,get elev(){return elev;},effDmg,healNearby,get _fishSpots(){return _fishSpots;},canPlaceDock,commandTarget,isFlooded,get winMode(){return winMode;},set winMode(v){winMode=v;},get _regHad(){return _regHad;},get _regDone(){return _regDone;},
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
@@ -6763,7 +6808,9 @@ function updateStartSummary(){const el=document.getElementById('startSummary');i
 function updateSetupBlurb(){const bl=document.getElementById('setupBlurb');if(!bl)return;
   const f=FACTIONS[selFac],m=MAPS[curMapId];
   bl.textContent=(m?m.desc+'. ':'')+(f?f.emo+' '+f.bonus+'.':'');}
-{ const mapSel=document.getElementById('mapSel'),diffSel=document.getElementById('diffSel'),plSel=document.getElementById('plSel'),facSel=document.getElementById('facSel');
+{ const mapSel=document.getElementById('mapSel'),diffSel=document.getElementById('diffSel'),plSel=document.getElementById('plSel'),facSel=document.getElementById('facSel'),winModeSel=document.getElementById('winModeSel');
+  winModeSel.value=winMode;
+  winModeSel.onchange=()=>{winMode=winModeSel.value;localStorage.setItem('crownhelm_winmode',winMode);};
   for(const id in MAPS){ if(MAPS[id].custom)continue; const m=MAPS[id];
     const o=document.createElement('option'); o.value=id; o.textContent=m.name+' ('+m.w+'×'+m.h+')'; mapSel.appendChild(o); }
   addCustomMapBtn();
