@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b312</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b313</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -464,7 +464,7 @@ setMap(curMapId);
 // buildings are the only thing left that spend metal, same list as before, untouched.
 const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:1,time:8,age:1}, archer:{f:35,w:45,pop:1,time:9,age:1},
-  scout:{f:30,w:25,pop:1,time:7,age:1}, petard:{w:50,g:40,pop:1,time:10,age:2}, trebuchet:{w:150,m:130,pop:1,time:26,age:2}, siegetower:{w:180,m:60,pop:1,time:28,age:2},
+  scout:{f:30,w:25,pop:1,time:7,age:1}, petard:{w:50,g:40,pop:1,time:10,age:2}, trebuchet:{w:150,m:130,pop:1,time:26,age:2}, siegetower:{w:180,m:60,pop:1,time:28,age:2}, caravan:{w:70,pop:1,time:12,age:1},
   infantry:{f:45,g:35,pop:1,time:9,age:1}, grenadier:{f:50,g:45,pop:1,time:11,age:1}, dragoon:{f:60,g:55,pop:1,time:13,age:2},
   highlander:{f:120,g:170,pop:1,time:17,age:3}, grenguard:{f:100,g:180,pop:1,time:16,age:3}, wolfrider:{f:110,g:190,pop:1,time:16,age:3}, cuirassier:{f:140,g:210,pop:1,time:18,age:3},
   knight:{f:70,g:60,pop:1,time:14,age:2}, catapult:{w:120,g:100,pop:1,time:20,age:2}, ram:{w:110,g:40,pop:1,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:1,time:11,age:2}, hoplite:{f:80,g:90,pop:1,time:14,age:2},
@@ -532,6 +532,12 @@ const UNIT={
   // passengers on the far side, over the wall instead of through the gate. No combat stats of its
   // own — the payoff is entirely in what it carries.
   siegetower:{hp:200,speed:6,range:0,dmg:0,cd:2,r:1.6,vis:8,dom:'land',color:0x5a4a34,name:'Siege Tower',noAtk:true,transport:true,cargoCap:6},
+  // b312: Escort Caravan — inherits full board/carry/disembark for free from the generic `transport`
+  // flag (right-click it to load workers exactly like a Warboat), but its real point is autonomous:
+  // it doesn't wait to be ordered, see rescueCaravans() in update(dt). Overlaps the existing Town
+  // Bell (a manual, instant, town-wide panic button) only in spirit — this is a roaming, autonomous
+  // safety net that finds threatened workers on its own instead of requiring the player to notice.
+  caravan:{hp:70,speed:13,range:0,dmg:0,cd:2,r:0.9,vis:9,dom:'land',color:0x8f6a3a,name:'Escort Caravan',noAtk:true,transport:true,cargoCap:3},
   knight:{hp:195,speed:19,range:2.8,dmg:20,cd:.9,r:1.2,vis:9,dom:'land',color:0xe0894d,name:'Knight',cav:true},
   cannon:{hp:120,speed:7,range:30,dmg:26,cd:3.2,r:1.7,vis:10,dom:'land',color:0x44444c,name:'Cannon',siege:true,ranged:true},
   howitzer:{hp:110,speed:6.5,range:35,dmg:22,cd:3.8,r:1.7,vis:10,dom:'land',color:0x55554a,name:'Howitzer',siege:true,ranged:true,arc:true},
@@ -2448,6 +2454,32 @@ function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
       const sx=wx(x)+(Math.random()-.5)*6, sz=wz(y)+(Math.random()-.5)*6;
       sheep.push({mesh:m,kind,meat:kind==='boar'?220:kind==='deer'?140:kind==='rabbit'?45:kind==='wolf'?70:90,spd:kind==='deer'?2.6:kind==='boar'?1.4:kind==='rabbit'?3.4:kind==='wolf'?2.0:1.7,
         hp:kind==='boar'?9:kind==='rabbit'?1:kind==='wolf'?6:2,hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }   // b306: boar hp 3->9 — it used to die before it could ever turn on the man shooting it
+// b312: Escort Caravans act on their own — no order needed. Each one scans its own realm's workers
+// for anyone alone and close to an enemy, boards them (reusing the same cargo mechanic the manual
+// transport commands use), and ferries them home to the nearest Hall to disembark. Pathfinding
+// requests are throttled to once a second per caravan, same cadence nearestDrop/nearestChurch use,
+// so a handful of caravans on the map costs nothing worth measuring.
+function rescueCaravans(dt){ for(const e of ents){ if(e.type!=='caravan')continue;
+  e.cargo=e.cargo||[];
+  if(e.cargo.length<UNIT.caravan.cargoCap){ let target=null,bd=22;
+    for(const u of ents){ if(u.owner!==e.owner||u.type!=='worker'||u.inGar)continue;
+      const d=Math.hypot(u.x-e.x,u.z-e.z); if(d>=bd)continue;
+      const threat=ents.some(f=>isHostile(e.owner,f.owner)&&!f.inGar&&Math.hypot(f.x-u.x,f.z-u.z)<12);
+      if(!threat)continue;
+      const guarded=ents.some(g=>g.owner===e.owner&&g.type!=='worker'&&g.type!=='caravan'&&!UNIT[g.type].noAtk&&Math.hypot(g.x-u.x,g.z-u.z)<9);
+      if(guarded)continue;
+      bd=d; target=u; }
+    if(target){ const dt2=Math.hypot(target.x-e.x,target.z-e.z);
+      if(dt2<2.5){ target.inGar='ship'+e.id; target.mesh.visible=false; target.cmd='idle'; target.path=null; e.cargo.push(target.id);
+        if(e.owner==='player')flashMsg('🚚 A worker climbs aboard the caravan — safe for now'); SFX.cmd(); }
+      else if((e._rescT=(e._rescT||0)-dt)<=0){ e._rescT=1; e.cmd='move'; orderPath(e,txFromW(target.x),tzFromW(target.z),0); } } }
+  if(e.cargo.length){ const hall=blds.find(b=>b.owner===e.owner&&b.type==='hall');
+    if(hall){ const dh=Math.hypot(hall.cx-e.x,hall.cz-e.z);
+      if(dh<Math.max(hall.w,hall.h)*TILE*0.5+3){ const ids=e.cargo.slice(); e.cargo=[];
+        ids.forEach(id=>{ const u=ents.find(en=>en.id===id); if(!u)return; u.inGar=null; u.mesh.visible=true;
+          u.x=hall.cx+(Math.random()-.5)*6; u.z=hall.cz+(Math.random()-.5)*6; u.cmd='idle'; placeMesh(u); });
+        if(e.owner==='player')flashMsg('🚚 Delivered safely home'); }
+      else if((e._rescT2=(e._rescT2||0)-dt)<=0){ e._rescT2=1; e.cmd='move'; orderPath(e,hall.tx+(hall.w>>1),hall.ty+hall.h,hall.id); } } } } }
 function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   if(s.angry&&elapsed>(s.angryUntil||0)){ s.angry=false; s.spd=1.4; s.wait=0; }   // b306: nobody's shooting at it anymore — it settles back down
   // b306: a wolf goes looking for an unescorted worker instead of waiting to be hunted — a soldier
@@ -3974,6 +4006,7 @@ function foesOfOwner(o){ if(_foeStamp!==_stepN){_foeMap={};_foeStamp=_stepN;}
   return _foeMap[o]=a; }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
+  rescueCaravans(dt);
   // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
   // one-shot burst reveal. Cheap: runs every 6s, only over realms already discovered.
   spyT-=dt; if(spyT<=0){ spyT=6; if(tech.player.spy)for(const o of AI_REALMS)if(realmKnown(o)){
@@ -5921,6 +5954,7 @@ const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. 
   petard:'Cannot fight soldiers at all — runs at a wall or gate and blows it open, spending itself on the one blast.',
   trebuchet:'Cannot fight soldiers, and cannot fire on the move — needs 3s to unpack before it can shoot, and re-packs the instant you order it elsewhere. Devastating against buildings once set up.',
   siegetower:'Cannot fight at all. Board it with soldiers (right-click it, same as a Warboat), push it up against an enemy wall or gate, then right-click that wall — your men come down on the far side, over it instead of through it.',
+  caravan:'Cannot fight. Roams your own land on its own account and picks up any worker caught alone near an enemy, carrying him home without waiting to be told — you can also board it by hand, same as a Warboat.',
   spear:'Cheap line infantry; bonus vs cavalry.', archer:'Fast ranged harass.',
   viking:'Tough axe infantry; bonus vs siege engines.', samurai:'Duelist — bonus vs enemy champions (Age II).',
   knight:'Heavy shock cavalry (Age II).', dragoon:'Mounted musket — fast flanker (Age II).',
@@ -6078,6 +6112,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         if(gn)techBtn(cmds,'⛨','Sally Forth',gn+' inside',true,()=>{ungarrison(b);refreshUI();});}
       if(b.type==='market'){
         trainBtn(cmds,b,'tradecart','\uD83D\uDED2','Trade Cart',can);
+        trainBtn(cmds,b,'caravan','\uD83D\uDE9A','Escort Caravan',can);
         { const to=tradePartner('player');
           info.innerHTML+='<br><span style="font-size:11px;color:#9fc0d2">\uD83D\uDED2 '
             +(to?('Trading with '+realmName(to.owner)+' \u2014 '+Math.max(2,Math.round(Math.hypot(to.cx-b.cx,to.cz-b.cz)*TRADE_RATE))+'\uD83D\uDCB0 a run')
