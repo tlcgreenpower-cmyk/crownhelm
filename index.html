@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b319</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b320</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -227,6 +227,7 @@
     <div id="gameMenu" class="hidden">
       <div style="width:310px;background:#0e2230;border:1px solid #2c5164;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.65);">
         <div style="font:700 21px Georgia,serif;color:#f3e4be;text-align:center;letter-spacing:3px;margin-bottom:6px;">☰ GAME MENU</div>
+        <button class="gmb" id="saveBtn">💾 Save / Load</button>
         <button class="gmb" id="gmResume">▶ Resume</button>
         <button class="gmb" id="muteBtn">🔊 Sound: On</button>
         <div class="gmb" style="display:flex;align-items:center;gap:10px;cursor:default"><span style="flex:none">🔉 Volume</span>
@@ -234,7 +235,6 @@
           <span id="volVal" style="flex:none;width:38px;text-align:right;color:#c9a44a">70%</span></div>
         <button class="gmb" id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks">⚙ Medium</button>
         <button class="gmb" id="guideBtn">📖 Guide — every unit &amp; building</button>
-        <button class="gmb" id="saveBtn">💾 Save / Load</button>
         <button class="gmb" id="menuBtn" title="Back to the main menu — your kingdom is autosaved first">🏰 Quit to Main Menu</button>
         <div style="font-size:11px;color:#5f7f92;text-align:center;margin-top:4px;">the game stands paused while this menu is open</div>
       </div>
@@ -383,23 +383,19 @@ function liftCharacterTone(root){ if(!root)return root;
     const mats=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];
     for(const m of mats){ if(!m||!m.color||_toneDone.has(m))continue; _toneDone.add(m);
       if(m.vertexColors)continue;   // white carrier — leave it as the neutral multiplier
-      // b302: Lisa paints her whole figure onto one base-colour IMAGE rather than vertex colours
-      // (everyone else in the roster is vertex-baked) — m.color is already white going in, a
-      // neutral multiplier over that texture, so lifting it through the usual curve leaves white
-      // at white and does nothing. There's no per-pixel access to lift the texture's own black
-      // point, so the closest equivalent is brightening the multiplier itself above white.
-      // b317: that alone wasn't enough for the King and the Pikeman - dark armour on both reads
-      // as genuinely near-black pixels in the source texture, and multiplying a near-zero value
-      // only ever gets you back to near-zero. A multiplier can't lift a true black; only an
-      // ADDITIVE term can, so this also gives every textured character a flat emissive floor
-      // alongside the multiply, the same way the vertex-colour curve raises CHAR_BLACK for
-      // everyone else.
-      // b319: the first pass (0x8a8a7e) fixed the near-black armour but, because emissive has
-      // no map of its own, it adds that SAME flat value everywhere regardless of what the base
-      // texture already had there - on the already-lit skin and cloth it stacked past white and
-      // flattened him into a featureless pale ghost. Pulled both terms back to something that
-      // only really shows up where the texture was genuinely dark to begin with.
-      if(m.map){ m.color.multiplyScalar(1.3); m.emissive=new THREE.Color(0x3a3a35); m.emissiveIntensity=1; continue; }
+      // b320 THE ACTUAL CAUSE OF THE "DARK" CHARACTERS. Every textured character (Lisa, Meiya,
+      // the King, the Pikeman, the Bowman) was importing with metalness=1, roughness=1. Those
+      // are the glTF material's SCALAR factors, and they were only ever harmless because the
+      // source shipped a metallic-roughness MAP that modulated them per-pixel to ~0 over cloth
+      // and skin. Our import pipeline drops that map (this engine reads no metal/rough data),
+      // which leaves the factors standing at a flat 1.0 - and in PBR, metalness=1 means the
+      // surface has NO diffuse response at all: it shows only reflected environment. There is
+      // no environment map here, so a beautiful 1024px base-colour texture rendered as a
+      // featureless dark-grey silhouette, and no amount of brightening the base colour could
+      // ever bring it back, because the diffuse term was being multiplied out entirely.
+      // b302/b317/b319 were all treating this symptom from the wrong end. Non-metal, medium
+      // roughness matches how the vertex-baked roster is lit, so they now sit in the same world.
+      if(m.map){ m.metalness=0; m.roughness=0.78; continue; }
       const [r,gg,b]=sat(_liftCh(m.color.r),_liftCh(m.color.g),_liftCh(m.color.b));
       m.color.setRGB(srgb2lin(r),srgb2lin(gg),srgb2lin(b)); } });
   return root; }
@@ -2597,7 +2593,11 @@ const WEAPONS={
 };
 // which weapon, and how it is carried: [kind, x, y, z, tiltX, tiltZ]
 const ARMS={
-  spear:['pike',.34,.05,-.05,-0.16,0.10], hoplite:['pike',.34,.05,-.05,-0.16,0.10],
+  // b320: the pike shaft is 4.4 long centred at 1.6, so its butt sits at -0.6 in weapon space -
+  // carried at y=.05 that drove 0.43 of it into the dirt under every Pikeman on the field. Raised
+  // so the butt rests just above the turf. Scale-invariant: the offset and the geometry are both
+  // multiplied by MAN_SCALE, so this holds at either man size.
+  spear:['pike',.34,.645,-.05,-0.16,0.10], hoplite:['pike',.34,.645,-.05,-0.16,0.10],
   infantry:['musket',.30,.55,-.02,-0.55,0.22], grenadier:['musket',.30,.55,-.02,-0.55,0.22],
   chukonu:['bow',-.34,1.0,.05,0,0], archer:['bow',-.34,1.0,.05,0,0],
   hero:['sword',.36,.5,.02,-0.30,0.18], cuirassier:['sword',.36,.6,.02,-0.30,0.18],
@@ -3328,7 +3328,19 @@ function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owne
 // between the quartile and the median, so it meets a typical bank roughly level and only steps a
 // little either way on unusually low or high ground.
 const BRIDGE_DECK=1.15, BRIDGE_WALK=BRIDGE_DECK+0.32;
+// b320 FEET IN THE DIRT. A man was planted at the ground height of ONE point - the tile position
+// under his navel - while his feet occupy a patch around it. On a slope that patch spans real
+// height: measured on this map, up to 0.47 across a 1.6-wide footprint, which buried the uphill
+// boot ~0.24 deep while the downhill one hung in the air. Sampling the corners of his own stance
+// and standing him on the HIGHEST of them costs four bilinear lookups (no allocation) and means
+// no foot ever sinks through the hill - the downhill boot floats by a fraction instead, which is
+// the trade every RTS makes because a floating heel reads as nothing and a buried shin reads as a
+// bug. Water domains are left alone: a boat near a beach must not be lifted onto the sand.
+const _FOOT_R=0.45;
 function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
+  if(UNIT[e.type]&&UNIT[e.type].dom!=='water'){ const r=_FOOT_R*MAN_SCALE;
+    const a=heightAtWorld(e.x-r,e.z),b=heightAtWorld(e.x+r,e.z),c=heightAtWorld(e.x,e.z-r),d=heightAtWorld(e.x,e.z+r);
+    if(a>y)y=a; if(b>y)y=b; if(c>y)y=c; if(d>y)y=d; }
   if(bridgeTiles.size&&y<waterY){const bi=ti(txFromW(e.x),tzFromW(e.z));if(bridgeTiles.has(bi))y=waterY+BRIDGE_WALK;}   // march the planks, not the seabed
   // b250: derived, never stored - and never below the ground he is standing on
   if(e._onDeck&&e.cmd==='tend'&&e.tendB&&!e.tendB._gone){ const dy=farmSurfaceY(e.tendB,e.x,e.z); if(dy>y)y=dy; }
