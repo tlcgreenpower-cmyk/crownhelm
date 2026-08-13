@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b308</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b309</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -458,6 +458,7 @@ setMap(curMapId);
 // buildings are the only thing left that spend metal, same list as before, untouched.
 const COST={
   worker:{f:50,pop:1,time:6,age:1}, spear:{f:45,w:20,pop:1,time:8,age:1}, archer:{f:35,w:45,pop:1,time:9,age:1},
+  scout:{f:30,w:25,pop:1,time:7,age:1}, petard:{w:50,g:40,pop:1,time:10,age:2}, trebuchet:{w:150,m:130,pop:1,time:26,age:2},
   infantry:{f:45,g:35,pop:1,time:9,age:1}, grenadier:{f:50,g:45,pop:1,time:11,age:1}, dragoon:{f:60,g:55,pop:1,time:13,age:2},
   highlander:{f:120,g:170,pop:1,time:17,age:3}, grenguard:{f:100,g:180,pop:1,time:16,age:3}, wolfrider:{f:110,g:190,pop:1,time:16,age:3}, cuirassier:{f:140,g:210,pop:1,time:18,age:3},
   knight:{f:70,g:60,pop:1,time:14,age:2}, catapult:{w:120,g:100,pop:1,time:20,age:2}, ram:{w:110,g:40,pop:1,time:18,age:2}, chukonu:{f:55,w:40,g:20,pop:1,time:11,age:2}, hoplite:{f:80,g:90,pop:1,time:14,age:2},
@@ -506,6 +507,19 @@ const UNIT={
   infantry:{hp:110,speed:12,range:16,dmg:13,cd:1.5,r:1.05,vis:9,dom:'land',color:0xcccccc,name:'Infantry',coat:true,ranged:true},
   grenadier:{hp:118,speed:11.5,range:13,dmg:16,cd:2.0,r:1.05,vis:9,dom:'land',color:0xcccccc,name:'Grenadier',coat:true,ranged:true,arc:true},
   dragoon:{hp:150,speed:17,range:15,dmg:12,cd:1.4,r:1.15,vis:10,dom:'land',color:0xcccccc,name:'Dragoon',coat:true,ranged:true,cav:true},
+  // b309: a Scout is bought for legs and eyes, not a sword — fastest thing on the map and sees
+  // furthest, but can barely fight. The open world is the reason this earns its keep here more
+  // than it would on a fixed AoE2 map: there's actually somewhere to go look.
+  scout:{hp:38,speed:22,range:0,dmg:2,cd:1.4,r:0.85,vis:15,dom:'land',color:0x8a6a3a,name:'Scout',cav:true},
+  // b309: Petard — an expendable rush option against turtled walls, the thing the siege roster was
+  // missing (a Ram/Catapult/Cannon/Howitzer are all slow, expensive investments; this is neither).
+  // ramOnly (same flag the Ram already uses) means it can't fight soldiers at all, only buildings —
+  // and it spends itself on the first hit, handled in doAttackB.
+  petard:{hp:22,speed:15,range:0,dmg:300,cd:1,r:0.8,vis:7,dom:'land',color:0x3a2f22,name:'Petard',ramOnly:true,petard:true},
+  // b309: Trebuchet — immobile once deployed (unpack:3 = 3s to set up before it can fire at all,
+  // enforced in case 'attackb'), repacks the instant it's given a new move order (commandMove).
+  // Real building-breaking power to reward committing to the setup/teardown decision.
+  trebuchet:{hp:140,speed:5,range:32,dmg:34,cd:4,r:1.6,vis:9,dom:'land',color:0x7a6a52,name:'Trebuchet',siege:true,ranged:true,arc:true,ramOnly:true,unpack:3},
   knight:{hp:195,speed:19,range:2.8,dmg:20,cd:.9,r:1.2,vis:9,dom:'land',color:0xe0894d,name:'Knight',cav:true},
   cannon:{hp:120,speed:7,range:30,dmg:26,cd:3.2,r:1.7,vis:10,dom:'land',color:0x44444c,name:'Cannon',siege:true,ranged:true},
   howitzer:{hp:110,speed:6.5,range:35,dmg:22,cd:3.8,r:1.7,vis:10,dom:'land',color:0x55554a,name:'Howitzer',siege:true,ranged:true,arc:true},
@@ -3573,7 +3587,7 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   grp.add(fl);grp.position.set(-.35*MAN_SCALE,0,-.35*MAN_SCALE);grp.scale.setScalar(MAN_SCALE);   // b227: and so does the standard
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
-function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;u._onDeck=false;if(u.stance==='defend')u.post={x,z};}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege
+function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;u._onDeck=false;if(u.stance==='defend')u.post={x,z};if(UNIT[u.type].unpack){u.unpacked=false;u.unpackT=0;u._unpackMsg=0;}}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege. b309: relocating a Trebuchet re-packs it — no free re-aim after a walk
   // b118: real-army order — melee line front, muskets centre, cavalry next, guns & healers rear,
   // and every regiment stands TOGETHER (same types form contiguous blocks in the ranks)
   const rank=t=>{const U=UNIT[t];return (U.heal||U.noAtk)?5:(U.siege||U.ramOnly)?4:U.cav?2:U.ranged?1:0;};   // healers ALWAYS at the very back (owner rule)
@@ -4356,7 +4370,13 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     // hundred and eighty men and two hundred buildings that is the same quadratic waste b191 and
     // b192 took out of the towers and the target acquisition, hiding in the commands.
     case 'attack':{const t=e.target;if(!t||t.hp<=0||t._dead||t.inGar){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-t.x,e.z-t.z);if(d<=UNIT[e.type].range+UNIT[t.type].r){e.path=null;e.dir=Math.atan2(t.z-e.z,t.x-e.x);doAttack(e,t);}else if(e.stance==='hold'){e.target=null;e.path=null;e.cmd='idle';}else if(arrived||(!e.path&&Math.random()<dt*5)||Math.random()<dt*0.7)orderPath(e,txFromW(t.x),tzFromW(t.z),0);break;}
-    case 'attackb':{const b=e.target;if(!b||b.hp<=0||b._gone){e.path=null;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;if(d<=reach){e.path=null;e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);doAttackB(e,b);}else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id);break;}
+    case 'attackb':{const b=e.target;if(!b||b.hp<=0||b._gone){e.path=null;e.unpacked=false;e.unpackT=0;if(!acquireNext(e))e.cmd='idle';break;}const d=Math.hypot(e.x-b.cx,e.z-b.cz),reach=UNIT[e.type].range+Math.max(b.w,b.h)*TILE*0.5+1;
+      if(d<=reach){ e.path=null; e.dir=Math.atan2(b.cz-e.z,b.cx-e.x);
+        const upk=UNIT[e.type].unpack;
+        if(upk&&!e.unpacked){ e.unpackT=(e.unpackT||0)+dt; if(e.owner==='player'&&!e._unpackMsg){e._unpackMsg=1;flashMsg('🔧 Unpacking the trebuchet — '+Math.ceil(upk-e.unpackT)+'s');}
+          if(e.unpackT>=upk){e.unpacked=true;e._unpackMsg=0;} }
+        else doAttackB(e,b);
+      } else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
     case 'hunt':{const s=e.hunt;
       if(!s||!sheep.includes(s)){ e.hunt=null; const n2=nearestNode(e,'food');
         if(n2&&Math.hypot(e.x-wx(n2.tx),e.z-wz(n2.ty))<16)gatherOrder(e,n2);else e.cmd='idle'; break; }
@@ -4679,7 +4699,8 @@ function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk||UNIT[e.type].ramOnly)retur
   else{t.hp-=effDmg(e)*elevMult(e,t)+counterBonus(e,t);t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
 function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;b._hitBy=e.owner;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;const mult=U.siege?6:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4;   // AoE2 pacing: fat buildings fall fast to siege, slowly to muskets
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player'){sfxWhere(e.x,e.z);SFX.boom();}}
-  else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);}
+  else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);
+    if(U.petard){e.hp=0;for(let i=0;i<10;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'debris');sfxWhere(e.x,e.z);SFX.boom();}}   // b309: spent on the one blast
   if(b.owner==='player'&&e.owner!=='player')pingAttack(b.cx,b.cz);
   else if(b.owner!=='player'&&realmAI[b.owner]){realmAI[b.owner].raid={x:b.cx,z:b.cz,t:elapsed};}   // b158: a realm notices its own town burning
 }
@@ -5831,6 +5852,9 @@ const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deli
   range:'Archery Range — trains Skirmishers and Grenadiers.',
   stable:'Stable — trains Knights and Dragoons (Age II). A horse waits in the paddock.'};
 const UNIT_DESC={worker:'Gathers, builds, hunts game with a musket, sows farms. The kingdom rests on his shoulders.',
+  scout:'Fast, far-sighted, barely armed — bought to find the land and the neighbours, not to fight either.',
+  petard:'Cannot fight soldiers at all — runs at a wall or gate and blows it open, spending itself on the one blast.',
+  trebuchet:'Cannot fight soldiers, and cannot fire on the move — needs 3s to unpack before it can shoot, and re-packs the instant you order it elsewhere. Devastating against buildings once set up.',
   spear:'Cheap line infantry; bonus vs cavalry.', archer:'Fast ranged harass.',
   viking:'Tough axe infantry; bonus vs siege engines.', samurai:'Duelist — bonus vs enemy champions (Age II).',
   knight:'Heavy shock cavalry (Age II).', dragoon:'Mounted musket — fast flanker (Age II).',
@@ -5909,7 +5933,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
             +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="ageBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#1c4d6d,#7fc4e8);width:'+Math.round((1-T.ageTimer/tot)*100)+'%"></div></div>';}}
       if(b.type==='range'){trainBtn(cmds,b,'archer','🏹','Skirmisher',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);if(tech.player.age>=2)rschButtons(cmds,['rangedoc']);}
       if(b.type==='stable'){trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'dragoon','🐴','Dragoon',can);if(tech.player.age>=2)rschButtons(cmds,['cavdoc']);}
-      if(b.type==='barracks'){trainBtn(cmds,b,'spear','🛡','Pikeman',can);trainBtn(cmds,b,'viking','⚔️','Viking Raider',can);if(tech.player.age>=2)trainBtn(cmds,b,'samurai','🗡️','Samurai',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);
+      if(b.type==='barracks'){trainBtn(cmds,b,'spear','🛡','Pikeman',can);trainBtn(cmds,b,'viking','⚔️','Viking Raider',can);trainBtn(cmds,b,'scout','🐎','Scout',can);if(tech.player.age>=2)trainBtn(cmds,b,'samurai','🗡️','Samurai',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);
         rschButtons(cmds);info.innerHTML+=rschLineHTML();}
       if(b.type==='armourer'){ const T=tech.player;
         rschButtons(cmds,['armor']);
@@ -5927,7 +5951,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
       if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2){trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);rschButtons(cmds,['faith']);}}
       if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);rschButtons(cmds,['spy']);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3){trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);rschButtons(cmds,['unique']);}}
-      if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);}
+      if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);trainBtn(cmds,b,'petard','💥','Petard',can);trainBtn(cmds,b,'trebuchet','🪨','Trebuchet',can);}
       if(b.type==='dock'){trainBtn(cmds,b,'warboat','⛵','Warboat',can);if(tech.player.age>=2)trainBtn(cmds,b,'privateer','🏴‍☠️','Privateer',can);}
       const UPG={tower:['🗿','Boulder Thrower','80🌲 60⛏️',{w:80,m:60},'Hurls splash boulders (2× damage)'],
         wall:['🧱','Fortify','40⛏️',{m:40},'+50% wall strength'],
