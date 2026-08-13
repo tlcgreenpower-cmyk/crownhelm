@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b306</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b307</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -556,7 +556,16 @@ const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, 
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
   weapon:{ic:'⚔',name:'Weapons',costs:[{m:80,f:80},{m:150,f:120},{m:220,f:180}],times:[70,110,150],age:[1,2,3]},
-  armor:{ic:'🛡',name:'Armor',costs:[{w:80,f:80},{w:150,f:120},{w:220,f:180}],times:[60,100,140],age:[1,2,3]}};
+  armor:{ic:'🛡',name:'Armor',costs:[{w:80,f:80},{w:150,f:120},{w:220,f:180}],times:[60,100,140],age:[1,2,3]},
+  // b307: Faith — a Church tech, one tier only. Doesn't stop conversion outright, just makes your
+  // men take 60% longer to talk over, the same "raise the bar, don't remove the risk" shape as
+  // AoE2's own Faith tech.
+  faith:{ic:'🕊️',name:'Faith',costs:[{f:100,g:60}],times:[80],age:[2]},
+  // b307: Spy Network — an intelligence layer, not another combat stat. Once researched it keeps a
+  // standing watch on every rival Keep you've ever found, rather than a one-shot reveal you'd have
+  // to remember to use — simpler to build, and it never goes stale the way a single burst would.
+  spy:{ic:'🕵️',name:'Spy Network',costs:[{g:150,f:60}],times:[90],age:[2]},
+  range:{ic:'🎯',name:'Fortification Range',costs:[{m:100,w:60}],times:[70],age:[2]}};
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=2.6,MILL_FOOD=2.0,CARRY=12,MINE=6.5,AGE2={f:300,w:250,time:70},AGE3={f:600,w:400,m:200,time:100};
 const GERM_TIME=25;   // b301 (owner request): a freshly-sown field takes this long, tended, before it's yielding in full
 const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu',sacred:'hoplite'};
@@ -567,7 +576,7 @@ let woodNodes=[],metalNodes=[],goldNodes=[],ents=[],blds=[],projs=[],parts=[],id
 let citizens=[],villages=[],corpses=[],relics=[];
 let res={},tech={},realmAI={};
 function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
-  for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,ageTimer:0}; }
+  for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,faith:0,spy:0,range:0,ageTimer:0}; }
   // b189: every realm used to build the SAME TOWN. The caps in the build order are fixed numbers,
   // so eight kingdoms of eight different factions all converged on exactly five farms, two mills,
   // one storehouse, one church, one gunshop and one watch house — measured across seven realms at
@@ -3843,7 +3852,7 @@ let _ut=0,_selSet=null;
 function _u(k){ if(!_prof)return; const n=performance.now(); _prof[k]=(_prof[k]||0)+(n-_ut); _ut=n; }
 // b140: THE HARVEST CHAIN. Grain is worth little until a Mill grinds it, flour is worth more
 // once a Bakery bakes it, and a town that eats only one crop eats badly. Surveyed once a second.
-let econT=0;
+let econT=0, spyT=0;
 function recalcHarvest(){
   const near=(b,type,r)=>blds.some(q=>q.owner===b.owner&&q.done&&q.type===type&&Math.hypot(q.cx-b.cx,q.cz-b.cz)<r);
   const diet={};   // distinct crops per realm — variety keeps the townsfolk fed and willing
@@ -3877,6 +3886,11 @@ function foesOfOwner(o){ if(_foeStamp!==_stepN){_foeMap={};_foeStamp=_stepN;}
   return _foeMap[o]=a; }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
+  // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
+  // one-shot burst reveal. Cheap: runs every 6s, only over realms already discovered.
+  spyT-=dt; if(spyT<=0){ spyT=6; if(tech.player.spy)for(const o of AI_REALMS)if(realmKnown(o)){
+    const h=blds.find(b=>b.owner===o&&b.type==='hall');
+    if(h)for(let dy=-11;dy<=11;dy++)for(let dx=-11;dx<=11;dx++)if(dx*dx+dy*dy<=121){const x=h.tx+dx,y=h.ty+dy;if(inB(x,y))explored[ti(x,y)]=1;} } }
   for(const b of blds)if(b.type==='farm'&&b.done){let dry=true;for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++)if(inB(x,y)&&isFlooded(x,y))dry=false;if(dry){const tenders=Math.min(1,ents.filter(u=>u.cmd==='tend'&&u.tendB===b).length);
     if(tenders>0)b._grow=Math.min(1,(b._grow||0)+dt/GERM_TIME);   // b301: the crop grows in, it doesn't just appear — no farmhand, no growth, and growth never goes backward once tended
     const gf=b._grow||0;
@@ -3940,7 +3954,7 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   const entById=id=>{ if(!_idMapped){ for(const e of ents)_byId.set(e.id,e); _idMapped=true; } return _byId.get(id); };
   for(const b of blds)if(b.done&&(b.type==='tower'||b.type==='castle'||b.type==='watch'||(b.gar&&b.gar.length))){b.cd-=dt;if(b.cd<=0){
     const isC=b.type==='castle',isW=b.type==='watch',isT=b.type==='tower';
-    const rng=isC?30:isW?18:isT?TOWER_RANGE:20;
+    const rng=(isC?30:isW?18:isT?TOWER_RANGE:20)*(tech[b.owner].range?1.25:1);   // b307: Fortification Range
     let dm=isC?26:isW?9:isT?TOWER_DMG:0;
     if(isT&&b.up2)dm*=2.6;else if(isT&&b.up)dm*=2;
     if(b.gar)for(const id of b.gar){const u=entById(id);if(u)dm+=UNIT[u.type].ranged?effDmg(u)*0.5:3;}   // the garrison mans the loopholes
@@ -4482,7 +4496,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
         if(arrived||(!e.path&&Math.random()<dt*4)||Math.random()<dt*0.8)orderPath(e,txFromW(t.x),tzFromW(t.z),0); break; }
       e.path=null; e.dir=Math.atan2(t.z-e.z,t.x-e.x); e.convT=(e.convT||0)+dt;
       if(Math.random()<dt*7)spawnPart(t.x+(Math.random()-.5)*1.3,heightAtWorld(t.x,t.z)+0.9+Math.random()*1.8,t.z+(Math.random()-.5)*1.3,'heal');
-      if(e.convT>=U.convt)convertUnit(e,t);
+      if(e.convT>=U.convt*(tech[t.owner].faith?1.6:1))convertUnit(e,t);   // b307: Faith — 60% longer to talk him over
       break;}
     case 'inside':break;   // safe behind the walls — the building does the fighting
     case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;e._onDeck=false;e._tendTo=null;break;}
@@ -5882,6 +5896,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         rschButtons(cmds);info.innerHTML+=rschLineHTML();}
       if(b.type==='armourer'){ const T=tech.player;
         rschButtons(cmds,['armor']);
+        if(T.age>=2)rschButtons(cmds,['range']);
         if(T.plate)techBtn(cmds,'🛡','Tempered Plate','forged',false,()=>{},true);
         else techBtn(cmds,'🛡','Tempered Plate',b.rschK?'forging… '+Math.ceil(b.rschT)+'s':(T.age<2?'Age 2':'160⛏️ 120🌲 · 90s'),
           !b.rschK&&T.age>=2&&res.player.m>=160&&res.player.w>=120,()=>{
@@ -5893,8 +5908,8 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         info.innerHTML+='<br><span style="color:#9fc0d2;font-size:11px">🛡 Armour research here is 20% cheaper and 30% faster</span>';
         if(T.plate)info.innerHTML+='<br><span style="color:#7fd08a">🛡 Tempered Plate — new soldiers +10% health</span>'; }
       if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
-      if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2)trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);}
-      if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2)trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
+      if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2){trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);rschButtons(cmds,['faith']);}}
+      if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);rschButtons(cmds,['spy']);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
       if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);}
       if(b.type==='dock'){trainBtn(cmds,b,'warboat','⛵','Warboat',can);if(tech.player.age>=2)trainBtn(cmds,b,'privateer','🏴‍☠️','Privateer',can);}
       const UPG={tower:['🗿','Boulder Thrower','80🌲 60⛏️',{w:80,m:60},'Hurls splash boulders (2× damage)'],
@@ -6016,7 +6031,7 @@ function rschTime(rk,tier,o){ return Math.round(RSCH[rk].times[tier]*((rk==='arm
 function rschButtons(cmds,keys){ const T=tech.player,r=res.player;
   const can=c=>(r.f>=(c.f||0)&&r.w>=(c.w||0)&&r.m>=(c.m||0));
   for(const rk of (keys||['weapon','armor'])){ const D=RSCH[rk],tier=T[rk]||0,R=T.rsch;
-    if(tier>=3){techBtn(cmds,D.ic,D.name+' MAX','forged',false,()=>{},true);continue;}
+    if(tier>=D.costs.length){techBtn(cmds,D.ic,D.name+' MAX','forged',false,()=>{},true);continue;}
     const c=rschCost(rk,tier,'player'),tm=rschTime(rk,tier,'player'),needAge=D.age[tier];
     const keen=(rk==='armor'&&hasArmourer('player'));
     const costStr=(c.m?c.m+'⛏️ ':'')+(c.w?c.w+'🌲 ':'')+(c.f?c.f+'🍖':'')+' · '+tm+'s'+(keen?' 🛡':'');
@@ -6105,7 +6120,14 @@ function renderDiplo(){const p=$('diplo');if(p.classList.contains('hidden'))retu
       h+=d.stance==='war'?`<button class="btn" style="margin-top:5px;" onclick="window._peace('${o}')">🕊 Offer Peace (200g)</button>`:`<button class="btn" style="margin-top:5px;" onclick="window._war('${o}')">⚔ Declare War</button>`; }
     h+='</div>'; }
   p.innerHTML=h;}
-window._gift=o=>{if(res.player.g<100){flashMsg('Not enough gold');return;}res.player.g-=100;diplo[o].score+=25;if(diplo[o].score>=25&&diplo[o].stance==='war')diplo[o].stance='neutral';SFX.cmd();flashMsg(realmName(o)+' welcomes your gift.');renderDiplo();updateHUD();};
+// b307: tribute with a cut — gold spent on a gift doesn't buy full goodwill unless a Market
+// smooths the route there, the same "some value is lost getting resources to an ally" idea AoE2's
+// tribute tax uses, reusing an existing building instead of inventing a new one just for this.
+window._gift=o=>{if(res.player.g<100){flashMsg('Not enough gold');return;}res.player.g-=100;
+  const smoothed=blds.some(b=>b.owner==='player'&&b.type==='market'&&b.done);
+  const gain=Math.round(25*(smoothed?1:0.8));
+  diplo[o].score+=gain;if(diplo[o].score>=25&&diplo[o].stance==='war')diplo[o].stance='neutral';SFX.cmd();
+  flashMsg(realmName(o)+' welcomes your gift'+(smoothed?'':' — a Market would make it go further')+'.');renderDiplo();updateHUD();};
 window._war=o=>{declareWar(o,'player');renderDiplo();};
 window._peace=o=>{if(res.player.g<200){flashMsg('Not enough gold');return;}res.player.g-=200;diplo[o].stance='neutral';diplo[o].score=Math.max(diplo[o].score,5);
   for(const k of Object.keys(aiWars))if(k.includes(o))delete aiWars[k];   // allied wars end with yours
