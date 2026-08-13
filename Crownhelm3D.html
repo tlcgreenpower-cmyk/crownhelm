@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b309</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b310</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -595,6 +595,12 @@ const RSCH={
   rangedoc:{ic:'🏹',name:'Ranged Doctrine',costs:[{g:120,w:80}],times:[80],age:[2]}};
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=2.6,MILL_FOOD=2.0,CARRY=12,MINE=6.5,AGE2={f:300,w:250,time:70},AGE3={f:600,w:400,m:200,time:100};
 const GERM_TIME=25;   // b301 (owner request): a freshly-sown field takes this long, tended, before it's yielding in full
+// b310: a realm's personality — rolled once at newGame, biases aggression and build taste on top
+// of (not instead of) the existing DIFF difficulty scalars.
+const AI_PERS={
+  rush: {aggroMul:1.6, wave:0.65, taste:{farm:0.7, mill:0.7, barracks:1.6, tower:0.8, watch:0.8}},
+  turtle:{aggroMul:0.5, wave:1.4,  taste:{farm:1.0, mill:1.0, barracks:0.8, tower:1.8, watch:1.6}},
+  boom:  {aggroMul:0.8, wave:1.15, taste:{farm:1.5, mill:1.4, barracks:0.9, tower:0.9, watch:0.9}}};
 const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu',sacred:'hoplite'};
 
 // ==================================================== STATE
@@ -611,10 +617,15 @@ function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
   // farming country with barns everywhere and barely a wall, some bristle with towers, some raise
   // three barracks and let the fields look after themselves. Scouting a neighbour tells you
   // something about them now, and the map stops looking stamped out.
+  // b310 (owner request): three AI realms rolling the same numbers with different seeds still play
+  // the same way at a different volume. A personality rolled once per realm — rusher, turtle, or
+  // boomer — biases how readily it picks a fight AND what it actually builds, so the neighbours
+  // read as different opponents, not the same opponent at three difficulty knobs.
   for(const o of AI_REALMS){ const rr=()=>Math.random();
-    realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:30+Math.random()*50,warCheck:120+Math.random()*120,
-      taste:{farm:4+Math.round(rr()*3), mill:1+Math.round(rr()*2), barracks:1+Math.round(rr()*2),
-        tower:Math.round(rr()*3), watch:1+Math.round(rr()*1), church:rr()<0.75?1:0}};
+    const pers=['rush','turtle','boom'][Math.floor(rr()*3)], P=AI_PERS[pers];
+    realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:(30+Math.random()*50)*P.aggroMul,warCheck:120+Math.random()*120,pers,
+      taste:{farm:Math.max(1,Math.round((4+Math.round(rr()*3))*P.taste.farm)), mill:Math.max(0,Math.round((1+Math.round(rr()*2))*P.taste.mill)), barracks:Math.max(1,Math.round((1+Math.round(rr()*2))*P.taste.barracks)),
+        tower:Math.round(Math.round(rr()*3)*P.taste.tower), watch:Math.max(0,Math.round((1+Math.round(rr()*1))*P.taste.watch)), church:rr()<0.75?1:0}};
     diplo[o]={score:10,stance:'neutral'}; } }
 initRealms();
 let selected=[],selBuilding=null,placing=null,groups={},attackMove=false,patrolMode=false,buildCat=null,demoMode=false;
@@ -3934,6 +3945,12 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   for(const b of blds)if(b.type==='market'&&b.done)res[b.owner].g+=0.8*dt;      // markets mint steady gold
   for(const v of villages)if(v.claimed)res[v.claimed].g+=0.5*dt;               // villages pay tribute
   for(const b of blds)if(b.type==='church'&&b.done&&b.relics)res[b.owner].g+=RELIC_RATE*b.relics*dt;   // b300: relics trickle gold
+  // b309: fishing — the shoreline splash spots were purely cosmetic before. A Dock built near a
+  // good stretch of them now hauls in real food, scaling with how many fish-spots are actually in
+  // reach, capped so one dock can't out-produce a farm on its own. Recomputed once a second, not
+  // every tick, since _fishSpots doesn't move and neither does the dock.
+  if(econT===1)for(const b of blds)if(b.type==='dock'&&b.done)b._fishN=_fishSpots.filter(([fx,fz])=>Math.hypot(fx-b.cx,fz-b.cz)<20).length;
+  for(const b of blds)if(b.type==='dock'&&b.done&&b._fishN)res[b.owner].f+=Math.min(2.2,0.15*b._fishN)*dt;
   // b154: a building only ever fell where the code that hurt it remembered to knock it down.
   // Anything that reaches zero by any other road used to stand there as a ruin nobody could kill,
   // holding its ground tiles and its garrison inside it forever. Now zero means down, always.
@@ -5286,7 +5303,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   const atWar=REALMS.some(t=>t!==o&&isHostile(o,t));
   if(atWar&&barr.length){
     const host=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk).length;
-    const wanted=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave));
+    const wanted=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave*AI_PERS[ai.pers].wave));
     if(host<wanted+4){
       if(used+2>cap){ if(r.w>=40&&pendingBld(o,'house')<3&&placeAI(o,'house'))return; }   // no room? raise the roof first
       else { const c=COST;
@@ -5359,7 +5376,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
     // host it wants eventually marches with the host it has. Reset on a launch, so a strong realm
     // still gathers properly and only one that is genuinely stuck ever settles for less. The floor
     // of four is unchanged — nobody attacks with a man and a dog.
-    const want=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave)-(ai.musterFail||0)*2);
+    const want=Math.max(4,Math.round(Math.min(8+ai.wave*4,24)*dif().wave*AI_PERS[ai.pers].wave)-(ai.musterFail||0)*2);
     if(army.length>=want){const foe=foes.includes('player')?'player':foes[0];
       // b213: PRESS THE SAME POINT UNTIL IT FALLS. Every wave used to draw a fresh random building
       // out of the enemy's whole estate, so successive hosts walked off in different directions and
@@ -5843,7 +5860,7 @@ const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deli
   barracks:'Trains melee & ranged troops; forges Weapons and Armor research (staged, takes time).',
   gunshop:'Muskets and Grenadiers; Cannon & Howitzer from Age II.',
   siege:'Catapults and Battering Rams (Age II).',
-  dock:'Warboats; Privateers at Age II. Must touch water.',
+  dock:'Warboats; Privateers at Age II. Must touch water — and a good stretch of shoreline hauls in real food on its own, no farmhand needed.',
   castle:'Great fortress — trains elites and your faction champion, fires on foes, garrisons 10.',
   wall:'Stone curtain. Fortify upgrade +50%.', gate:'A door in your wall — only YOUR troops pass.',
   tower:'Arrow tower; Boulder Thrower upgrade, then Cannon Mount at Age III. Garrisons 4.',
@@ -6569,7 +6586,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
       newGame,standardView,VIEW_DIST,VIEW_PITCH,setManScale,get MAN_SCALE(){return MAN_SCALE;},trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
-      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,elevAt,elevMult,get elev(){return elev;},effDmg,healNearby,
+      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,elevAt,elevMult,get elev(){return elev;},effDmg,healNearby,get _fishSpots(){return _fishSpots;},canPlaceDock,
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
