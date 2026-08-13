@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b305</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b306</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2322,6 +2322,7 @@ const sheepDark=new THREE.MeshStandardMaterial({color:0x3a3532,roughness:.9,flat
 const deerHide=new THREE.MeshStandardMaterial({color:0x8a5f38,roughness:.9,flatShading:true});
 const deerBelly=new THREE.MeshStandardMaterial({color:0xc9a97e,roughness:.9,flatShading:true});
 const boarHide=new THREE.MeshStandardMaterial({color:0x4a3a2c,roughness:.95,flatShading:true});
+const wolfHide=new THREE.MeshStandardMaterial({color:0x565a5e,roughness:.92,flatShading:true});   // b306: the pack that actually hunts back
 function makeSheep(kind){
   if(kind==='deer'){ const g=new THREE.Group();
     const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),deerHide);body.scale.set(.9,.75,1.45);body.position.y=.85;body.castShadow=true;g.add(body);
@@ -2335,6 +2336,14 @@ function makeSheep(kind){
     const head=new THREE.Mesh(new THREE.SphereGeometry(.15,6,5),woolMat);head.position.set(0,.4,.28);g.add(head);g.userData.head=head;
     for(const sx of[-1,1]){const ear=new THREE.Mesh(new THREE.BoxGeometry(.06,.3,.04),deerBelly);ear.position.set(sx*.07,.62,.24);ear.rotation.x=-.2;g.add(ear);}
     const tail=new THREE.Mesh(new THREE.SphereGeometry(.08,5,4),woolMat);tail.position.set(0,.3,-.32);g.add(tail);
+    return g; }
+  if(kind==='wolf'){ const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.42,0),wolfHide);body.scale.set(.85,.8,1.5);body.position.y=.5;body.castShadow=true;g.add(body);
+    const head=new THREE.Mesh(new THREE.BoxGeometry(.22,.24,.36),wolfHide);head.position.set(0,.62,.66);g.add(head);g.userData.head=head;
+    const snout=new THREE.Mesh(new THREE.ConeGeometry(.09,.26,5),sheepDark);snout.rotation.x=Math.PI/2;snout.position.set(0,.58,.9);g.add(snout);
+    for(const sx of[-1,1]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.06,.16,4),wolfHide);ear.position.set(sx*.09,.78,.64);g.add(ear);}
+    for(const[lx,lz]of[[-.18,.36],[.18,.36],[-.18,-.36],[.18,-.36]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.08,.36,.08),wolfHide);leg.position.set(lx,.18,lz);g.add(leg);}
+    const tail=new THREE.Mesh(new THREE.ConeGeometry(.08,.5,5),wolfHide);tail.rotation.x=Math.PI*0.6;tail.position.set(0,.56,-.62);g.add(tail);
     return g; }
   if(kind==='boar'){ const g=new THREE.Group();
     const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,0),boarHide);body.scale.set(1.05,.85,1.35);body.position.y=.55;body.castShadow=true;g.add(body);
@@ -2368,19 +2377,40 @@ function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
     if(hashN(x*4.7,y*5.3)>0.045)continue; const e=elev[ti(x,y)]; if(e<1.8||e>2.6)continue;
     let ok=true; for(const o of REALMS){const st=REALM_SITES[o];if(Math.hypot(x-st[0],y-st[1])<12)ok=false;}
     if(!ok)continue; flocks++;
-    const kr=hashN(x*9.1,y*8.3), kind=kr<0.38?'sheep':kr<0.62?'deer':kr<0.8?'rabbit':'boar';
-    const n=kind==='boar'?2+Math.floor(hashN(y,x)*2):kind==='rabbit'?4+Math.floor(hashN(y,x)*3):3+Math.floor(hashN(y,x)*3);
+    // b306: wolves — a real predator, not just another huntable animal. Rare (10% of flocks,
+    // packs of 2-3) and the only kind that goes looking for trouble instead of waiting for it.
+    const kr=hashN(x*9.1,y*8.3), kind=kr<0.35?'sheep':kr<0.58?'deer':kr<0.75?'rabbit':kr<0.90?'boar':'wolf';
+    const n=kind==='boar'||kind==='wolf'?2+Math.floor(hashN(y,x)*2):kind==='rabbit'?4+Math.floor(hashN(y,x)*3):3+Math.floor(hashN(y,x)*3);
     for(let i=0;i<n;i++){ const m=makeSheep(kind); scene.add(m);
       const sx=wx(x)+(Math.random()-.5)*6, sz=wz(y)+(Math.random()-.5)*6;
-      sheep.push({mesh:m,kind,meat:kind==='boar'?220:kind==='deer'?140:kind==='rabbit'?45:90,spd:kind==='deer'?2.6:kind==='boar'?1.4:kind==='rabbit'?3.4:1.7,
-        hp:kind==='boar'?3:kind==='rabbit'?1:2,hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }
+      sheep.push({mesh:m,kind,meat:kind==='boar'?220:kind==='deer'?140:kind==='rabbit'?45:kind==='wolf'?70:90,spd:kind==='deer'?2.6:kind==='boar'?1.4:kind==='rabbit'?3.4:kind==='wolf'?2.0:1.7,
+        hp:kind==='boar'?9:kind==='rabbit'?1:kind==='wolf'?6:2,hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }   // b306: boar hp 3->9 — it used to die before it could ever turn on the man shooting it
 function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
+  if(s.angry&&elapsed>(s.angryUntil||0)){ s.angry=false; s.spd=1.4; s.wait=0; }   // b306: nobody's shooting at it anymore — it settles back down
+  // b306: a wolf goes looking for an unescorted worker instead of waiting to be hunted — a soldier
+  // standing near the worker is enough to warn it off. Once it's picked a victim it stays locked on
+  // (re-targeting his live position every step) until it loses him, he dies, or he's rescued.
+  let wolfHunting=false;
+  if(s.kind==='wolf'){ s.gcd=(s.gcd||0)-dt;
+    let prey=(s.prey&&ents.includes(s.prey)&&s.prey.hp>0&&!s.prey.inGar)?s.prey:null;
+    if(prey&&Math.hypot(prey.x-s.x,prey.z-s.z)>18)prey=null;
+    if(!prey){ let bd=13;
+      for(const u of ents){ if(u.owner!=='player'||u.type!=='worker'||u.inGar)continue;
+        const d2=Math.hypot(u.x-s.x,u.z-s.z); if(d2>=bd)continue;
+        const guarded=ents.some(g=>g.owner==='player'&&g.type!=='worker'&&!UNIT[g.type].noAtk&&Math.hypot(g.x-u.x,g.z-u.z)<9);
+        if(!guarded){bd=d2;prey=u;} } }
+    s.prey=prey;
+    if(prey){ wolfHunting=true; s.tx=prey.x; s.tz=prey.z; s.hx=s.tx; s.hz=s.tz; s.wait=99; s.spd=4.2;
+      const dw=Math.hypot(prey.x-s.x,prey.z-s.z);
+      if(dw<2.2&&s.gcd<=0){ s.gcd=1.2; prey.hp-=7; prey.flinch=0.15; spawnPart(prey.x,heightAtWorld(prey.x,prey.z)+1,prey.z,'blood');
+        if(prey.owner==='player'){sfxWhere(prey.x,prey.z);SFX.hit();flashMsg('🐺 Wolves! A worker is under attack — send soldiers or run him home');} } }
+    else s.spd=2.0; }
   const d=Math.hypot(s.tx-s.x,s.tz-s.z);
-  if(d<0.5){ s.graze=Math.max(0,s.graze-dt);
+  if(!wolfHunting&&d<0.5){ s.graze=Math.max(0,s.graze-dt);
     if(s.wait<=0){ let pu=null,pd=9;
       if(s.kind==='sheep'||!s.kind)for(const u of ents)if(u.owner==='player'&&UNIT[u.type].dom==='land'){const d2=Math.hypot(u.x-s.x,u.z-s.z);if(d2<pd){pd=d2;pu=u;}}
       if(pu){ s.tx=pu.x+(Math.random()-.5)*4; s.tz=pu.z+(Math.random()-.5)*4; s.hx=s.tx; s.hz=s.tz; }   // sheep follow the shepherd; deer & boar stay wild
-      else { const wr=s.kind==='deer'?18:12; s.tx=s.hx+(Math.random()-.5)*wr; s.tz=s.hz+(Math.random()-.5)*wr; }
+      else { const wr=s.kind==='deer'?18:s.kind==='wolf'?16:12; s.tx=s.hx+(Math.random()-.5)*wr; s.tz=s.hz+(Math.random()-.5)*wr; }
       const t1=txFromW(s.tx),t2=tzFromW(s.tz); if(!inB(t1,t2)||isFlooded(t1,t2)){s.tx=s.hx;s.tz=s.hz;}
       s.wait=4+Math.random()*7; s.graze=2+Math.random()*3; } }
   else { const sp=(s.spd||1.7)*dt; s.x+=(s.tx-s.x)/d*sp; s.z+=(s.tz-s.z)/d*sp;
@@ -3542,7 +3572,7 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
   if(workers0.length){ let bs=null,bd0=3.5;
     for(const s of sheep){const d=Math.hypot(x-s.x,z-s.z);if(d<bd0){bd0=d;bs=s;}}
     if(bs){ workers0.forEach(w=>{w.cmd='hunt';w.hunt=bs;w.gather=null;w.build=null;w.target=null;w.tendB=null;orderPath(w,txFromW(bs.x),tzFromW(bs.z),0);});
-      flashMsg(bs.kind==='boar'?'🐗 The hunt is on — mind the tusks!':bs.kind==='deer'?'🦌 The hunt is on — muskets up!':'🐑 To the flock! Workers close in for mutton');SFX.cmd();return; } }
+      flashMsg(bs.kind==='boar'?'🐗 The hunt is on — mind the tusks!':bs.kind==='wolf'?'🐺 Careful — that pack bites back':bs.kind==='deer'?'🦌 The hunt is on — muskets up!':'🐑 To the flock! Workers close in for mutton');SFX.cmd();return; } }
   // right-click near your own unfinished building = send selected workers to finish it (checked FIRST so nothing steals the click)
   if(workers0.length){ let ob=null,obd=TILE*3;
     for(const q of blds)if(q.owner==='player'&&!q.done){const d=Math.hypot(x-q.cx,z-q.cz)-Math.max(q.w,q.h)*TILE*0.5;if(d<obd){obd=d;ob=q;}}
@@ -3740,7 +3770,10 @@ function resTipHTML(n){ const I=RES_INFO[n.type]||RES_INFO.wood;
     +(deep?'Too deep in the wood \u2014 your men can only cut from the edge'
           :'Right-click with workers selected to '+I.verb)+'</span>'; }
 function beastAt(x,z){ for(const s of sheep){ if(Math.hypot(x-s.x,z-s.z)<2.6)return s; } return null; }
-function beastTipHTML(s){ const nm=s.kind==='boar'?'\uD83D\uDC17 Wild boar':s.kind==='deer'?'\uD83E\uDD8C Deer':s.kind==='rabbit'?'\uD83D\uDC07 Rabbit':'\uD83D\uDC11 Sheep';
+function beastTipHTML(s){ const nm=s.kind==='boar'?'\uD83D\uDC17 Wild boar':s.kind==='deer'?'\uD83E\uDD8C Deer':s.kind==='rabbit'?'\uD83D\uDC07 Rabbit':s.kind==='wolf'?'\uD83D\uDC3A Wolf':'\uD83D\uDC11 Sheep';
+  if(s.kind==='wolf')return '<b style="color:#ff8a7a">'+nm+'</b> <span style="color:#7fa8bd">\u2014 hunts unescorted workers, not the other way round</span>'
+    +'<br><span style="font-size:11px;color:#bcd6e6">'+(s.meat||70)+' meat if your men bring it down first</span>'
+    +'<br><span style="font-size:11px;color:#e0a878">Keep soldiers near your workers, or it will find them</span>';
   return '<b style="color:#ff9a6a">'+nm+'</b> <span style="color:#7fa8bd">\u2014 FOOD, on the hoof</span>'
     +'<br><span style="font-size:11px;color:#bcd6e6">'+(s.meat||90)+' meat once it is down</span>'
     +'<br><span style="font-size:11px;color:#6f93a8">Right-click with workers selected to hunt it</span>'; }
@@ -4297,6 +4330,14 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       if(!s||!sheep.includes(s)){ e.hunt=null; const n2=nearestNode(e,'food');
         if(n2&&Math.hypot(e.x-wx(n2.tx),e.z-wz(n2.ty))<16)gatherOrder(e,n2);else e.cmd='idle'; break; }
       const dh=Math.hypot(e.x-s.x,e.z-s.z);
+      // b306: a boar that's been shot and lived doesn't run — it charges the man who shot it, and
+      // it can kill him if he doesn't retreat. Re-targets onto the hunter every step it's angry, so
+      // it actually keeps pace with a moving man rather than charging to where he used to stand.
+      if(s.kind==='boar'&&s.angry){ s.tx=e.x; s.tz=e.z; s.hx=s.tx; s.hz=s.tz; s.wait=99; s.angryUntil=elapsed+8;
+        s.gcd=(s.gcd||0)-dt;
+        if(dh<2.3&&s.gcd<=0){ s.gcd=1.1; e.hp-=9; e.flinch=0.15; spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
+          if(e.owner==='player'){sfxWhere(e.x,e.z);SFX.hit();flashMsg('🐗 The boar gores back — mind the tusks!');}
+          if(e.hp<=0)e.hunt=null; } }
       if(dh<9){ e.path=null; e.dir=Math.atan2(s.z-e.z,s.x-e.x);   // hunters shoulder a musket and shoot from range
         if(e.cd<=0){ e.cd=1.5; e.atk=0.2;
           spawnProj(e.x,heightAtWorld(e.x,e.z)+1.4,e.z,{x:s.x,z:s.z,y:heightAtWorld(s.x,s.z)+0.6},0,e.owner,'arrow');
@@ -4307,8 +4348,9 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
             const meat=s.meat||90;
             const node={tx:txFromW(s.x),ty:tzFromW(s.z),amount:meat,type:'food',mesh:s.mesh};
             meatNodes.push(node); e.hunt=null;
-            if(e.owner==='player')flashMsg((s.kind==='boar'?'🐗 Boar down!':s.kind==='deer'?'🦌 Venison!':s.kind==='rabbit'?'🐇 Rabbit!':'🐑 Mutton!')+' '+meat+' food on the ground — workers butcher it');
+            if(e.owner==='player')flashMsg((s.kind==='boar'?'🐗 Boar down!':s.kind==='wolf'?'🐺 The wolf is dead — no more taking your workers':s.kind==='deer'?'🦌 Venison!':s.kind==='rabbit'?'🐇 Rabbit!':'🐑 Mutton!')+' '+meat+' food on the ground — workers butcher it');
             gatherOrder(e,node); }
+          else if(s.kind==='boar'){ s.angry=true; s.spd=6.0; s.angryUntil=elapsed+8; }   // provoked — the charge itself is handled above, every tick. angryUntil must be set HERE too, not only inside that chase block, or the calm-down check in updateSheep resets angry back to false before the chase ever runs once
           else { s.tx=clamp(s.x+(s.x-e.x)/Math.max(dh,.1)*12,-HALF_W,HALF_W); s.tz=clamp(s.z+(s.z-e.z)/Math.max(dh,.1)*12,-HALF_H,HALF_H); s.hx=s.tx; s.hz=s.tz; s.wait=3; } } }
       else if(arrived||Math.random()<dt*1.2)orderPath(e,txFromW(s.x),tzFromW(s.z),0);
       break;}
@@ -4595,9 +4637,15 @@ function counterBonus(e,t){
   let mult=(CLASS_BEATS[ec]===tc)?COUNTER_MULT:1;
   if(SIEGE_TYPES.has(t.type)&&ec!=='ranged')mult=Math.max(mult,SIEGE_MULT);   // siege's own ranged kin get no special bonus against it - only what reaches it
   return mult>1?effDmg(e)*(mult-1):0;}
+// b306: HIGH GROUND. The battlefield already carries real elevation (the same field the terrain
+// shader and building footing read), it just never touched combat — a man on the hilltop and a man
+// in the ditch traded blows as equals. Whoever stands meaningfully higher hits harder and takes
+// less; dead level ground (most of it) is untouched.
+function elevAt(x,z){return elev[ti(clamp(txFromW(x),0,MAP_W-1),clamp(tzFromW(z),0,MAP_H-1))]||0;}
+function elevMult(e,t){const ea=elevAt(e.x,e.z),ta=elevAt(t.x,t.z);if(ea>ta+0.35)return 1.25;if(ta>ea+0.35)return 0.75;return 1;}
 function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk||UNIT[e.type].ramOnly)return;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
-  if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e)+counterBonus(e,t),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player'){sfxWhere(e.x,e.z);U.siege?SFX.boom():SFX.bow();}}
-  else{t.hp-=effDmg(e)+counterBonus(e,t);t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
+  if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e)*elevMult(e,t)+counterBonus(e,t),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player'){sfxWhere(e.x,e.z);U.siege?SFX.boom():SFX.bow();}}
+  else{t.hp-=effDmg(e)*elevMult(e,t)+counterBonus(e,t);t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
 function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;b._hitBy=e.owner;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;const mult=U.siege?6:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4;   // AoE2 pacing: fat buildings fall fast to siege, slowly to muskets
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player'){sfxWhere(e.x,e.z);SFX.boom();}}
   else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);}
@@ -6458,7 +6506,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
       newGame,standardView,VIEW_DIST,VIEW_PITCH,setManScale,get MAN_SCALE(){return MAN_SCALE;},trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
-      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,
+      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,elevAt,elevMult,get elev(){return elev;},
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
