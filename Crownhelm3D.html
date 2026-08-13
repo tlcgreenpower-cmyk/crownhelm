@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b315</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b316</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -959,6 +959,14 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   // engine never reads them), base colour shrunk 2048->1024. liftCharacterTone still applies -
   // same textured-material branch Lisa uses, since he paints from an image, not vertex colour.
   loader.load('assets/LeeRider_static.glb',g=>{lib['LeeRider']={scene:liftCharacterTone(mergeSkinnedModel(g.scene)),clips:g.animations};refreshUnitModels();},undefined,()=>{});
+  // b316: the Pikeman, rigged the Lisa way (b287) with one change - this source mesh, like the
+  // King's, comes apart into thousands of disconnected loose islands (the same generator, the
+  // same habit), and bone-heat weighting needs mesh connectivity to diffuse across. It failed
+  // outright (0 of 7,968 verts weighted) until the parent op switched to ARMATURE_ENVELOPE,
+  // which weights off distance to each bone instead of mesh topology and doesn't care that the
+  // source is a shattered mesh. 20-bone rig, 5 clips (Walk/Idle/SwordSlash-as-thrust/Death/
+  // Victory), decimated 40,000->16,000 tris, normal/metal-rough maps dropped, base colour 1024.
+  loader.load('assets/LeePikeman_rigged.glb',g=>{lib['LeePikeman']={scene:liftCharacterTone(mergeSkinnedModel(g.scene)),clips:g.animations};refreshUnitModels();},undefined,()=>{});
   // b287: Lisa, rigged the same way Meiya was (b201) - Blender 5.2 headless: mesh cleaned
   // (merge doubles + consistent normals) so automatic weighting would actually take, decimated
   // 39,990 -> 16,000 tris, an 18-bone humanoid skeleton fitted to her measured silhouette,
@@ -2528,7 +2536,7 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'LeeRider',spear:'KnightM',infantry:'Meiya',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
+const UNIT_CHAR={hero:'LeeRider',spear:'LeePikeman',infantry:'Meiya',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
 // b148: weapons. Shaft materials are shared, so a whole army of pikes costs a handful of draws
 // once the merge/instancing has done its work. Every piece is built around the grip at the origin.
 // one material family for all of it — same roughness, same metalness — so the merge can fold a
