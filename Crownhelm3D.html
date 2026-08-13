@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b303</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b304</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -181,9 +181,11 @@
             <label class="setRow"><span class="setLbl">Battleground</span><select id="mapSel" class="setSel"></select></label>
             <label class="setRow"><span class="setLbl">Difficulty</span>
               <select id="diffSel" class="setSel">
+                <option value="easiest">Easiest — the neighbours mean no harm</option>
                 <option value="easy">Easy — a gentle reign</option>
-                <option value="normal">Normal — a fair fight</option>
+                <option value="normal">Moderate — a fair fight</option>
                 <option value="hard">Hard — wolves at every border</option>
+                <option value="hardest">Hardest — every crown covets yours</option>
               </select></label>
             <label class="setRow"><span class="setLbl">Realms at war</span>
               <select id="plSel" class="setSel">
@@ -4978,9 +4980,16 @@ function declareWar(o,by){ if(!diplo[o])return; if(diplo[o].stance!=='war'){ dip
     setTimeout(()=>flashMsg('🤝 '+realmName(f)+' joins your war against '+realmName(o)+'!'),1800); }
   refreshUI(); } }
 let difficulty=localStorage.getItem('crownhelm_diff')||'normal';
-const DIFF={ easy:  {drip:0.6, wave:0.6, aggro:0.5, cap:70},
-             normal:{drip:1.8, wave:1.0, aggro:1.0, cap:110},
-             hard:  {drip:4.0, wave:1.5, aggro:1.7, cap:130} };
+// b304 (owner request): AoE runs five difficulty tiers, not three — Easiest/Easy/Moderate/Hard/
+// Hardest. The three original keys are kept exactly as they were (a saved game with dif:'normal'
+// or dif:'hard' must still load into the same tier it was saved on) — easiest and hardest are pure
+// additions either side of the existing spread, extending the same curve rather than replacing it.
+const DIFF={ easiest:{drip:0.3, wave:0.4, aggro:0.3, cap:55},
+             easy:   {drip:0.6, wave:0.6, aggro:0.5, cap:70},
+             normal: {drip:1.8, wave:1.0, aggro:1.0, cap:110},
+             hard:   {drip:4.0, wave:1.5, aggro:1.7, cap:130},
+             hardest:{drip:7.0, wave:2.0, aggro:2.5, cap:150} };
+const DIFF_NAME={easiest:'Easiest',easy:'Easy',normal:'Moderate',hard:'Hard',hardest:'Hardest'};
 function dif(){return DIFF[difficulty]||DIFF.normal;}
 function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai.warCheck-=dt;
   // the realm's economy hums along even off-screen, so rival towns visibly grow
@@ -6593,7 +6602,7 @@ function start(fac){faction.player=fac||'english';
 var selFac='english';
 function updateStartSummary(){const el=document.getElementById('startSummary');if(!el)return;
   const mn=(MAPS[curMapId]&&MAPS[curMapId].name)||'Heartlands';
-  const dn=difficulty.charAt(0).toUpperCase()+difficulty.slice(1);
+  const dn=DIFF_NAME[difficulty]||(difficulty.charAt(0).toUpperCase()+difficulty.slice(1));
   const fn=(FACTIONS[selFac]&&FACTIONS[selFac].name)||'English Red Coats';
   el.textContent=mn+' · '+dn+' · '+playerCount+' realms · '+fn;}
 function updateSetupBlurb(){const bl=document.getElementById('setupBlurb');if(!bl)return;
