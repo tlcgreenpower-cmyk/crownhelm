@@ -35,6 +35,10 @@
   #mini{position:absolute;right:10px;bottom:10px;border:1px solid #2c5164;background:#04101a;z-index:4;cursor:pointer;}
   #demoBtn{position:absolute;right:10px;bottom:158px;z-index:5;width:64px;height:64px;font-size:34px;line-height:1;cursor:pointer;background:#17303f;border:2px solid #2c5164;color:#dff0f9;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.5);transition:transform .1s,border-color .12s;}
   #demoBtn:hover{transform:scale(1.08);border-color:#7fc4e8;}
+  /* b321: same footprint as the hammer, stacked directly above it */
+  #bellBtn{position:absolute;right:10px;bottom:230px;z-index:5;width:64px;height:64px;font-size:30px;line-height:1;cursor:pointer;background:#17303f;border:2px solid #2c5164;color:#dff0f9;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.5);transition:transform .1s,border-color .12s;}
+  #bellBtn:hover{transform:scale(1.08);border-color:#7fc4e8;}
+  #bellLbl{display:none;}
   /* b294: this used to be min-height:72px;max-height:110px - a 38px range that grew every time a
      unit was selected (info text + formation buttons) and shrank on Esc. #stage above it fills
      whatever's left with flex:1, so the game viewport itself resized on every select/deselect -
@@ -44,6 +48,8 @@
      the viewport never moving under you again. */
   #botbar{display:flex;gap:12px;padding:6px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;height:110px;align-items:flex-start;}
   #selInfo{width:335px;font-size:12.5px;line-height:1.4;color:#9fc0d2;max-height:118px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
+  #formBar{flex:0 0 auto;max-width:224px;max-height:100px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;}
+  #formBar:not(:empty){border-left:1px solid #1d3a4a;padding-left:12px;}
   #cmds{flex:1;display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;}
   .btn{min-width:94px;padding:7px 9px;background:#17303f;border:1px solid #2c5164;border-radius:8px;color:#dff0f9;font-size:12px;cursor:pointer;line-height:1.25;}
   .btn:hover{background:#1e435a;border-color:#4d86a3;} .btn small{display:block;color:#84acc0;font-size:10.5px;margin-top:2px;} .btn.disabled{opacity:.36;cursor:not-allowed;}
@@ -82,8 +88,10 @@
     <div class="topDiv"></div>
     <div class="actGroup">
       <button id="idleBtn" title="Select all lazy workers (. key) — click again to jump between them" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">💤⚒️ <span id="idleN">0</span> <span style="font-size:10px;color:#8fa7bc">workers</span></button>
-      <button id="idleMilBtn" title="Select every soldier standing idle (´ or \ key) — the men who are not marching, fighting or garrisoned" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🛡 <span id="idleMilN">0</span> <span style="font-size:10px;color:#8fa7bc">idle</span></button>
-      <button id="bellBtn" title="Town Bell (B) — every villager drops their work and shelters in the nearest garrison. Ring again to send them back." style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🔔 <span id="bellLbl">Bell</span></button>
+      <!-- b321: the idle-soldier counter is gone from the bar at the owner's request. The \ key
+           still selects idle soldiers, so nothing is lost but the clutter. The element stays in
+           the DOM, hidden, because updateHUD writes to idleMilN every tick. -->
+      <button id="idleMilBtn" title="Select every soldier standing idle (´ or \ key) — the men who are not marching, fighting or garrisoned" style="display:none;cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🛡 <span id="idleMilN">0</span> <span style="font-size:10px;color:#8fa7bc">idle</span></button>
       <button id="pauseBtn" title="Pause / resume (P)">⏸ Pause</button>
       <button id="speedBtn" title="Game speed (+ / - keys)">⏩ 1×</button>
     </div>
@@ -93,7 +101,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b320</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b321</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -112,6 +120,9 @@
     <canvas id="view"></canvas>
     <script>document.getElementById('stage').appendChild(document.getElementById('atkArrow'));</script>
     <canvas id="mini" width="200" height="134"></canvas>
+    <!-- b321: the Town Bell moved out of the crowded top bar to sit directly above the hammer,
+         where the other big field controls live and it is reachable without crossing the screen. -->
+    <button id="bellBtn" title="Town Bell (B) — every villager drops their work and shelters in the nearest garrison. Ring again to send them back.">🔔<span id="bellLbl"></span></button>
     <button id="demoBtn" title="Hammer — pick it up, then click your buildings to tear them down (half the materials back), your own men to stand them down and free their place in the muster, or trees, veins and gold to clear them (a quarter salvaged). Right-click or Esc puts it away.">🔨</button>
     <div id="forces" class="hidden" style="position:absolute;top:14px;right:14px;width:290px;max-height:70%;overflow:auto;background:rgba(8,20,30,.96);border:1px solid #2c5164;border-radius:10px;padding:12px 14px;z-index:9;font-size:13px;"></div>
     <div id="diplo" class="hidden" style="position:absolute;top:14px;right:14px;width:330px;background:rgba(8,20,30,.96);border:1px solid #2c5164;border-radius:10px;padding:12px 14px;z-index:9;font-size:13px;"></div>
@@ -126,12 +137,19 @@
     <div id="err"></div>
     <div id="overlay" class="hidden">
       <div id="aorGrid">
-      <div style="position:relative;padding:44px 40px 36px 52px;display:flex;flex-direction:column;gap:22px;border-right:1px solid #33291a;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.35) 100%);">
+      <!-- b321: everything on this side is sized off viewport HEIGHT, not fixed pixels. The menu
+           is the point of the page, and on a 720-tall screen the old fixed title/banner/blurb
+           stack pushed it 400px below the fold where it could not be reached at all. -->
+      <div style="position:relative;height:100vh;overflow:hidden;padding:clamp(18px,3.2vh,44px) 40px clamp(16px,2.6vh,36px) 52px;display:flex;flex-direction:column;gap:clamp(9px,1.7vh,22px);border-right:1px solid #33291a;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.35) 100%);">
         <div id="wrongDoor" style="display:none;background:#3a140c;border:1px solid #7c2b23;padding:12px 16px;font-size:15px;">
           <b>Wrong door!</b> You opened the game file directly, so your saved kingdom and the best graphics can't load here.<br>
           <a href="http://localhost:8137/Tidefall3D.html" style="color:#e6c780;font-weight:700;">Click here to open the REAL game with your kingdom</a><br>
           <span style="color:#9d8a67;font-size:12px;">(If that link fails, double-click "Play Tidefall" on your Desktop first, then try again.)</span>
         </div>
+        <!-- b321: the decoration lives in its own shrinkable, scrollable region and the menu
+             below it is flex:none. However short the window gets, the menu keeps its full height
+             and stays on screen — the art gives way instead. No magic height thresholds. -->
+        <div style="flex:0 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:clamp(9px,1.7vh,22px);">
         <div style="display:flex;align-items:center;gap:18px;">
           <div style="width:46px;height:56px;background:#7c2b23;border:2px solid #c9a24a;clip-path:polygon(0 0,100% 0,100% 68%,50% 100%,0 68%);display:flex;align-items:flex-start;justify-content:center;padding-top:8px;box-shadow:0 6px 18px rgba(0,0,0,.5);flex:none;">
             <div style="width:14px;height:14px;background:#e6c780;transform:rotate(45deg);"></div>
@@ -142,41 +160,33 @@
           </div>
         </div>
         <div>
-          <h1 style="font-family:'Cinzel',serif;font-weight:800;font-size:clamp(48px,5.5vw,86px);line-height:.92;margin:0;letter-spacing:.03em;color:#f1e4c4;text-shadow:0 2px 0 #4a3722,0 18px 40px rgba(0,0,0,.65);background:none;">Crown<br>helm</h1>
-          <div style="display:flex;align-items:center;gap:14px;margin-top:16px;">
+          <h1 style="font-family:'Cinzel',serif;font-weight:800;font-size:clamp(34px,7.2vh,72px);line-height:.92;margin:0;letter-spacing:.03em;color:#f1e4c4;text-shadow:0 2px 0 #4a3722,0 18px 40px rgba(0,0,0,.65);background:none;">Crown<br>helm</h1>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:clamp(7px,1.4vh,16px);">
             <div style="height:1px;width:88px;background:linear-gradient(90deg,#c9a24a,rgba(201,162,74,0));"></div>
             <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:.34em;text-transform:uppercase;color:#c9a24a;">A whole land to rule</div>
           </div>
         </div>
-        <div style="position:relative;flex:0 0 auto;height:200px;border:1px solid #3b2f1d;box-shadow:inset 0 0 60px rgba(0,0,0,.6);overflow:hidden;">
+        <div id="aorBanner" style="position:relative;flex:0 0 auto;height:clamp(74px,14vh,190px);border:1px solid #3b2f1d;box-shadow:inset 0 0 60px rgba(0,0,0,.6);overflow:hidden;">
           <img src="assets/banner.png" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block;">
           <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(12,9,6,.05) 0%,rgba(12,9,6,.55) 100%);"></div>
         </div>
-        <p style="font-size:17px;line-height:1.55;color:#d9cba9;max-width:66ch;margin:0;">Roam a wide open country of hills, rivers, forests and coasts. Build your realm into a beautiful city — then deal with your neighbouring kingdoms — up to seven of them — however you choose: trade gifts and keep the peace, or march your regiments to war and take their lands. Befriend them, or conquer every keep and rule the realm.</p>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <button id="contBtn" style="display:none;text-align:left;cursor:pointer;font-family:'Cinzel',serif;font-weight:800;font-size:24px;letter-spacing:.06em;color:#1a1208;background:linear-gradient(180deg,#e6c780 0%,#c9a24a 60%,#a8813a 100%);border:1px solid #f0dca8;padding:18px 24px;box-shadow:0 10px 26px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45);transition:transform .12s,filter .12s;">Continue Your Kingdom</button>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <button id="paradeBtn" class="aorSec" style="font-size:15px;letter-spacing:.04em;padding:13px 16px;line-height:1.3;">Unit Parade<br><span style="font-family:'EB Garamond',serif;font-weight:400;font-size:14px;letter-spacing:0;color:#9d8a67;">see every soldier up close</span></button>
-            <button id="builderBtn" class="aorSec" style="font-size:15px;letter-spacing:.04em;padding:13px 16px;line-height:1.3;">Map Builder<br><span style="font-family:'EB Garamond',serif;font-weight:400;font-size:14px;letter-spacing:0;color:#9d8a67;">design your own battleground</span></button>
-          </div>
+        <p id="aorBlurb" style="font-size:clamp(13.5px,1.85vh,17px);line-height:1.5;color:#d9cba9;max-width:66ch;margin:0;">Roam a wide open country of hills, rivers, forests and coasts. Build your realm into a beautiful city — then deal with your neighbouring kingdoms — up to seven of them — however you choose: trade gifts and keep the peace, or march your regiments to war and take their lands. Befriend them, or conquer every keep and rule the realm.</p>
+        </div>
+        <!-- b321: the main menu proper. Every RTS this game sits beside — Age II/IV, Northgard,
+             Manor Lords, Total War — fronts one vertical list of destinations over the art, and
+             keeps the rules and the key list BEHIND their own entries rather than printing them
+             on the front page. Controls and How to Play now live in that list, as asked. -->
+        <div id="aorMenu" style="flex:none;">
+          <button id="contBtn" class="aorPrime" style="display:none;">Continue Your Kingdom<span class="aorSub">pick up your saved realm</span></button>
+          <button id="loadMenuBtn" class="aorItem" style="display:none;"><span class="aorGlyph">❖</span><span>Load Kingdom<span class="aorSub">choose a saved slot</span></span></button>
+          <button id="howBtn" class="aorItem"><span class="aorGlyph">📖</span><span>How to Play<span class="aorSub">the shape of a game, start to finish</span></span></button>
+          <button id="ctrlBtn" class="aorItem"><span class="aorGlyph">⌨</span><span>Controls<span class="aorSub">mouse, camera &amp; every hotkey</span></span></button>
+          <button id="paradeBtn" class="aorItem"><span class="aorGlyph">👥</span><span>Unit Parade<span class="aorSub">see every soldier up close</span></span></button>
+          <button id="builderBtn" class="aorItem"><span class="aorGlyph">🛠</span><span>Map Builder<span class="aorSub">design your own battleground</span></span></button>
         </div>
       </div>
-      <div style="max-height:100vh;overflow-y:auto;padding:44px 48px 52px;background:linear-gradient(180deg,#1b1610 0%,#15110c 100%);">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;padding-bottom:26px;border-bottom:1px solid #33291a;">
-          <div><div class="aorKick">Controls</div><ul class="aorList">
-            <li><b>Left-drag</b> select · <b>Right-click</b> move / attack / gather</li>
-            <li><b>WASD / arrows / edges</b> pan · <b>wheel</b> zoom · <b>hold wheel &amp; drag</b> look around · <b>Shift+wheel-drag</b> pan · <b>Q / E</b> rotate</li>
-            <li><b>C</b> standard view · <b>\</b> idle soldiers · <b>M</b> man size · <b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>B</b> town bell · <b>X</b> stop · <b>T</b> formation · <b>Delete</b> disband selection · <b>Ctrl+1–5</b> group · <b>1–5</b> recall</li>
-            <li>Double-click a unit = select all of its kind on screen</li>
-          </ul></div>
-          <div><div class="aorKick">How to play</div><ul class="aorList">
-            <li>Keep → train Workers → gather <b>Wood</b>, <b>Metal</b> &amp; <b>Gold</b></li>
-            <li>Build your city: Houses, Farms, Mills, Markets, Churches, Castles</li>
-            <li><b>Realms</b> (top bar) — gift gold to make friends, or declare war</li>
-            <li><b>Advance the Age</b> to unlock Knights, Cannon &amp; your champion</li>
-          </ul></div>
-        </div>
-        <div style="padding-top:26px;"><div class="aorKick">Muster your campaign</div>
+      <div style="max-height:100vh;overflow-y:auto;padding:44px 48px 52px;background:linear-gradient(180deg,#1b1610 0%,#15110c 100%);display:flex;flex-direction:column;justify-content:center;">
+        <div><div class="aorKick">Muster your campaign</div>
           <div style="border:1px solid #3b2f1d;background:rgba(28,23,15,.85);padding:20px 22px;display:flex;flex-direction:column;gap:13px;box-shadow:inset 0 0 40px rgba(0,0,0,.3);">
             <label class="setRow"><span class="setLbl">Battleground</span><select id="mapSel" class="setSel"></select></label>
             <label class="setRow"><span class="setLbl">Difficulty</span>
@@ -214,14 +224,70 @@
         </div>
         <div style="margin-top:30px;padding-top:20px;border-top:1px solid #33291a;display:flex;align-items:center;justify-content:space-between;gap:16px;">
           <div id="startSummary" style="font-size:16px;color:#9d8a67;font-style:italic;"></div>
-          <button id="loadMenuBtn" class="aorSec" style="display:none;font-size:14px;letter-spacing:.05em;padding:13px 18px;flex:none;"><span style="color:#c9a24a;">❖</span> Load Kingdom</button>
           <button id="marchBtn" style="cursor:pointer;font-family:'Cinzel',serif;font-weight:800;font-size:18px;letter-spacing:.1em;text-transform:uppercase;color:#f3e7cc;background:#7c2b23;border:1px solid #c9a24a;padding:14px 26px;box-shadow:0 8px 22px rgba(0,0,0,.5);flex:none;">Begin</button>
         </div>
       </div>
       </div>
+      <!-- b321: the two reference sheets, now behind their menu entries instead of printed on
+           the front page. Same parchment styling as the menu so they read as part of it. -->
+      <div id="howModal" class="aorModal hidden"><div class="aorSheet">
+        <div class="aorSheetHead"><span>How to Play</span><button class="aorX" data-close>✕</button></div>
+        <div class="aorSheetBody">
+          <div class="aorKick">The first five minutes</div>
+          <ul class="aorList">
+            <li>Your <b>Keep</b> trains <b>Workers</b> — keep it training, always.</li>
+            <li>Send Workers to <b>Wood</b> (forests), <b>Metal</b> (grey rock), <b>Gold</b> (gold veins) and <b>Food</b> (farms, sheep, deer, fishing).</li>
+            <li>Build <b>Houses</b> the moment population nears its cap, or training stops dead.</li>
+            <li>Drop-off buildings pay their way: a <b>Storehouse</b> by the trees, a <b>Mining Camp</b> by the veins — the walk home is most of the work.</li>
+          </ul>
+          <div class="aorKick">Growing the realm</div>
+          <ul class="aorList">
+            <li>Build your city: Houses, Farms, Mills, Markets, Churches, Castles.</li>
+            <li><b>Farms</b> need a farmhand — right-click a farm with a Worker. A fresh field yields little until the crop comes in.</li>
+            <li><b>Advance the Age</b> at the Keep to unlock Knights, Cannon and your faction's champion.</li>
+            <li>Research at the <b>Barracks</b>, <b>Armourer</b> and <b>Castle</b> — armour and weapons carry through the whole army.</li>
+          </ul>
+          <div class="aorKick">Your neighbours</div>
+          <ul class="aorList">
+            <li><b>Realms</b> (top bar) — gift gold to buy friendship, or declare war when you are ready.</li>
+            <li>Every rival wants the same land. Peace buys time; it does not buy safety.</li>
+            <li>Win by <b>Conquest</b>, by holding a finished <b>Wonder</b>, or by whichever victory you chose when you mustered.</li>
+          </ul>
+        </div>
+      </div></div>
+      <div id="ctrlModal" class="aorModal hidden"><div class="aorSheet">
+        <div class="aorSheetHead"><span>Controls</span><button class="aorX" data-close>✕</button></div>
+        <div class="aorSheetBody">
+          <div class="aorKick">Mouse</div>
+          <ul class="aorList">
+            <li><b>Left-drag</b> — select a body of men</li>
+            <li><b>Right-click</b> — move · attack · gather · build (whatever the target asks for)</li>
+            <li><b>Double-click a unit</b> — select every one of its kind on screen</li>
+          </ul>
+          <div class="aorKick">Camera</div>
+          <ul class="aorList">
+            <li><b>WASD / arrows / screen edges</b> — pan</li>
+            <li><b>Wheel</b> — zoom · <b>Shift + wheel-drag</b> — pan · <b>hold wheel &amp; drag</b> — look around</li>
+            <li><b>Q / E</b> — rotate · <b>C</b> — back to the standard view</li>
+          </ul>
+          <div class="aorKick">Orders</div>
+          <ul class="aorList">
+            <li><b>F</b> attack-move · <b>R</b> patrol · <b>Z</b> stance · <b>X</b> stop · <b>T</b> formation</li>
+            <li><b>B</b> town bell — every villager shelters · <b>Delete</b> disband selection</li>
+            <li><b>Ctrl + 1–5</b> make a group · <b>1–5</b> recall it</li>
+          </ul>
+          <div class="aorKick">Finding your people</div>
+          <ul class="aorList">
+            <li><b>.</b> — select idle Workers · <b>\</b> — select idle soldiers</li>
+            <li><b>M</b> — switch man size · <b>P</b> — pause · <b>+ / −</b> — game speed</li>
+          </ul>
+        </div>
+      </div></div>
     </div>
   </div>
-  <div id="botbar"><div id="selInfo">Nothing selected.</div><div id="cmds"></div>
+  <!-- b321: formation & stance moved out of the 335px selection column into their own bay to its
+       right. Inside #selInfo they were wrapping to four cramped rows and spilling past the bar. -->
+  <div id="botbar"><div id="selInfo">Nothing selected.</div><div id="formBar"></div><div id="cmds"></div>
     <div id="pauseOv" style="display:none;position:absolute;inset:0;z-index:40;align-items:center;justify-content:center;pointer-events:none;background:rgba(4,10,16,.35)"><div style="font:700 54px Georgia,serif;color:#f3e4be;text-shadow:0 4px 18px #000;letter-spacing:6px">⏸ PAUSED</div></div>
     <div id="guide" class="hidden" style="position:absolute;inset:28px 56px;z-index:44;overflow-y:auto;background:rgba(8,20,30,.97);border:1px solid #2c5164;border-radius:12px;padding:20px 26px;box-shadow:0 20px 60px rgba(0,0,0,.7)"></div>
     <div id="gameMenu" class="hidden">
@@ -263,6 +329,31 @@
 .setSel{flex:1;min-width:0;max-width:100%;cursor:pointer;background:#15110c;color:#f1e4c4;border:1px solid #3b2f1d;padding:11px 12px;font-family:'Cinzel',serif;font-weight:600;font-size:15px;letter-spacing:.03em;outline:none;border-radius:0;text-overflow:ellipsis;}
 .setSel:hover,.setSel:focus{border-color:#c9a24a;}
 .setSel option{background:#15110c;color:#f1e4c4;}
+/* b321 MAIN MENU. One vertical list of destinations, the shape every RTS on this shelf uses.
+   Rows are flat parchment with a gold rule that lights on hover, so the eye runs down them. */
+#aorMenu{display:flex;flex-direction:column;gap:clamp(5px,.9vh,9px);}
+.aorPrime{cursor:pointer;text-align:left;font-family:'Cinzel',serif;font-weight:800;font-size:clamp(17px,2.6vh,23px);letter-spacing:.05em;color:#1a1208;background:linear-gradient(180deg,#e6c780 0%,#c9a24a 60%,#a8813a 100%);border:1px solid #f0dca8;padding:clamp(9px,1.7vh,15px) 22px;box-shadow:0 10px 26px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45);transition:transform .12s,filter .12s;}
+.aorPrime .aorSub{display:block;font-family:'EB Garamond',serif;font-weight:400;font-style:italic;font-size:clamp(12px,1.5vh,14px);letter-spacing:0;color:#4a3612;margin-top:2px;}
+.aorItem{cursor:pointer;text-align:left;display:flex;align-items:center;gap:15px;width:100%;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(13.5px,1.9vh,16px);letter-spacing:.04em;color:#e8dcc0;background:rgba(31,25,16,.82);border:1px solid #4a3c25;border-left:3px solid #4a3c25;padding:clamp(7px,1.25vh,12px) 18px;transition:border-color .12s,background .12s,transform .12s;}
+.aorItem:hover{border-color:#c9a24a;border-left-color:#c9a24a;background:rgba(52,41,24,.95);transform:translateX(3px);}
+.aorGlyph{flex:none;width:24px;text-align:center;font-size:17px;filter:grayscale(.35);}
+.aorItem .aorSub{display:block;font-family:'EB Garamond',serif;font-weight:400;font-style:italic;font-size:clamp(11.5px,1.5vh,13.5px);letter-spacing:0;color:#9d8a67;margin-top:1px;}
+/* The menu must always be reachable without scrolling, so the decoration yields to it as the
+   window gets shorter: the blurb goes first (it repeats what the art already says), the banner
+   second. Thresholds measured against the real stack, not guessed. */
+@media(max-height:830px){#aorBlurb{display:none;}}
+@media(max-height:660px){#aorBanner{display:none;}}
+/* the reference sheets the menu opens */
+.aorModal{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;background:rgba(6,4,2,.78);padding:32px;}
+.aorModal.hidden{display:none;}
+.aorSheet{width:min(760px,100%);max-height:86vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#221b12 0%,#17120c 100%);border:1px solid #4a3c25;box-shadow:0 26px 70px rgba(0,0,0,.75);}
+.aorSheetHead{flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 26px;border-bottom:1px solid #3b2f1d;font-family:'Cinzel',serif;font-weight:800;font-size:21px;letter-spacing:.14em;text-transform:uppercase;color:#f1e4c4;}
+.aorSheetBody{overflow-y:auto;padding:24px 30px 30px;}
+.aorSheetBody .aorKick{margin-top:22px;}
+.aorSheetBody .aorKick:first-child{margin-top:0;}
+.aorSheetBody .aorList{margin-bottom:4px;}
+.aorX{cursor:pointer;flex:none;background:rgba(31,25,16,.9);border:1px solid #4a3c25;color:#e8dcc0;font-size:15px;line-height:1;padding:7px 12px;transition:border-color .12s,color .12s;}
+.aorX:hover{border-color:#c9a24a;color:#f1e4c4;}
 </style>
 <script type="importmap">
 { "imports": {
@@ -395,7 +486,14 @@ function liftCharacterTone(root){ if(!root)return root;
       // ever bring it back, because the diffuse term was being multiplied out entirely.
       // b302/b317/b319 were all treating this symptom from the wrong end. Non-metal, medium
       // roughness matches how the vertex-baked roster is lit, so they now sit in the same world.
-      if(m.map){ m.metalness=0; m.roughness=0.78; continue; }
+      // b321: and give the sheet anisotropic filtering. A character is nearly always viewed at a
+      // steep glancing angle in this game, which is the exact case where plain trilinear mipmapping
+      // over-blurs - the GPU picks a mip for the WORST-compressed axis, so a face 40 pixels tall
+      // gets sampled as if it were 8. Max anisotropy costs nothing per frame here (a few dozen
+      // textures) and is the difference between a face and a smudge.
+      if(m.map){ m.metalness=0; m.roughness=0.78;
+        try{ const mx=renderer.capabilities.getMaxAnisotropy(); if(mx>1&&m.map.anisotropy<mx){ m.map.anisotropy=mx; m.map.needsUpdate=true; } }catch(e){}
+        continue; }
       const [r,gg,b]=sat(_liftCh(m.color.r),_liftCh(m.color.g),_liftCh(m.color.b));
       m.color.setRGB(srgb2lin(r),srgb2lin(gg),srgb2lin(b)); } });
   return root; }
@@ -2696,7 +2794,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     if(sit){rmix.clipAction(sit).play();rmix.update(0.85);}   // frozen mid-sit — a posed rider, no per-frame cost
     g.add(rider);
     armUnit(g,type); if(g.userData.weapon)g.userData.weapon.position.y+=saddleY+0.35*MAN_SCALE;   // b148: a horseman carries his too
-    addTeamAccent(g,owner,saddleY+1.75*MAN_SCALE,MAN_SCALE);   // b284: the rider's cape, over the saddle
+    // b321: the rider's cape goes with the foot soldiers' — same flat board, same problem.
     g.userData.noBob=true;
     // Health bars draw with depthTest off, so this does not hide behind the man — it paints across
     // him. At 3.4 it was already crossing the old rider's helmet (top 3.57); with a full-size rider
@@ -2721,8 +2819,11 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     // b317: 3.0 was the right number when the hero was a standing man (Meiya) - measured against
     // a mounted Dragoon/Knight (3.51 tall) the new horse-and-rider King came out at 2.50, visibly
     // the smallest thing on the field despite being the one unit meant to read as the biggest.
-    // 5.0 puts him at ~4.17 - taller than any other cavalry, which is the point of him.
-    ch.scale.setScalar((type==='hero'?5.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)*MAN_SCALE/hgt);
+    // b321: 5.0 then overshot the other way and he read as odd - a horseman a head taller than
+    // every other horseman. He is cavalry, so he is sized as cavalry: 4.68*MAN_SCALE lands at
+    // 3.51, the same height the Knight/Dragoon rig measures. His crown, not his scale, is what
+    // marks him out.
+    ch.scale.setScalar((type==='hero'?4.68:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)*MAN_SCALE/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
     armUnit(g,type);   // b148: and give the man something to fight with
     if(type==='worker'){ let hand=null; ch.traverse(o=>{if(o.isBone&&o.name==='FistR')hand=o;}); g.userData.hand=hand;   // tools ride the real hand bone
@@ -2766,10 +2867,16 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     // the back, and at the extra-large size hero gets it read as a shapeless coloured blob
     // rather than as her. "A King does not change his colours" was already the rule for her
     // coat (b148); the same rule covers this.
-    if(type!=='worker'&&type!=='hero')addTeamAccent(g,owner,(type==='highlander'?2.15:type==='samurai'?2.1:type==='cardinal'?2.05:1.85)*MAN_SCALE,MAN_SCALE);
+    // b321: the b284 cape is gone. It is a flat double-sided PLANE hung behind the shoulders,
+    // and on the properly-lit textured characters it stopped reading as cloth and started
+    // reading as exactly what it is - a coloured board floating at a man's back. Owner is
+    // already legible from the health bar and the selection ring; a billboard is not worth it.
+    void addTeamAccent;
     // b317: 3.2 cleared the old 2.5-tall Meiya-hero by a comfortable margin; it now sits inside
     // the mounted King's chest instead of over his head, since his body alone reads ~3.75.
-    const hbk=makeHealthBar();hbk.position.y=(type==='hero'?5.5:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
+    // b321: sized as cavalry now, so he takes the cavalry bar height too - the same 4.55 the
+    // Knight/Dragoon rig uses, which clears a mounted man's head by the same margin.
+    const hbk=makeHealthBar();hbk.position.y=(type==='hero'?4.55:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
     return g; }
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
   if(u.coat&&!unitMat[coatKey])unitMat[coatKey]=new THREE.MeshStandardMaterial({color:fac.coat,roughness:.55,flatShading:true});
@@ -6069,7 +6176,7 @@ function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Id
   if(b.queue.length>1){const rest=b.queue.slice(1,7).map(q=>UNIT_IC[q.type]||UNIT[q.type].name).join(' ');
     s+=' <span style="color:#9fc0d2">· then '+rest+(b.queue.length>7?' <b>+'+(b.queue.length-7)+' more</b>':'')+'</span>';}
   return s; }
-function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';const can=c=>res.player.w>=(c.w||0)&&res.player.m>=(c.m||0)&&res.player.f>=(c.f||0)&&res.player.g>=(c.g||0);
+function refreshUI(){const cmds=$('cmds'),info=$('selInfo'),formBar=$('formBar');cmds.innerHTML='';if(formBar)formBar.innerHTML='';const can=c=>res.player.w>=(c.w||0)&&res.player.m>=(c.m||0)&&res.player.f>=(c.f||0)&&res.player.g>=(c.g||0);
   if(placing){info.innerHTML=`<b>Placing ${BLD[placing].name}</b><br>Left-click to build. Hold Shift or Ctrl = place several. Esc cancels.`;return;}
   if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){info.innerHTML=`<b>${BLD[b.type].name}</b> <span style="color:#7fa8bd">(${b.owner})</span> · HP ${Math.max(0,Math.round(b.hp))}/${b.maxHp}`+(b.done?'':` · <span style="color:#e0c878">building ${Math.round(b.progress*100)}%</span>`)+(b.done&&TRAINERS.has(b.type)&&b.owner==='player'?'<br><span id="qline">'+qlineHTML(b)+'</span><br><span style="color:#6f93a8;font-size:11px">'+(b.rally?'🚩 rally set — right-click ground moves it':'right-click ground = rally flag')+'</span>':'');
     if(b.owner==='player'&&b.done){if(b.type==='hall'){trainBtn(cmds,b,'worker','⚒','Worker',can);const T=tech.player;
@@ -6174,7 +6281,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
     if(sel.length===1)info.innerHTML+=`<br>HP ${Math.max(0,Math.round(sel[0].hp))}/${sel[0].maxHp}<br><span id="uDoing" style="color:#9fe8b0">${unitDoing(sel[0])}</span>`+(sel[0].type!=='worker'?` <span style="color:#7fa8bd;font-size:11px">· ${stOf(sel[0]).ic} ${stOf(sel[0]).name}</span>`:'');
     else{const ws=sel.filter(e=>e.type==='worker');if(ws.length===sel.length){const dt2={};ws.forEach(e=>{const d=unitDoing(e);dt2[d]=(dt2[d]||0)+1;});
       info.innerHTML+='<br><span id="uDoing" style="color:#9fe8b0;font-size:12px">'+Object.entries(dt2).map(([d,n])=>n+'× '+d).join(' · ')+'</span>';}}
-    if(sel.some(e=>e.type!=='worker')){ const fr=document.createElement('div');fr.style.cssText='display:flex;gap:4px;margin-top:6px;flex-wrap:wrap';
+    if(sel.some(e=>e.type!=='worker')){ const fr=document.createElement('div');fr.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-content:flex-start';
       for(const k in FORMS){ const fb=document.createElement('button');fb.textContent=FORMS[k].ic+' '+FORMS[k].name;
         fb.title='Formation — right-click-drag the ground to place & aim it (T cycles)';
         fb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#dff0f9;background:'+(formation===k?'#2c5c7a':'#17303f')+';border:1px solid '+(formation===k?'#8fd4f0':'#2c5164');
@@ -6189,7 +6296,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         tb.title=STANCE[k].tip+' (Z cycles)';
         tb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#dff0f9;background:'+(cur===k?'#2c5c7a':'#17303f')+';border:1px solid '+(cur===k?'#8fd4f0':'#2c5164');
         tb.onclick=()=>setStance(sel.filter(e=>e.type!=='worker'),k); fr.appendChild(tb); }
-      info.appendChild(fr); }
+      (formBar||info).appendChild(fr); }
     if(sel.some(e=>e.type==='worker')){
       const CATS={
         town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['miningcamp','⛏️','Mining Camp'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue'],['wonder','🏛️','Wonder',3]]},
@@ -6946,6 +7053,17 @@ document.getElementById('slotsClose').onclick=()=>document.getElementById('slots
 document.getElementById('loadMenuBtn').onclick=openSlots;
 document.getElementById('saveBtn').onclick=()=>{closeGameMenu();saveGame(true);openSlots();};
 document.getElementById('menuBtn').onclick=()=>{ if(running&&!gameOver&&!paradeMode){ if(!window.confirm('Return to the main menu?\nYour kingdom is saved to the Autosave slot first.'))return; saveGame(true); } location.reload(); };
+// b321: the start-screen reference sheets. Closed by the ✕, by the backdrop, or by Esc — all
+// three, because a panel you cannot get out of is worse than one that was never opened.
+(function(){ const sheets=['howModal','ctrlModal'];
+  const shut=()=>sheets.forEach(id=>document.getElementById(id).classList.add('hidden'));
+  const open=id=>{ shut(); document.getElementById(id).classList.remove('hidden'); };
+  document.getElementById('howBtn').onclick=()=>open('howModal');
+  document.getElementById('ctrlBtn').onclick=()=>open('ctrlModal');
+  sheets.forEach(id=>{ const m=document.getElementById(id);
+    m.addEventListener('click',ev=>{ if(ev.target===m||ev.target.hasAttribute('data-close'))shut(); }); });
+  document.addEventListener('keydown',ev=>{ if(ev.key==='Escape'&&sheets.some(id=>!document.getElementById(id).classList.contains('hidden'))){ shut(); ev.stopPropagation(); } },true);
+})();
 const _cont=document.getElementById('contBtn');
 if(localStorage.getItem('crownhelm_save'))_cont.style.display='';
 if(SLOT_KEYS.some(([k])=>localStorage.getItem(k)))document.getElementById('loadMenuBtn').style.display='';
