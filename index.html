@@ -54,6 +54,9 @@
   .btn{min-width:94px;padding:7px 9px;background:#17303f;border:1px solid #2c5164;border-radius:8px;color:#dff0f9;font-size:12px;cursor:pointer;line-height:1.25;}
   .btn:hover{background:#1e435a;border-color:#4d86a3;} .btn small{display:block;color:#84acc0;font-size:10.5px;margin-top:2px;} .btn.disabled{opacity:.36;cursor:not-allowed;}
   .btn .ic{font-size:14px;margin-right:3px;}
+  /* b323: the unit's own portrait, rendered from its real mesh at first draw */
+  .btn .upic{display:block;width:100%;height:52px;object-fit:cover;border-radius:5px;margin-bottom:4px;background:#14283a;border:1px solid #24485e;}
+  .btn.disabled .upic{filter:grayscale(.75) brightness(.7);}
   #hint{width:170px;font-size:10.5px;color:#54748a;line-height:1.4;max-height:96px;overflow:hidden;}
   #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,10,16,.9);text-align:center;z-index:10;padding:20px;}
   #overlay h1{font-size:48px;margin:0;color:#6fd0f0;letter-spacing:3px;text-shadow:0 3px 26px #061a26;}
@@ -938,9 +941,12 @@ function updateDayNight(){ const dayLight=1, a=0;   // permanent bright daylight
   skyMat.uniforms.uFlash.value=flashI*0.85;
   scene.fog.color.setRGB(0.77-0.40*dayNight,0.86-0.46*dayNight,0.91-0.40*dayNight);
   LANTERN_MAT.emissiveIntensity=Math.max(dayNight*2.3,wCloud*1.5);   // shutters lit against a dark sky
-  scene.fog.density=0.0010*wFog;
+  // b323: the mist fronts were whiting the map out — at wFog up to 4.6 this put a wall of pale
+  // fog colour over the player's own town, which is not atmosphere, it is losing sight of the
+  // game. Capped so the far hills still recede but the middle distance never washes out.
+  scene.fog.density=0.0010*Math.min(wFog,1.35);
   if(wCloud>0.01)scene.fog.color.lerp(RAIN_FOG,Math.min(0.75,wCloud*0.6));
-  if(wMist>0.01)scene.fog.color.lerp(MIST_FOG,wMist*0.8); }
+  if(wMist>0.01)scene.fog.color.lerp(MIST_FOG,Math.min(0.35,wMist*0.8)); }
 
 // ---- passing rain showers: streak lines around the camera, dimmed sun, thicker mist ----
 const RAIN_N=1400, RAIN_FOG=new THREE.Color(0.60,0.66,0.71);
@@ -1106,6 +1112,9 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
 // b128: units spawned before the character library finished (fast save-loads) kept their
 // stand-in bodies forever — knights on foot, capsule workers. Rebuild them once models land.
 function refreshUnitModels(){ try{ if(!CHAR_LIB||typeof ents==='undefined')return;
+  // b323: the character library has landed, so any portrait taken of a procedural stand-in in the
+  // first second of the game is now out of date. Drop them; the next button draw retakes them.
+  try{ for(const k in _portrait)delete _portrait[k]; }catch(e){}
   const MOUNTED={knight:1,dragoon:1,wolfrider:1,cuirassier:1};
   for(const e of ents){ const wantsLib=MOUNTED[e.type]||UNIT_CHAR[e.type]||e.type==='worker';
     if(!wantsLib)continue;
@@ -2344,7 +2353,9 @@ function updateCloudShade(dt){ _cldT+=dt*(0.010+0.014*wWind);
   // clear. The player was being told a mist had rolled in and shown nothing. wFog already carries
   // the weather's reach (1.0 clear to 4.6 mist) and drove nothing but scene.fog.density, which at
   // this camera barely gets to the far edge of the view.
-  _hazeUni.k.value=6.5e-6+4.2e-6*wFog+1.5e-5*wMist;
+  // b323: same cap on the aerial-perspective term. At full mist this reached 3.5e-5, which is
+  // where the haze stops being distance and becomes a white sheet across the whole view.
+  _hazeUni.k.value=Math.min(1.15e-5, 6.5e-6+4.2e-6*wFog+1.5e-5*wMist);
   _cldUni.drift.value.set(_cldT,_cldT*0.42);
   const want=Math.min(1,wCloud*1.55)*(1-rainI*0.45);
   const a=_cldUni.amt; a.value+=(want-a.value)*Math.min(1,dt*0.5); }
@@ -5874,7 +5885,11 @@ function updateSlotMarks(ang){ const s=selUnits().filter(e=>UNIT[e.type].dom!=='
 function hideSlotMarks(){slotMarks.forEach(m=>m.visible=false);}
 function resize(){const s=document.getElementById('stage');vw=s.clientWidth;vh=s.clientHeight;renderer.setSize(vw,vh,false);camera.aspect=vw/vh;camera.updateProjectionMatrix();if(composer)composer.setSize(vw,vh);}
 window.addEventListener('resize',resize);
-const IMP_CAP=600, FULL_BUDGET=150; let _lodScale=1;
+// b323: men were turning into capsules 44 units out, which when zoomed out is most of the screen —
+// an army read as green pills on grass. The full-model radius floor is raised and the budget with
+// it. The adaptive _lodScale below still protects the frame rate (it can pull the line back to
+// 0.22 of this), so a huge battle degrades gracefully instead of the view starting degraded.
+const IMP_CAP=600, FULL_BUDGET=230; let _lodScale=1;
 const _frustum=new THREE.Frustum(), _frM=new THREE.Matrix4(), _frS=new THREE.Sphere();
 // b144: the instanced rank reads as a man now — body, head and a shoulder line — still one draw call
 const impGeo=(()=>{ const body=new THREE.CapsuleGeometry(.42,1.0,3,6); body.translate(0,1.0,0);
@@ -5902,7 +5917,7 @@ function updateUnitLOD(){
   // b144: a host of 300 men was 300 skinned draw calls. The swap-out distance now breathes with
   // the size of the army — the nearest ~150 keep their full models and the rest fall back to the
   // instanced rank (one draw call for the lot). Small armies never notice; big ones stay playable.
-  const LODD=Math.max(44,7200/Math.max(camDist,1))*_lodScale; const L2=LODD*LODD; let n=0,nFull=0;
+  const LODD=Math.max(95,7200/Math.max(camDist,1))*_lodScale; const L2=LODD*LODD; let n=0,nFull=0;
   // b144: men the camera cannot see are not animated at all — they catch up when they come back into view
   _frM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _frustum.setFromProjectionMatrix(_frM);
   const selSet=selected.length?new Set(selected):null;
@@ -6371,7 +6386,56 @@ function shortOf(c){const r=res.player,parts=[];
   if(c.m&&r.m<c.m)parts.push(Math.ceil(c.m-r.m)+'⛏️ metal');
   if(c.g&&r.g<c.g)parts.push(Math.ceil(c.g-r.g)+'💰 gold');
   return parts.join(' + ');}
-function trainBtn(cmds,b,type,ic,label,can,dis){const c=COST[type];const en=!dis&&can(c)&&c.pop<=popFree('player')&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.f?c.f+'🍖 ':''}${c.w?c.w+'🌲 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'💰 ':''}· 👥${c.pop}</small>`;
+// b323 SEE WHAT YOU ARE BUILDING. An emoji tells you a Cardinal costs 180 gold; it does not tell
+// you what a Cardinal looks like, and this roster now has men worth looking at. Each unit type is
+// photographed ONCE, the first time a button for it is drawn, by building its real mesh in a tiny
+// private scene and rendering it offscreen — the same trick TFshot uses, so it works without
+// touching the live scene or the main camera. The result is cached as a data URL forever.
+// Cache is cleared when the character library finishes loading, so the portraits show the real
+// models rather than the procedural stand-ins that exist for the first second of a game.
+const _portrait={};
+function unitPortrait(type){
+  if(_portrait[type]!==undefined)return _portrait[type];
+  _portrait[type]=null;
+  try{
+    const S=104;
+    const sc=new THREE.Scene();
+    sc.add(new THREE.AmbientLight(0xffffff,1.25));
+    const key=new THREE.DirectionalLight(0xfff2dd,1.7); key.position.set(3,5,4); sc.add(key);
+    const fill=new THREE.DirectionalLight(0x9fc4ff,0.55); fill.position.set(-4,2,-3); sc.add(fill);
+    const m=makeUnitMesh(type,'player');
+    // REMOVE the health bar, don't just hide it: Box3.setFromObject expands over invisible
+    // children too, and a bar 2.8 up is enough to shove the man into a corner of his own portrait.
+    if(m.userData.hb)m.remove(m.userData.hb);
+    m.rotation.y=-0.55;                                 // three-quarter view, the flattering one
+    sc.add(m);
+    const box=new THREE.Box3().setFromObject(m);
+    if(box.isEmpty())throw 0;
+    const ctr=box.getCenter(new THREE.Vector3()), sz=box.getSize(new THREE.Vector3());
+    // frame on the standing figure: height decides the distance, width only if he is wider than tall
+    const rad=Math.max(sz.y,Math.max(sz.x,sz.z)*1.05)*0.5||1;
+    const cam=new THREE.PerspectiveCamera(34,1,0.05,400);
+    const dist=rad/Math.tan(17*Math.PI/180)*1.02;
+    cam.position.set(ctr.x+dist*0.52,ctr.y+dist*0.34,ctr.z+dist*0.78);
+    cam.lookAt(ctr); cam.updateProjectionMatrix();
+    const rt=new THREE.WebGLRenderTarget(S,S,{colorSpace:THREE.SRGBColorSpace});
+    const prevRT=renderer.getRenderTarget(), prevCol=new THREE.Color(); renderer.getClearColor(prevCol);
+    const prevAl=renderer.getClearAlpha(), prevSh=renderer.shadowMap.enabled;
+    renderer.shadowMap.enabled=false; renderer.setClearColor(0x14283a,1);
+    renderer.setRenderTarget(rt); renderer.render(sc,cam);
+    const buf=new Uint8Array(S*S*4); renderer.readRenderTargetPixels(rt,0,0,S,S,buf);
+    renderer.setRenderTarget(prevRT); renderer.setClearColor(prevCol,prevAl); renderer.shadowMap.enabled=prevSh;
+    const cv=document.createElement('canvas'); cv.width=S; cv.height=S;
+    const cx=cv.getContext('2d'), img=cx.createImageData(S,S);
+    for(let y=0;y<S;y++){ const s=(S-1-y)*S*4,d=y*S*4; for(let i=0;i<S*4;i++)img.data[d+i]=buf[s+i]; }
+    cx.putImageData(img,0,0); rt.dispose();
+    _portrait[type]=cv.toDataURL('image/png');
+  }catch(e){ _portrait[type]=null; }
+  return _portrait[type];
+}
+function trainBtn(cmds,b,type,ic,label,can,dis){const c=COST[type];const en=!dis&&can(c)&&c.pop<=popFree('player')&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');
+  const pic=unitPortrait(type);
+  btn.innerHTML=(pic?`<img class="upic" src="${pic}" alt="">`:'')+`<span class="ic">${ic}</span>${label}<small>${c.f?c.f+'🍖 ':''}${c.w?c.w+'🌲 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'💰 ':''}· 👥${c.pop}</small>`;
   btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance the Age first');return;}if(dis){flashMsg('You already have a Hero');return;}if(!can(c)){flashMsg('Need '+shortOf(c)+' more for a '+label);return;}if(c.pop>popFree('player')){flashMsg(popQueued('player')?'🏠 No room left once the men already ordered are raised — build Houses':'🏠 Need more Houses (population cap)');return;}res.player.f-=(c.f||0);res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.g-=(c.g||0);b.queue.push({type,t:c.time*(b.up&&b.type==='barracks'?0.8:1)});SFX.cmd();refreshUI();};cmds.appendChild(btn);}
 function buildBtn(cmds,type,ic,label,can){const c=COST[type];const en=can(c)&&(c.age||1)<=tech.player.age;const btn=document.createElement('div');btn.className='btn'+(en?'':' disabled');btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${c.w?c.w+'🌲 ':''}${c.m?c.m+'⛏️ ':''}${c.g?c.g+'💰':''}</small>`;btn.onclick=()=>{if((c.age||1)>tech.player.age){flashMsg('Advance to Age '+(c.age)+' first — at your Keep');return;}if(!can(c)){flashMsg('Need '+shortOf(c)+' more for a '+label);return;}placing=type;updateGhost();refreshUI();};cmds.appendChild(btn);}
 // b142: weapon & armour research, shared by the Barracks and the Armourer.
