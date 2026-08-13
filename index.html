@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b304</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b305</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3143,7 +3143,11 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
 
 function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owner].armor*0.15)*(tech[owner].plate?1.1:1);const fac=faction[owner];
   if(u.coat&&fac==='scottish')hp*=1.15;if(type==='knight'&&fac==='french')hp*=1.2;hp=Math.round(hp);
-  const e={id:idc++,type,owner,x:wx(tx),z:wz(ty),hp,maxHp:hp,cmd:'idle',path:null,pi:0,target:null,gather:null,carry:0,carryType:null,build:null,cd:0,dir:owner==='player'?0:Math.PI,disp:owner==='player'?0:Math.PI,atk:0,walk:0,stance:'aggro'};
+  // b305 (owner request): a whole company marching at IDENTICAL speed reads as one machine, not
+  // men — a fixed ±8% per-soldier pace, rolled once here and carried for his whole life, is what
+  // breaks a formation into individuals without touching balance (it averages out to the same
+  // speed across a group either way).
+  const e={id:idc++,type,owner,x:wx(tx),z:wz(ty),hp,maxHp:hp,cmd:'idle',path:null,pi:0,target:null,gather:null,carry:0,carryType:null,build:null,cd:0,dir:owner==='player'?0:Math.PI,disp:owner==='player'?0:Math.PI,atk:0,walk:0,stance:'aggro',spdV:0.92+hashN(idc*3.7,idc*1.9+11)*0.16};
   e.mesh=makeUnitMesh(type,owner);
   // b204: not one of the 980 meshes a hundred men are made of received a shadow. b203 gave the
   // trees their shadows and the ground takes them, but the men walked through shade in full
@@ -4233,7 +4237,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       const held=tl||(wantG?ud.gun:null);
       if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } }   // pin the tool to the swinging fist
   _u('u_tool');
-  if(moving&&e.path&&e.pi<e.path.length){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
+  if(moving&&e.path&&e.pi<e.path.length){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.spdV||1)*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
     if(adv){e.x+=(cx-e.x)/d*sp;e.z+=(cz-e.z)/d*sp;e.walk+=dt;
       if((UNIT[e.type].cav||UNIT[e.type].siege)&&Math.random()<dt*1.8)spawnPart(e.x-Math.cos(e.dir)*0.8,heightAtWorld(e.x,e.z)+0.25,e.z-Math.sin(e.dir)*0.8,'chip');}}}   // hooves & wheels kick dust
@@ -4260,7 +4264,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
   // exact place in the line is walked straight, and then he faces the way the line faces.
   if(e.slot&&arrived&&(e.cmd==='move'||e.cmd==='amove'||e.cmd==='idle')){
     const sdx=e.slot.x-e.x,sdz=e.slot.z-e.z,sd=Math.hypot(sdx,sdz);
-    if(sd>0.12){ const st=Math.min(sd,UNIT[e.type].speed*dt*0.9);
+    if(sd>0.12){ const st=Math.min(sd,UNIT[e.type].speed*(e.spdV||1)*dt*0.9);
       e.x+=sdx/sd*st; e.z+=sdz/sd*st; e.walk+=dt; e.dir=Math.atan2(sdz,sdx); e.formed=false; }
     else { e.x=e.slot.x; e.z=e.slot.z; e.dir=e.slot.dir; e.formed=true; }   // stood to, and holding
   } else e.formed=false;
