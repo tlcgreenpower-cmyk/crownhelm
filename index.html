@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b316</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b317</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -388,7 +388,13 @@ function liftCharacterTone(root){ if(!root)return root;
       // neutral multiplier over that texture, so lifting it through the usual curve leaves white
       // at white and does nothing. There's no per-pixel access to lift the texture's own black
       // point, so the closest equivalent is brightening the multiplier itself above white.
-      if(m.map){ m.color.multiplyScalar(1.4); continue; }
+      // b317: that alone wasn't enough for the King and the Pikeman - dark armour on both reads
+      // as genuinely near-black pixels in the source texture, and multiplying a near-zero value
+      // only ever gets you back to near-zero. A multiplier can't lift a true black; only an
+      // ADDITIVE term can, so this now also gives every textured character a flat emissive floor
+      // (independent of scene lighting) alongside the multiply, the same way the vertex-colour
+      // curve raises CHAR_BLACK for everyone else.
+      if(m.map){ m.color.multiplyScalar(1.6); m.emissive=new THREE.Color(0x8a8a7e); m.emissiveIntensity=1; continue; }
       const [r,gg,b]=sat(_liftCh(m.color.r),_liftCh(m.color.g),_liftCh(m.color.b));
       m.color.setRGB(srgb2lin(r),srgb2lin(gg),srgb2lin(b)); } });
   return root; }
@@ -2702,7 +2708,11 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const HOLY_TINT={monk:0xa8845c,cardinal:0xd95c4a};
     if(HOLY_TINT[type])ch.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(HOLY_TINT[type]);}});
     const box=modelBox(ch),hgt=box.max.y-box.min.y||2;
-    ch.scale.setScalar((type==='hero'?3.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)*MAN_SCALE/hgt);
+    // b317: 3.0 was the right number when the hero was a standing man (Meiya) - measured against
+    // a mounted Dragoon/Knight (3.51 tall) the new horse-and-rider King came out at 2.50, visibly
+    // the smallest thing on the field despite being the one unit meant to read as the biggest.
+    // 5.0 puts him at ~4.17 - taller than any other cavalry, which is the point of him.
+    ch.scale.setScalar((type==='hero'?5.0:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)*MAN_SCALE/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
     armUnit(g,type);   // b148: and give the man something to fight with
     if(type==='worker'){ let hand=null; ch.traverse(o=>{if(o.isBone&&o.name==='FistR')hand=o;}); g.userData.hand=hand;   // tools ride the real hand bone
@@ -2747,7 +2757,9 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     // rather than as her. "A King does not change his colours" was already the rule for her
     // coat (b148); the same rule covers this.
     if(type!=='worker'&&type!=='hero')addTeamAccent(g,owner,(type==='highlander'?2.15:type==='samurai'?2.1:type==='cardinal'?2.05:1.85)*MAN_SCALE,MAN_SCALE);
-    const hbk=makeHealthBar();hbk.position.y=(type==='hero'?3.2:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
+    // b317: 3.2 cleared the old 2.5-tall Meiya-hero by a comfortable margin; it now sits inside
+    // the mounted King's chest instead of over his head, since his body alone reads ~3.75.
+    const hbk=makeHealthBar();hbk.position.y=(type==='hero'?5.5:2.8)*MAN_SCALE;g.add(hbk);g.userData.hb=hbk;
     return g; }
   const fac=FACTIONS[faction[owner]];const coatKey=type+'_'+faction[owner];
   if(u.coat&&!unitMat[coatKey])unitMat[coatKey]=new THREE.MeshStandardMaterial({color:fac.coat,roughness:.55,flatShading:true});
