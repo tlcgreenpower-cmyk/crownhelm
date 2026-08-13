@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b313</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b314</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -953,6 +953,12 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   // merge, but neither ever got lifted, which is exactly why Lisa read as a near-black silhouette
   // next to a properly-lit WorkerM/WorkerF: her raw, unlifted source colours, not a broken texture.
   loader.load('assets/worker-Meiya_rigged.glb',g=>{lib['Meiya']={scene:liftCharacterTone(mergeSkinnedModel(g.scene)),clips:g.animations};refreshUnitModels();},undefined,()=>{});
+  // b314: the King, mounted - a single fused horse+rider mesh (no skeleton, no clips: this one
+  // never walks or swings, he sits a heroic frozen pose, which a lone always-on-screen unit can
+  // afford). Decimated 40,000->20,000 tris in Blender, normal/metal-rough maps dropped (this
+  // engine never reads them), base colour shrunk 2048->1024. liftCharacterTone still applies -
+  // same textured-material branch Lisa uses, since he paints from an image, not vertex colour.
+  loader.load('assets/LeeRider_static.glb',g=>{lib['LeeRider']={scene:liftCharacterTone(mergeSkinnedModel(g.scene)),clips:g.animations};refreshUnitModels();},undefined,()=>{});
   // b287: Lisa, rigged the same way Meiya was (b201) - Blender 5.2 headless: mesh cleaned
   // (merge doubles + consistent normals) so automatic weighting would actually take, decimated
   // 39,990 -> 16,000 tris, an 18-bone humanoid skeleton fitted to her measured silhouette,
@@ -2522,7 +2528,7 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'Meiya',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
+const UNIT_CHAR={hero:'LeeRider',spear:'KnightM',infantry:'Soldier',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'Rogue_Hooded',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
 // b148: weapons. Shaft materials are shared, so a whole army of pikes costs a handful of draws
 // once the merge/instancing has done its work. Every piece is built around the grip at the origin.
 // one material family for all of it — same roughness, same metalness — so the merge can fold a
@@ -2606,7 +2612,7 @@ function setManScale(aoe){ MAN_SCALE=aoe?MAN_AOE:1;
   flashMsg(aoe?'\uD83D\uDC64 Men at Age of Empires size \u2014 0.43 of a tile (M switches back)'
               :'\uD83D\uDC64 Men at the old Crownhelm size (M switches back)'); }
 function armUnit(g,type){ const a=ARMS[type]; if(!a)return;
-  if(type==='hero'&&UNIT_CHAR.hero==='Meiya')return;   // her weapons are sculpted into the model
+  if(type==='hero')return;   // b314: whoever plays the King, his weapon (or lack of one) is sculpted into the model, not procedural
   const src=weaponMesh(a[0]); if(!src)return;
   const w=src.clone(true); w.position.set(a[1]*MAN_SCALE,a[2]*MAN_SCALE,a[3]*MAN_SCALE); w.scale.setScalar(MAN_SCALE);
   w.rotation.x=a[4]; w.rotation.z=a[5];
@@ -4873,7 +4879,7 @@ function spawnPart(x,y,z,type){if(parts.length>=PART_CAP)parts.shift();
 const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
 const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
 const strawMat=new THREE.MeshStandardMaterial({color:0xd8b96a,roughness:1,flatShading:true});
-const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian','Anne','Henry','Mako','Sharky','WorkerM','WorkerF','Ninja','Soldier'];
+const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian','Anne','Henry','Mako','Sharky','WorkerM','WorkerF','Ninja','Soldier','Meiya'];   // b314: freed up from the hero slot, she still walks the streets as a citizen
 const CIT_CAP=22;   // townsfolk are skinned meshes, so the world affords only so many
 const CIT_FLOOR=o=>o==='village'?8:3;   // how many each pool keeps back, however much the player builds
 // b170: that budget used to go to whichever realm finished its houses first — across all eight
