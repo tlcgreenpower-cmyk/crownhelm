@@ -39,6 +39,7 @@
   #bellBtn{position:absolute;right:10px;bottom:230px;z-index:5;width:64px;height:64px;font-size:30px;line-height:1;cursor:pointer;background:#17303f;border:2px solid #2c5164;color:#dff0f9;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.5);transition:transform .1s,border-color .12s;}
   #bellBtn:hover{transform:scale(1.08);border-color:#7fc4e8;}
   #bellLbl{display:none;}
+  #volVal{display:none;}   /* b324: the slider already shows the level — the number was noise */
   /* b294: this used to be min-height:72px;max-height:110px - a 38px range that grew every time a
      unit was selected (info text + formation buttons) and shrank on Esc. #stage above it fills
      whatever's left with flex:1, so the game viewport itself resized on every select/deselect -
@@ -104,7 +105,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b322</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b324</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -303,7 +304,7 @@
           <input id="volSlider" type="range" min="0" max="100" value="70" style="flex:1;accent-color:#c9a44a;cursor:pointer">
           <span id="volVal" style="flex:none;width:38px;text-align:right;color:#c9a44a">70%</span></div>
         <button class="gmb" id="qualBtn" title="Graphics quality — Fast if the game stutters, High for looks">⚙ Medium</button>
-        <button class="gmb" id="guideBtn">📖 Guide — every unit &amp; building</button>
+        <button class="gmb" id="guideBtn">📖 Game Guide</button>
         <button class="gmb" id="menuBtn" title="Back to the main menu — your kingdom is autosaved first">🏰 Quit to Main Menu</button>
         <div style="font-size:11px;color:#5f7f92;text-align:center;margin-top:4px;">the game stands paused while this menu is open</div>
       </div>
@@ -1775,7 +1776,7 @@ function buildWater(){ if(waterMesh){scene.remove(waterMesh);waterMesh.geometry.
             // it. Capped so distant water in weather still reads as hazy water, not a solid sheet -
             // the owner's own report was "what happened to colour and sea" and a fully-blown-out
             // haze IS the loss of colour, not an intensified version of the intended effect.
-            col=mix(col,uHazeCol,min(0.78,1.0-exp(-hd*hd*uHazeK))*fg); }
+            col=mix(col,uHazeCol,min(0.34,1.0-exp(-hd*hd*uHazeK))*fg); }
           col=mix(col*vec3(0.10,0.13,0.20),col,fg);
           alpha=mix(1.0,alpha,fg); }   // and turns opaque, so the bright sky cannot shine through the dark sea
         gl_FragColor=vec4(col,alpha);}`});
@@ -2819,7 +2820,10 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   // space (not pinned to the hand bone) so it costs nothing per frame and always sits right.
   if(type==='worker'){} // workers keep their bone-mounted tools, below
   let ckey=UNIT_CHAR[type];
-  if(type==='worker'&&CHAR_LIB&&CHAR_LIB.lib.WorkerM){ const opts=['WorkerM','WorkerF']; if(CHAR_LIB.lib.Lisa)opts.push('Lisa'); ckey=opts[(Math.random()*opts.length)|0]; }
+  // b324: one peasant, and she is Lisa. The asset-pack WorkerM/WorkerF were a third of the
+  // workforce each and they are visibly cruder than she is, so the town read as mixed quality.
+  // They stay as the fallback only for the moment before her model finishes loading.
+  if(type==='worker'&&CHAR_LIB){ ckey=CHAR_LIB.lib.Lisa?'Lisa':(CHAR_LIB.lib.WorkerM?'WorkerM':ckey); }
   if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
     const src=CHAR_LIB.lib[ckey];
     const ch=CHAR_LIB.clone(src.scene);
@@ -3191,7 +3195,130 @@ function addBldProps(b){
   if(!merged)return;
   const mesh=new THREE.Mesh(merged,M.props); mesh.castShadow=true; mesh.receiveShadow=true;
   mesh.userData.props=true; b.mesh.add(mesh); b._propMesh=mesh; }
+// b324 THE ARCHERY RANGE, BUILT FOR ITSELF. It was pointed at the Barracks model, so the two
+// buildings were the same castle twice over and the eye had nothing to tell them apart. An
+// archery range is not a keep: it is a long open-fronted shooting shed with the butts standing
+// off the end of it, and that silhouette — low, wide, roofed on posts, with straw targets beside
+// it — reads instantly from the play camera without needing a label.
+function makeArcheryRange(wpx,hpx,teamMat){
+  const g=new THREE.Group();
+  const POST=new THREE.MeshStandardMaterial({color:0x5c4026,roughness:.94,flatShading:true});
+  const BEAM=new THREE.MeshStandardMaterial({color:0x4a3320,roughness:.95,flatShading:true});
+  const PLANK=new THREE.MeshStandardMaterial({color:0x7d5a34,roughness:.92,flatShading:true});
+  const DAUB=new THREE.MeshStandardMaterial({color:0xd8cdb0,roughness:1,flatShading:true});
+  const SHINGLE=new THREE.MeshStandardMaterial({color:0x6a5340,roughness:.95,flatShading:true});
+  const STRAW=new THREE.MeshStandardMaterial({color:0xd9bd72,roughness:1,flatShading:true});
+  const STRAW_D=new THREE.MeshStandardMaterial({color:0xbb9c55,roughness:1,flatShading:true});
+  const RED=new THREE.MeshStandardMaterial({color:0xb4392f,roughness:.9,flatShading:true});
+  const WHITE=new THREE.MeshStandardMaterial({color:0xeae3d2,roughness:.9,flatShading:true});
+  const IRON=new THREE.MeshStandardMaterial({color:0x40444a,roughness:.6,metalness:.35,flatShading:true});
+  const W=wpx*0.94, D=hpx*0.62;          // the shed: wide across, shallow front to back
+  const FLOOR_Y=0.12, POST_H=3.05;
+
+  // --- raised timber platform the archers stand on -------------------------------------
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(W,0.24,D),PLANK);
+  deck.position.set(0,FLOOR_Y,-hpx*0.10); deck.receiveShadow=true; g.add(deck);
+  for(let i=0;i<7;i++){ const board=new THREE.Mesh(new THREE.BoxGeometry(W*0.985,0.03,D/7.6),BEAM);
+    board.position.set(0,FLOOR_Y+0.13,-hpx*0.10-D/2+D/7*(i+0.5)); g.add(board); }
+
+  // --- six posts carrying the roof, open to the front ----------------------------------
+  const postGeo=new THREE.BoxGeometry(0.26,POST_H,0.26);
+  const px=[-W/2+0.4,0,W/2-0.4], pz=[-hpx*0.10-D/2+0.35,-hpx*0.10+D/2-0.35];
+  for(const x of px) for(const z of pz){
+    const p=new THREE.Mesh(postGeo,POST); p.position.set(x,FLOOR_Y+POST_H/2+0.12,z); p.castShadow=true; g.add(p);
+    const brace=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.9,0.14),POST);
+    brace.position.set(x+(x<0?0.32:x>0?-0.32:0.32),FLOOR_Y+POST_H-0.5,z); brace.rotation.z=(x<0?-1:1)*0.7; g.add(brace); }
+  // wall plates along the tops of the posts
+  for(const z of pz){ const plate=new THREE.Mesh(new THREE.BoxGeometry(W-0.5,0.22,0.24),BEAM);
+    plate.position.set(0,FLOOR_Y+POST_H+0.1,z); plate.castShadow=true; g.add(plate); }
+
+  // --- half-timbered back wall: daub panels between dark studs -------------------------
+  const backZ=-hpx*0.10-D/2+0.30;
+  const daub=new THREE.Mesh(new THREE.BoxGeometry(W-0.9,POST_H-0.35,0.16),DAUB);
+  daub.position.set(0,FLOOR_Y+(POST_H-0.35)/2+0.12,backZ-0.06); daub.receiveShadow=true; g.add(daub);
+  for(let i=0;i<6;i++){ const stud=new THREE.Mesh(new THREE.BoxGeometry(0.15,POST_H-0.35,0.2),BEAM);
+    stud.position.set(-W/2+0.75+i*((W-1.5)/5),FLOOR_Y+(POST_H-0.35)/2+0.12,backZ+0.02); g.add(stud); }
+  const midRail=new THREE.Mesh(new THREE.BoxGeometry(W-0.9,0.16,0.2),BEAM);
+  midRail.position.set(0,FLOOR_Y+POST_H*0.52,backZ+0.02); g.add(midRail);
+
+  // --- shingled lean-to roof, pitched toward the shooting line ------------------------
+  const roof=new THREE.Group();
+  const rw=W+0.7, rd=D+0.9;
+  for(let i=0;i<5;i++){ const course=new THREE.Mesh(new THREE.BoxGeometry(rw,0.13,rd/5+0.1),SHINGLE);
+    course.position.set(0,-i*0.055,-rd/2+rd/5*(i+0.5)); course.castShadow=true; roof.add(course); }
+  roof.position.set(0,FLOOR_Y+POST_H+0.42,-hpx*0.10); roof.rotation.x=-0.17; g.add(roof);
+  const ridge=new THREE.Mesh(new THREE.BoxGeometry(rw+0.15,0.16,0.3),BEAM);
+  ridge.position.set(0,FLOOR_Y+POST_H+0.62,-hpx*0.10-rd/2+0.2); g.add(ridge);
+
+  // --- the shooting line: a rail the archers draw across -------------------------------
+  const railZ=-hpx*0.10+D/2+0.15;
+  const rail=new THREE.Mesh(new THREE.BoxGeometry(W-1.0,0.13,0.16),POST);
+  rail.position.set(0,FLOOR_Y+1.0,railZ); g.add(rail);
+  for(const x of [-W/2+0.9,0,W/2-0.9]){ const rp=new THREE.Mesh(new THREE.BoxGeometry(0.13,1.0,0.13),POST);
+    rp.position.set(x,FLOOR_Y+0.62,railZ); g.add(rp); }
+
+  // --- straw butts downrange, the thing that says ARCHERY at a glance -----------------
+  for(let i=0;i<3;i++){
+    const bx=-W*0.30+i*(W*0.30), bz=hpx*0.46;
+    const legs=new THREE.Group();
+    for(const s of[-1,1]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.12,1.15,0.12),POST);
+      l.position.set(bx+s*0.42,0.57,bz+0.12); l.rotation.z=s*0.16; legs.add(l); }
+    g.add(legs);
+    // coiled straw disc, face-on to the shooting line
+    const butt=new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.62,0.26,14),STRAW);
+    butt.rotation.x=Math.PI/2; butt.position.set(bx,1.38,bz); butt.castShadow=true; g.add(butt);
+    const coil=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.07,5,14),STRAW_D);
+    coil.position.set(bx,1.38,bz+0.14); g.add(coil);
+    // painted rings
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.03,14),WHITE);
+    ring.rotation.x=Math.PI/2; ring.position.set(bx,1.38,bz+0.15); g.add(ring);
+    const gold=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.04,12),RED);
+    gold.rotation.x=Math.PI/2; gold.position.set(bx,1.38,bz+0.17); g.add(gold);
+    // a few arrows already struck in, at scattered angles
+    for(let a=0;a<3;a++){ const th=(i*2.1+a*2.4), rr=0.12+a*0.13;
+      const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.5,4),PLANK);
+      sh.rotation.x=Math.PI/2+0.14; sh.position.set(bx+Math.cos(th)*rr,1.38+Math.sin(th)*rr,bz+0.42);
+      g.add(sh);
+      const fl=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.13,0.13),WHITE);
+      fl.position.set(bx+Math.cos(th)*rr,1.38+Math.sin(th)*rr+0.02,bz+0.63); g.add(fl); } }
+
+  // --- a rack of bows against the back wall -------------------------------------------
+  for(let i=0;i<4;i++){ const bow=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.035,4,9,Math.PI*1.05),POST);
+    bow.position.set(-W/2+1.1+i*0.42,FLOOR_Y+1.5,backZ+0.22); bow.rotation.z=Math.PI/2+0.12; g.add(bow);
+    const str=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.8,3),WHITE);
+    str.position.set(-W/2+1.1+i*0.42,FLOOR_Y+1.5,backZ+0.30); g.add(str); }
+
+  // --- barrels of arrows, fletching-side ----------------------------------------------
+  for(const[bx2,bz2] of [[W/2-0.95,-hpx*0.10+0.35],[W/2-0.55,-hpx*0.10-0.35]]){
+    const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.30,0.78,9),PLANK);
+    bar.position.set(bx2,FLOOR_Y+0.51,bz2); bar.castShadow=true; g.add(bar);
+    for(const hy of[0.28,0.62]){ const hoopA=new THREE.Mesh(new THREE.TorusGeometry(0.345,0.028,4,10),IRON);
+      hoopA.rotation.x=Math.PI/2; hoopA.position.set(bx2,FLOOR_Y+hy,bz2); g.add(hoopA); }
+    for(let a=0;a<7;a++){ const th=a/7*Math.PI*2;
+      const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.86,4),PLANK);
+      sh.position.set(bx2+Math.cos(th)*0.14,FLOOR_Y+1.18,bz2+Math.sin(th)*0.14);
+      sh.rotation.set(Math.sin(th)*0.16,0,-Math.cos(th)*0.16); g.add(sh);
+      const fl=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.14,0.14),a%2?RED:WHITE);
+      fl.position.set(bx2+Math.cos(th)*0.14,FLOOR_Y+1.55,bz2+Math.sin(th)*0.14); g.add(fl); } }
+
+  // --- the realm's colours on a hanging banner ----------------------------------------
+  const ban=new THREE.Mesh(new THREE.PlaneGeometry(0.62,1.15),teamMat);
+  ban.position.set(-W/2+0.42,FLOOR_Y+POST_H-0.72,-hpx*0.10+D/2-0.30); ban.rotation.y=0.06; g.add(ban);
+  const banRod=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.72,5),IRON);
+  banRod.rotation.z=Math.PI/2; banRod.position.set(-W/2+0.42,FLOOR_Y+POST_H-0.13,-hpx*0.10+D/2-0.30); g.add(banRod);
+
+  g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+  return g;
+}
 function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
+  if(type==='range'){
+    // guarded: a realm can be asked for its colours before its faction is assigned (map builder,
+    // previews), and an undefined lookup here used to take the whole building mesh down with it
+    const _fk=(typeof faction!=='undefined'&&faction&&faction[owner])||'english';
+    const teamMat=new THREE.MeshStandardMaterial({color:(FACTIONS[_fk]||FACTIONS.english).coat,roughness:.8,side:THREE.DoubleSide});
+    const ar=makeArcheryRange(wpx,hpx,teamMat); g.add(ar);
+    const hbA=makeHealthBar(); hbA.scale.setScalar(2.6); hbA.position.y=5.0; g.add(hbA); g.userData.hb=hbA;
+    return g; }
   if(type==='farm'){ const fg=makeFarmField(seed||0);
     const hbf=makeHealthBar();hbf.scale.setScalar(1.4);hbf.position.y=3;fg.add(hbf);fg.userData.hb=hbf;
     return fg; }
@@ -5343,7 +5470,7 @@ function fogPatch(m){ if(m.userData._fog||fogSkip(m))return false; m.userData._f
       // b293: same cap as the water (same formula, same fault) - hd-squared times a weather-scaled
       // k was reaching a hard wall of pure haze colour on distant trees and terrain the moment the
       // weather turned, which is what "beeches look shit" and the whited-out treeline both were.
-      +'    gl_FragColor.rgb=mix(gl_FragColor.rgb,uHazeCol,min(0.78,1.0-exp(-vFogDist*vFogDist*uHazeK))*_fg);\n'
+      +'    gl_FragColor.rgb=mix(gl_FragColor.rgb,uHazeCol,min(0.34,1.0-exp(-vFogDist*vFogDist*uHazeK))*_fg);\n'
       +'    gl_FragColor.rgb=mix(gl_FragColor.rgb*vec3(0.055,0.065,0.10),gl_FragColor.rgb,_fg); }');
   };
   m.needsUpdate=true; return true; }
