@@ -93,7 +93,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b307</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b308</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -565,7 +565,20 @@ const RSCH={
   // standing watch on every rival Keep you've ever found, rather than a one-shot reveal you'd have
   // to remember to use — simpler to build, and it never goes stale the way a single burst would.
   spy:{ic:'🕵️',name:'Spy Network',costs:[{g:150,f:60}],times:[90],age:[2]},
-  range:{ic:'🎯',name:'Fortification Range',costs:[{m:100,w:60}],times:[70],age:[2]}};
+  range:{ic:'🎯',name:'Fortification Range',costs:[{m:100,w:60}],times:[70],age:[2]},
+  // b307: National Doctrine — every faction's flat passive (English +15% musket damage, Scottish
+  // +15% HP, etc.) used to be free from the moment the game started. Now it has to be paid for and
+  // researched at the Castle, a real rush-it-or-not choice, without changing what any faction's
+  // identity actually is.
+  unique:{ic:'⭐',name:'National Doctrine',costs:[{g:200,m:100}],times:[100],age:[3]},
+  // b307: splitting the single global Weapons/Armor tier into class tracks. A full three-way
+  // infantry/cavalry/ranged split would mean rewriting effDmg/bumpHp and every UI site that reads
+  // tech.weapon — real regression risk to a combat system that already works. This adds two
+  // narrower, ADDITIVE tracks instead (cavalry, ranged) that stack on top of the existing global
+  // tier rather than replacing it — same "tech investment shapes which unit types spike" payoff,
+  // without touching code that's already correct and tested.
+  cavdoc:{ic:'🐎',name:'Cavalry Doctrine',costs:[{g:120,m:80}],times:[80],age:[2]},
+  rangedoc:{ic:'🏹',name:'Ranged Doctrine',costs:[{g:120,w:80}],times:[80],age:[2]}};
 const TOWER_RANGE=22,TOWER_DMG=15,TOWER_CD=0.85,FARM_FOOD=2.6,MILL_FOOD=2.0,CARRY=12,MINE=6.5,AGE2={f:300,w:250,time:70},AGE3={f:600,w:400,m:200,time:100};
 const GERM_TIME=25;   // b301 (owner request): a freshly-sown field takes this long, tended, before it's yielding in full
 const FACTION_UNIT={scottish:'highlander',english:'grenguard',irish:'wolfrider',french:'cuirassier',chinese:'chukonu',sacred:'hoplite'};
@@ -576,7 +589,7 @@ let woodNodes=[],metalNodes=[],goldNodes=[],ents=[],blds=[],projs=[],parts=[],id
 let citizens=[],villages=[],corpses=[],relics=[];
 let res={},tech={},realmAI={};
 function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
-  for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,faith:0,spy:0,range:0,ageTimer:0}; }
+  for(const o of REALMS){ res[o]={f:200,w:170,m:80,g:60}; tech[o]={age:1,weapon:0,armor:0,faith:0,spy:0,range:0,unique:0,cavdoc:0,rangedoc:0,ageTimer:0}; }
   // b189: every realm used to build the SAME TOWN. The caps in the build order are fixed numbers,
   // so eight kingdoms of eight different factions all converged on exactly five farms, two mills,
   // one storehouse, one church, one gunshop and one watch house — measured across seven realms at
@@ -3180,8 +3193,9 @@ function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();cons
   const hb=makeHealthBar();hb.scale.setScalar(1.8);hb.position.y=wallH+(type==='wonder'?13:type==='castle'?9:5);g.add(hb);g.userData.hb=hb;
   return g;}
 
-function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owner].armor*0.15)*(tech[owner].plate?1.1:1);const fac=faction[owner];
-  if(u.coat&&fac==='scottish')hp*=1.15;if(type==='knight'&&fac==='french')hp*=1.2;hp=Math.round(hp);
+function spawnUnit(type,owner,tx,ty){const u=UNIT[type];let hp=u.hp*(1+tech[owner].armor*0.15)*(tech[owner].plate?1.1:1)*(tech[owner].cavdoc&&u.cav?1.1:1);const fac=faction[owner];
+  if(tech[owner].unique){ if(u.coat&&fac==='scottish')hp*=1.15; if(type==='knight'&&fac==='french')hp*=1.2; }
+  hp=Math.round(hp);
   // b305 (owner request): a whole company marching at IDENTICAL speed reads as one machine, not
   // men — a fixed ±8% per-soldier pace, rolled once here and carried for his whole life, is what
   // breaks a formation into individuals without touching balance (it averages out to the same
@@ -3408,10 +3422,13 @@ function hasBld(o,t){return blds.some(b=>b.owner===o&&b.type===t&&b.done);}
 // what was FINISHED, so a foundation it had already laid was invisible to the next decision and
 // it kept laying more — hundreds of them, once a realm was rich.
 function pendingBld(o,t){let n=0;for(const b of blds)if(b.owner===o&&b.type===t&&!b.done)n++;return n;}
-function effDmg(e){let d=UNIT[e.type].dmg*(1+tech[e.owner].weapon*0.15);if(UNIT[e.type].coat&&UNIT[e.type].ranged&&faction[e.owner]==='english')d*=1.15;return d*(1+0.1*(e.rank||0));}
+function effDmg(e){const T=tech[e.owner],U=UNIT[e.type];let d=U.dmg*(1+T.weapon*0.15);
+  if(T.cavdoc&&U.cav)d*=1.1; if(T.rangedoc&&U.ranged)d*=1.1;
+  if(T.unique&&U.coat&&U.ranged&&faction[e.owner]==='english')d*=1.15;
+  return d*(1+0.1*(e.rank||0));}
 // ---- veterancy: soldiers earn stripes in battle — harder-hitting, tougher, gold pips overhead ----
 const RANK_XP=[60,180,400];
-function gainXp(e,amt){ if(e.type==='worker'||UNIT[e.type].noAtk)return; e.xp=(e.xp||0)+amt*(faction[e.owner]==='sacred'?1.5:1);
+function gainXp(e,amt){ if(e.type==='worker'||UNIT[e.type].noAtk)return; e.xp=(e.xp||0)+amt*(tech[e.owner].unique&&faction[e.owner]==='sacred'?1.5:1);
   const r=e.xp>=RANK_XP[2]?3:e.xp>=RANK_XP[1]?2:e.xp>=RANK_XP[0]?1:0;
   if(r>(e.rank||0)){ e.rank=r; const grow=e.maxHp*0.15; e.maxHp+=grow; e.hp=Math.min(e.maxHp,e.hp+grow); addRankPips(e); if(e.mesh.userData.cheerA)playOnce(e,'cheerA');
     if(e.owner==='player'){flashMsg('🎖 Your '+UNIT[e.type].name+' earns a battle stripe! (rank '+r+')');} } }
@@ -4372,7 +4389,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       if(e.carry>=CARRY-0.01){e.cmd='return';e.path=null;break;}   // arms full — walk it home (AoE2 economy)
       if(!n||n.amount<=0){if(e.carry>0.5){e.cmd='return';e.path=null;break;}const n2=n?nearestNode(e,n.type):null;if(n2)gatherOrder(e,n2);else e.cmd='idle';break;}const nx=wx(n.tx),nz=wz(n.ty);if(Math.hypot(e.x-nx,e.z-nz)<7.6){e.path=null;e.dir=Math.atan2(nz-e.z,nx-e.x);e.carryType=n.type;   // b163: 7.6, not 5.8 — a man sent to the tile BESIDE a seam stands 5.66 away at its centre, and the crowd jostles him a pace or two further. He could not reach his work, kept arriving at nothing, and the stall watch blacklisted good veins and marched him across the map
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.4+(e.id%5)*0.12;playOnce(e,'attackA');}   // b93: visible chopping/mining swings
-      const rate=(n.type==='wood'?3.1:n.type==='metal'?1.7:n.type==='gold'?1.4*(faction[e.owner]==='chinese'?1.25:1):2.6);
+      const rate=(n.type==='wood'?3.1:n.type==='metal'?1.7:n.type==='gold'?1.4*(tech[e.owner].unique&&faction[e.owner]==='chinese'?1.25:1):2.6);
       const take=Math.min(rate*(e.gBoost||1)*dt,n.amount,CARRY-e.carry);n.amount-=take;e.carry+=take;
       if(n.type==='wood'&&!n._felled&&n.tim){ n._felled=true; fellTree(n); if(treeGrid)treeGrid[ti(n.tx,n.ty)]=0; }   // first strike fells it — then they work the fallen trunk
       if(n.mesh){ if(n.a0===undefined){n.a0=n.amount+take;n.s0=n.mesh.scale.x;} const k3=0.15+0.85*Math.max(0,n.amount/n.a0); n.mesh.scale.setScalar(n.s0*k3); }
@@ -4666,7 +4683,7 @@ function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;b._hitBy=e.owner;co
   if(b.owner==='player'&&e.owner!=='player')pingAttack(b.cx,b.cz);
   else if(b.owner!=='player'&&realmAI[b.owner]){realmAI[b.owner].raid={x:b.cx,z:b.cz,t:elapsed};}   // b158: a realm notices its own town burning
 }
-function healNearby(e,dt){const U=UNIT[e.type],mul=faction[e.owner]==='irish'?1.3:1;
+function healNearby(e,dt){const U=UNIT[e.type],mul=(tech[e.owner].unique&&faction[e.owner]==='irish')?1.3:1;
   if(U.aura){for(const o of ents)if(o.owner===e.owner&&o!==e&&o.hp<o.maxHp&&Math.hypot(e.x-o.x,e.z-o.z)<U.healrad){o.hp=Math.min(o.maxHp,o.hp+U.heal*mul*dt);if(Math.random()<dt)spawnPart(o.x,heightAtWorld(o.x,o.z)+2,o.z,'heal');}}
   else{let best=null,bd=U.healrad;for(const o of ents)if(o.owner===e.owner&&o!==e&&o.hp<o.maxHp){const d=Math.hypot(e.x-o.x,e.z-o.z);if(d<bd){bd=d;best=o;}}if(best){best.hp=Math.min(best.maxHp,best.hp+U.heal*mul*3*dt);if(Math.random()<dt*3)spawnPart(best.x,heightAtWorld(best.x,best.z)+2,best.z,'heal');}}}
 
@@ -5890,8 +5907,8 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         if(T.ageTimer>0){const tot=T.ageTo===3?AGE3.time:AGE2.time;
           info.innerHTML+='<br><span id="ageLine" style="color:#8fd4f0">⏫ Advancing to Age '+(T.ageTo||T.age+1)+' — '+Math.ceil(T.ageTimer)+'s</span>'
             +'<div style="width:210px;height:9px;margin-top:3px;border:1px solid #2c5164;border-radius:5px;background:#0a1822;overflow:hidden"><div id="ageBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#1c4d6d,#7fc4e8);width:'+Math.round((1-T.ageTimer/tot)*100)+'%"></div></div>';}}
-      if(b.type==='range'){trainBtn(cmds,b,'archer','🏹','Skirmisher',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);}
-      if(b.type==='stable'){trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'dragoon','🐴','Dragoon',can);}
+      if(b.type==='range'){trainBtn(cmds,b,'archer','🏹','Skirmisher',can);trainBtn(cmds,b,'grenadier','🧨','Grenadier',can);if(tech.player.age>=2)rschButtons(cmds,['rangedoc']);}
+      if(b.type==='stable'){trainBtn(cmds,b,'knight','🐎','Knight',can);trainBtn(cmds,b,'dragoon','🐴','Dragoon',can);if(tech.player.age>=2)rschButtons(cmds,['cavdoc']);}
       if(b.type==='barracks'){trainBtn(cmds,b,'spear','🛡','Pikeman',can);trainBtn(cmds,b,'viking','⚔️','Viking Raider',can);if(tech.player.age>=2)trainBtn(cmds,b,'samurai','🗡️','Samurai',can);trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);
         rschButtons(cmds);info.innerHTML+=rschLineHTML();}
       if(b.type==='armourer'){ const T=tech.player;
@@ -5909,7 +5926,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo');cmds.innerHTML='';co
         if(T.plate)info.innerHTML+='<br><span style="color:#7fd08a">🛡 Tempered Plate — new soldiers +10% health</span>'; }
       if(b.type==='gunshop'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);trainBtn(cmds,b,'howitzer','🎆','Howitzer',can);}}
       if(b.type==='church'){trainBtn(cmds,b,'monk','🙏','Monk',can);trainBtn(cmds,b,'priest','✝️','Priest',can);trainBtn(cmds,b,'doctor','➕','Doctor',can);if(tech.player.age>=2){trainBtn(cmds,b,'cardinal','⛪','Cardinal',can);rschButtons(cmds,['faith']);}}
-      if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);rschButtons(cmds,['spy']);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3)trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);}
+      if(b.type==='castle'){trainBtn(cmds,b,'infantry','🔫','Infantry',can);trainBtn(cmds,b,'knight','🐎','Knight',can);if(tech.player.age>=2){trainBtn(cmds,b,'cannon','💣','Cannon',can);rschButtons(cmds,['spy']);}trainBtn(cmds,b,'hero','👑','King',can,countType('player','hero')>0);const uq=FACTION_UNIT[faction.player];if(tech.player.age>=3){trainBtn(cmds,b,uq,'⭐',UNIT[uq].name,can);rschButtons(cmds,['unique']);}}
       if(b.type==='siege'){trainBtn(cmds,b,'catapult','⊙','Catapult',can);trainBtn(cmds,b,'ram','🐑','Battering Ram',can);}
       if(b.type==='dock'){trainBtn(cmds,b,'warboat','⛵','Warboat',can);if(tech.player.age>=2)trainBtn(cmds,b,'privateer','🏴‍☠️','Privateer',can);}
       const UPG={tower:['🗿','Boulder Thrower','80🌲 60⛏️',{w:80,m:60},'Hurls splash boulders (2× damage)'],
@@ -6528,7 +6545,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       setPlacing(t){placing=t;updateGhost();return placing;},get hoverTile(){return hoverTile;},set hoverTile(v){hoverTile=v;},
       FARM_CROPS,farmCropIndex,farmSeed,CROP_KIND,get placing(){return placing;},get running(){return running;},
       newGame,standardView,VIEW_DIST,VIEW_PITCH,setManScale,get MAN_SCALE(){return MAN_SCALE;},trade,mktSell,mktBuy,mktDrift,repairOrder,repairTime,COST,BLD,UNIT,resTipHTML,beastTipHTML,beastAt,nodeAt,get sheep(){return sheep;},get mkt(){return mkt;},convertUnit,convertOrder,setStance,commandPatrol,townBell,get bellRung(){return bellRung;},
-      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,elevAt,elevMult,get elev(){return elev;},
+      get relics(){return relics;},spawnRelic,relicAt,relicOrder,nearestChurch,WONDER_SURVIVE,RELIC_RATE,checkWin,endGame,elevAt,elevMult,get elev(){return elev;},effDmg,healNearby,
 
       // b170: the frame half of the world — clutter, leaves, rubble, felled trees, herds. These hang
       // off the render loop, so a headless soak that only calls update() never sees them at all.
