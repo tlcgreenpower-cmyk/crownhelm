@@ -56,8 +56,11 @@
   .btn:hover{background:#1e435a;border-color:#4d86a3;} .btn small{display:block;color:#84acc0;font-size:10.5px;margin-top:2px;} .btn.disabled{opacity:.36;cursor:not-allowed;}
   .btn .ic{font-size:14px;margin-right:3px;}
   /* b323: the unit's own portrait, rendered from its real mesh at first draw */
-  .btn .upic{display:block;width:100%;height:52px;object-fit:cover;border-radius:5px;margin-bottom:4px;background:#14283a;border:1px solid #24485e;}
-  .btn.disabled .upic{filter:grayscale(.75) brightness(.7);}
+  /* b325: CONTAIN, not cover. The portrait is rendered square and the frame is wide and short,
+     so "cover" scaled it up until the short side fitted and cropped the rest away — which is
+     exactly why every man looked enormous and cut off at the knees. */
+  .btn .upic{display:block;width:100%;height:58px;object-fit:contain;border-radius:5px;margin-bottom:4px;background:#0a1622;border:1px solid #24485e;}
+  .btn.disabled .upic{filter:grayscale(.5) brightness(.9);}
   #hint{width:170px;font-size:10.5px;color:#54748a;line-height:1.4;max-height:96px;overflow:hidden;}
   #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,10,16,.9);text-align:center;z-index:10;padding:20px;}
   #overlay h1{font-size:48px;margin:0;color:#6fd0f0;letter-spacing:3px;text-shadow:0 3px 26px #061a26;}
@@ -105,7 +108,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b324</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b325</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2719,6 +2722,17 @@ const ARMS={
   doctor:['staff',.34,.1,0,0,0.05]
 };
 WEAPONS.sabre=()=>{ const g=WEAPONS.sword(); g.children[0].rotation.z=.14; return g; };
+// b325: how a worker's tool sits in the FistR bone. The bone's own +Y runs on down the forearm
+// (measured off Lisa's rig: elbow at y 11.86, fist at 11.65, local +Y reading [0.02,-1,0.03] in
+// world), and every tool here is modelled down its +Z with the head forward — so a quarter turn
+// about X lays the haft across the grip instead of straight out of the knuckles. The bone
+// carries the rig's own 0.947 scale, which the tools have to divide back out.
+// 0.62 chosen by rendering her at 0.79 / 0.62 / 0.50 and looking: full size is a sledgehammer on
+// a chibi frame, half size is a toy. The bone carries the rig's own 0.947, divided back out here.
+const TOOL_GRIP_S=0.62;
+const TOOL_GRIP_R=new THREE.Euler(-Math.PI/2,0,0);
+// whichever looping clip a man falls back to when a one-shot finishes — b325 added 'work' to the set
+function baseAction(ud){ return ud.animMode==='walk'?ud.walkA:ud.animMode==='work'?(ud.workA||ud.idleA):ud.idleA; }
 // each kind is built once, merged to a single mesh (colours baked to vertices) and cloned from
 // then on — an armed army costs one extra draw per visible man, not four
 const _wCache={};
@@ -2854,6 +2868,19 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
       const ph2=new THREE.Mesh(new THREE.CylinderGeometry(.04,.05,.78,5),M.wood);ph2.rotation.x=Math.PI/2;pick.add(ph2);
       const cross=new THREE.Mesh(new THREE.BoxGeometry(.44,.06,.09),ironGrey);cross.position.z=.34;pick.add(cross);
       pick.position.set(.36,1.12,.12);pick.rotation.z=.55;pick.visible=false;g.add(pick);g.userData.pick=pick;
+      // b325: PUT THE AXE IN HER HAND. The old rig copied the fist's world POSITION onto a tool
+      // that hung off the unit group, and rotated it on its own timer — so the head of the axe
+      // see-sawed about her knuckles like a poker while her body played the idle loop. Nobody was
+      // chopping anything. Parent the tool to the fist BONE instead and it inherits the hand's
+      // rotation for free; the swing then comes from the animation, which is where it belongs.
+      if(hand){ for(const t of [gun,axe,pick]){ g.remove(t); hand.add(t);
+          t.rotation.copy(TOOL_GRIP_R); t.scale.setScalar(TOOL_GRIP_S);
+          // slide the haft along the bone's +Y so she grips the BUTT and the head reaches out
+          // past her knuckles — parked at the origin the tool straddles her fist, half of it
+          // sticking back out of her wrist, which is what read as an axe laid on her shoulder
+          t.position.set(0,0.20,0); }
+        gun.position.set(0,0.18,0);
+        g.userData.toolOnBone=true; }
       const sack=new THREE.Mesh(new THREE.SphereGeometry(.26,6,5),M.thatch);sack.scale.set(1,.8,.7);sack.position.set(0,1.5,-.32);sack.visible=false;g.add(sack);g.userData.sack=sack;
       const log=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,1.15,6),M.trunk);log.rotation.x=Math.PI/2;log.rotation.z=.35;log.position.set(-.12,1.62,0);log.visible=false;g.add(log);g.userData.log=log;   // felled timber over the shoulder
       const ore=new THREE.Mesh(new THREE.DodecahedronGeometry(.3,0),ironGrey);ore.position.set(0,1.5,-.32);ore.visible=false;g.add(ore);g.userData.ore=ore;
@@ -2871,6 +2898,18 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     g.userData.attackA=atkClip?mixer.clipAction(atkClip):null;
     g.userData.deathA=deathClip?mixer.clipAction(deathClip):null;
     g.userData.cheerA=cheerClip?mixer.clipAction(cheerClip):null;
+    // b325: A LABOURING CLIP. There were only ever three modes — idle, walk, attack — so a woman
+    // felling a tree played the IDLE loop: arms at her sides, perfectly still, while a detached
+    // axe waggled at her fist. Workers get a fourth mode that loops the swing clip for as long as
+    // the job lasts, and the axe, now bone-parented, follows the arm that swings it.
+    // CLONE the clip. mixer.clipAction caches one action per (clip, root), and the only swing
+    // Lisa's rig carries is SwordSlash — the very clip atkClip picks — so work and attack came
+    // back as the SAME action object. The first time anything called playOnce it left that action
+    // on LoopOnce with clampWhenFinished, and the labouring loop then ran once and froze on its
+    // last frame: a woman standing stock still with an axe laid across her shoulder. Exactly the
+    // fault reported. A cloned clip is a different key, so the two can never tread on each other.
+    const workClip=type==='worker'?pick(/2H_Melee_Attack_Chop/,/1H_Melee_Attack_Chop/,/SwordSlash/i,/Punch/i,/PickUp/i):null;
+    g.userData.workA=workClip?mixer.clipAction(workClip.clone()):null;
     g.userData.mixer=mixer;g.userData.walkA=wc?mixer.clipAction(wc):null;g.userData.idleA=ic?mixer.clipAction(ic):null;g.userData.animMode='idle';
     deSync(g.userData);
     if(g.userData.idleA)g.userData.idleA.play();
@@ -2925,7 +2964,49 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const hull=new THREE.Mesh(new THREE.CylinderGeometry(u.r*.5,u.r*1.0,u.r*2.6,8),M.wood);hull.rotation.z=Math.PI/2;hull.position.y=.5;hull.castShadow=true;
     const mast=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,3,5),M.trunk);mast.position.y=2;const sail=new THREE.Mesh(new THREE.PlaneGeometry(1.8,2),new THREE.MeshStandardMaterial({color:fac.coat,side:THREE.DoubleSide}));sail.position.set(0,2,0);
     anim.add(hull,mast,sail);const hbw=makeHealthBar();hbw.position.y=4;g.add(hbw);g.userData.hb=hbw;g.userData.noBob=true;return g;}
-  if(type==='cannon'||type==='howitzer'){
+  // b325: THE HOWITZER WAS THE CANNON. Both types took the imported PIRATE_CANNON and differed
+  // only by scale (2.6 against 3.2), so the two train buttons showed the same gun twice and the
+  // owner could not tell them apart. A howitzer is not a small cannon: it is a squat, wide-bore
+  // barrel cocked up to lob its shell over a wall, on a heavy block trail rather than long
+  // wheeled cheeks. Built here in full so the silhouette reads at portrait size.
+  if(type==='howitzer'){
+    const IRON=new THREE.MeshStandardMaterial({color:0x4a4d52,roughness:.55,metalness:.35,flatShading:true});
+    const BRASS=new THREE.MeshStandardMaterial({color:0x9c7c3a,roughness:.45,metalness:.5,flatShading:true});
+    const S=MAN_SCALE;
+    const gun=new THREE.Group(); gun.scale.setScalar(S);
+    // heavy block trail — a wedge of baulk timber that soaks up the recoil
+    const trail=new THREE.Mesh(new THREE.BoxGeometry(1.05,.52,2.15),M.wood);
+    trail.position.set(0,.42,-.30); trail.rotation.x=-0.10; trail.castShadow=true; gun.add(trail);
+    const cheek=new THREE.Mesh(new THREE.BoxGeometry(1.25,.62,1.05),M.wood);
+    cheek.position.set(0,.72,.32); cheek.castShadow=true; gun.add(cheek);
+    for(const sx of[-.66,.66]){                       // small, thick siege wheels
+      const wl=new THREE.Mesh(new THREE.CylinderGeometry(.56,.56,.20,12),M.wood);
+      wl.rotation.z=Math.PI/2; wl.position.set(sx,.56,.30); wl.castShadow=true; gun.add(wl);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.24,8),IRON);
+      hub.rotation.z=Math.PI/2; hub.position.set(sx,.56,.30); gun.add(hub);
+      for(let k=0;k<6;k++){ const sp=new THREE.Mesh(new THREE.BoxGeometry(.07,.92,.07),M.wood);
+        sp.rotation.z=Math.PI/2; sp.rotation.x=k*Math.PI/6; sp.position.set(sx,.56,.30); gun.add(sp); } }
+    // the barrel: short, fat, and cocked up about forty degrees
+    const brl=new THREE.Group(); brl.position.set(0,1.16,.30); brl.rotation.x=-0.72; gun.add(brl);
+    const tube=new THREE.Mesh(new THREE.CylinderGeometry(.40,.34,1.28,14),IRON);
+    tube.rotation.x=Math.PI/2; tube.position.z=.42; tube.castShadow=true; brl.add(tube);
+    const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(.46,.46,.20,14),BRASS);
+    muzzle.rotation.x=Math.PI/2; muzzle.position.z=1.04; brl.add(muzzle);
+    const bore=new THREE.Mesh(new THREE.CylinderGeometry(.30,.30,.10,12),new THREE.MeshStandardMaterial({color:0x14100e,roughness:1}));
+    bore.rotation.x=Math.PI/2; bore.position.z=1.11; brl.add(bore);
+    const breech=new THREE.Mesh(new THREE.SphereGeometry(.36,12,9),IRON);
+    breech.position.z=-.22; brl.add(breech);
+    for(const bz of[.12,.62]){ const band=new THREE.Mesh(new THREE.TorusGeometry(.39,.055,6,14),BRASS);
+      band.position.z=bz; brl.add(band); }
+    const trun=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,1.30,8),IRON);   // trunnions through the cheeks
+    trun.rotation.z=Math.PI/2; trun.position.set(0,1.16,.30); gun.add(trun);
+    const elev=new THREE.Mesh(new THREE.BoxGeometry(.14,.68,.14),IRON);           // elevating screw under the breech
+    elev.position.set(0,.95,-.32); gun.add(elev);
+    for(let k=0;k<3;k++){ const sh=new THREE.Mesh(new THREE.SphereGeometry(.20,9,7),IRON);   // its shells, stacked by the trail
+      sh.position.set(-.62+k*0.30,.22,-1.12); sh.castShadow=true; gun.add(sh); }
+    anim.add(gun);
+    const hbh=makeHealthBar(); hbh.position.y=3.0*MAN_SCALE; g.add(hbh); g.userData.hb=hbh; g.userData.noBob=true; return g; }
+  if(type==='cannon'){
     if(PIRATE_CANNON){ const c=PIRATE_CANNON.clone(true);
       const box=new THREE.Box3().setFromObject(c),len=Math.max(box.max.z-box.min.z,box.max.x-box.min.x)||1;
       c.scale.setScalar((type==='howitzer'?2.6:3.2)*MAN_SCALE/len); c.position.y=0.1;
@@ -4695,15 +4776,19 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
         if(ud.log&&ud.log.visible!==wL)ud.log.visible=wL;
         if(ud.ore&&ud.ore.visible!==wO)ud.ore.visible=wO;
         if(ud.goldOre&&ud.goldOre.visible!==wG2)ud.goldOre.visible=wG2; }
-      // the held tool swings in the same rhythm as the arms (workT drives the b93 swing anim)
-      const tl=wantA?ud.axe:wantP?ud.pick:null;
-      if(tl){ const mvg=e.path&&e.pi<e.path.length;
-        if(mvg||e.workT===undefined)tl.rotation.x=0;
-        else{ const ph=1-Math.max(0,Math.min(1,(e.workT||0)/1.4));
-          tl.rotation.x=ph<0.6?-1.15*(ph/0.6):-1.15+2.1*((ph-0.6)/0.4); } }   // wind up slow, strike fast
-      if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2;
-      const held=tl||(wantG?ud.gun:null);
-      if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } }   // pin the tool to the swinging fist
+      // b325: a bone-parented tool is already in the fist and already turning with it — the old
+      // hand-chasing code below is for the limb-built men, and running it on a boned one would
+      // drag the axe back out of her grip every frame.
+      if(!ud.toolOnBone){
+        // the held tool swings in the same rhythm as the arms (workT drives the b93 swing anim)
+        const tl=wantA?ud.axe:wantP?ud.pick:null;
+        if(tl){ const mvg=e.path&&e.pi<e.path.length;
+          if(mvg||e.workT===undefined)tl.rotation.x=0;
+          else{ const ph=1-Math.max(0,Math.min(1,(e.workT||0)/1.4));
+            tl.rotation.x=ph<0.6?-1.15*(ph/0.6):-1.15+2.1*((ph-0.6)/0.4); } }   // wind up slow, strike fast
+        if(wantG)ud.gun.rotation.x=-(e.atk>0?e.atk:0)*2.2;
+        const held=tl||(wantG?ud.gun:null);
+        if(held&&ud.hand){ ud.hand.getWorldPosition(_toolV); e.mesh.worldToLocal(_toolV); held.position.copy(_toolV); } } } }   // pin the tool to the swinging fist
   _u('u_tool');
   if(moving&&e.path&&e.pi<e.path.length){const nd=e.path[e.pi],cx=wx(nd[0]),cz=wz(nd[1]),d=Math.hypot(cx-e.x,cz-e.z);if(d<1.2)e.pi++;else{const sp=UNIT[e.type].speed*(e.spdV||1)*(e.type==='worker'&&e.carry>6?0.8:1)*dt;e.dir=Math.atan2(cz-e.z,cx-e.x);
     let adv=1; if(UNIT[e.type].siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.5)adv=0;}   // guns pivot before they roll
@@ -4986,11 +5071,23 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     else { if(ud.lodAcc){ud.mixer.update(ud.lodAcc);ud.lodAcc=0;} ud.mixer.update(dt); if(_prof)_prof.mixN=(_prof.mixN||0)+1; }
     if((ud.oneT||0)>0){ ud.oneT-=dt;
       if(ud.oneT<=0){ if(ud.oneA)ud.oneA.fadeOut(0.15); ud.oneA=null;
-        const back=ud.animMode==='walk'?ud.walkA:ud.idleA; if(back)deSyncTo(back.reset(),ud).fadeIn(0.15).play(); } }
-    else { const mv=e.path&&e.pi<e.path.length, want=mv?'walk':'idle';
-      if(want!==ud.animMode&&ud.walkA&&ud.idleA){ const to=mv?ud.walkA:ud.idleA, from=mv?ud.idleA:ud.walkA;
+        const back=baseAction(ud); if(back)deSyncTo(back.reset(),ud).fadeIn(0.15).play(); } }
+    else { const mv=e.path&&e.pi<e.path.length;
+      // b325: standing still with a tool in hand and a job in front of you is not idling
+      const working=!mv&&ud.workA&&e.type==='worker'&&(
+        (e.cmd==='gather'&&e.gather&&(e.gather.type==='wood'||e.gather.type==='metal'||e.gather.type==='gold'))
+        ||e.cmd==='build'||e.cmd==='repair');
+      const want=mv?'walk':working?'work':'idle';
+      const actOf=m=>m==='walk'?ud.walkA:m==='work'?ud.workA:ud.idleA;
+      if(want!==ud.animMode&&ud.walkA&&ud.idleA){ const to=actOf(want), from=actOf(ud.animMode);
         // reset() winds the clip back to zero, which is what locked a halting company together
-        deSyncTo(to.reset(),ud).fadeIn(0.15).play(); from.fadeOut(0.15); ud.animMode=want; } } }
+        if(to){ to.setLoop(THREE.LoopRepeat,Infinity); to.clampWhenFinished=false;
+          if(want==='work')to.setEffectiveTimeScale(0.85);          // a felling stroke is heavier than a sword cut
+          deSyncTo(to.reset(),ud).fadeIn(0.15).play(); }
+        if(from)from.fadeOut(0.15); ud.animMode=want; }
+      else if(want==='work'&&ud.workA&&!ud.workA.isRunning()){   // belt and braces: never leave a labourer frozen mid-stroke
+        ud.workA.setLoop(THREE.LoopRepeat,Infinity); ud.workA.clampWhenFinished=false;
+        ud.workA.setEffectiveTimeScale(0.85); deSyncTo(ud.workA.reset(),ud).fadeIn(0.1).play(); } } }
   else if(ud.limbs){ const mv=e.path&&e.pi<e.path.length;
     if(mv){ const s=Math.sin(e.walk*10)*0.65;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
@@ -5048,7 +5145,7 @@ function muzzleFX(e,U){ if(e.owner!=='player'&&!tileVis(e.x,e.z))return; const m
 function projKind(U){return U.arc?'boulder':(U.siege?'ball':'arrow');}
 function playOnce(e,key){ const ud=e.mesh.userData; const a=ud&&ud[key]; if(!a||(ud.oneT||0)>0)return;
   ud.oneA=a; ud.oneT=Math.max(0.3,a.getClip().duration*0.9);
-  const cur=ud.animMode==='walk'?ud.walkA:ud.idleA; if(cur)cur.fadeOut(0.1);
+  const cur=baseAction(ud); if(cur)cur.fadeOut(0.1);
   a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.fadeIn(0.1).play(); }
 // b296: THE COUNTER TRIANGLE. Combat used to run on five hardcoded one-off matchups (spear vs
 // cavalry, samurai vs uniques, cavalry vs ranged, archer vs spear-or-viking, viking vs siege)
@@ -6525,11 +6622,16 @@ function unitPortrait(type){
   if(_portrait[type]!==undefined)return _portrait[type];
   _portrait[type]=null;
   try{
-    const S=104;
+    // b325: MEASURED, not guessed. Rendering to a WebGLRenderTarget skips the canvas's ACES
+    // tone map — I assumed that was what darkened these and it is not; putting ACES back on
+    // the pixels by hand made them DARKER still (archer 39.9 -> 17.8 mean luminance), because
+    // ACES compresses mid-tones. The portrait rig was simply lit dimmer than the game's sun.
+    // These numbers lift the archer 48.5 -> 59.9 with 0% of him clipping to white.
+    const S=128;
     const sc=new THREE.Scene();
-    sc.add(new THREE.AmbientLight(0xffffff,1.25));
-    const key=new THREE.DirectionalLight(0xfff2dd,1.7); key.position.set(3,5,4); sc.add(key);
-    const fill=new THREE.DirectionalLight(0x9fc4ff,0.55); fill.position.set(-4,2,-3); sc.add(fill);
+    sc.add(new THREE.AmbientLight(0xffffff,1.9));
+    const key=new THREE.DirectionalLight(0xfff2dd,2.5); key.position.set(3,5,4); sc.add(key);
+    const fill=new THREE.DirectionalLight(0x9fc4ff,0.85); fill.position.set(-4,2,-3); sc.add(fill);
     const m=makeUnitMesh(type,'player');
     // REMOVE the health bar, don't just hide it: Box3.setFromObject expands over invisible
     // children too, and a bar 2.8 up is enough to shove the man into a corner of his own portrait.
@@ -6542,13 +6644,13 @@ function unitPortrait(type){
     // frame on the standing figure: height decides the distance, width only if he is wider than tall
     const rad=Math.max(sz.y,Math.max(sz.x,sz.z)*1.05)*0.5||1;
     const cam=new THREE.PerspectiveCamera(34,1,0.05,400);
-    const dist=rad/Math.tan(17*Math.PI/180)*1.02;
+    const dist=rad/Math.tan(17*Math.PI/180)*1.22;   // b325: 1.02 put his head and boots hard on the frame edge
     cam.position.set(ctr.x+dist*0.52,ctr.y+dist*0.34,ctr.z+dist*0.78);
     cam.lookAt(ctr); cam.updateProjectionMatrix();
     const rt=new THREE.WebGLRenderTarget(S,S,{colorSpace:THREE.SRGBColorSpace});
     const prevRT=renderer.getRenderTarget(), prevCol=new THREE.Color(); renderer.getClearColor(prevCol);
     const prevAl=renderer.getClearAlpha(), prevSh=renderer.shadowMap.enabled;
-    renderer.shadowMap.enabled=false; renderer.setClearColor(0x14283a,1);
+    renderer.shadowMap.enabled=false; renderer.setClearColor(0x0a1622,1);   // b325: matches .upic's own background, so the letterboxing from object-fit:contain is invisible
     renderer.setRenderTarget(rt); renderer.render(sc,cam);
     const buf=new Uint8Array(S*S*4); renderer.readRenderTargetPixels(rt,0,0,S,S,buf);
     renderer.setRenderTarget(prevRT); renderer.setClearColor(prevCol,prevAl); renderer.shadowMap.enabled=prevSh;
