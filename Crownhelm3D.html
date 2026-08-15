@@ -59,7 +59,7 @@
   /* b325: CONTAIN, not cover. The portrait is rendered square and the frame is wide and short,
      so "cover" scaled it up until the short side fitted and cropped the rest away — which is
      exactly why every man looked enormous and cut off at the knees. */
-  .btn .upic{display:block;width:100%;height:58px;object-fit:contain;border-radius:5px;margin-bottom:4px;background:#0a1622;border:1px solid #24485e;}
+  .btn .upic{display:block;width:100%;height:58px;object-fit:contain;border-radius:5px;margin-bottom:4px;background:#51637a;border:1px solid #24485e;}
   .btn.disabled .upic{filter:grayscale(.5) brightness(.9);}
   #hint{width:170px;font-size:10.5px;color:#54748a;line-height:1.4;max-height:96px;overflow:hidden;}
   #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,10,16,.9);text-align:center;z-index:10;padding:20px;}
@@ -89,6 +89,15 @@
       <div class="res" title="Your workers — the hands of the kingdom">⚒ <span id="wrkN">0</span></div>
     </div>
     <div class="topDiv"></div>
+    <div class="res" id="moodBox" style="cursor:help;display:flex;align-items:center;gap:6px;">
+      <span id="moodIc">🙂</span>
+      <span id="moodBar" style="display:inline-block;width:74px;height:9px;border-radius:5px;background:#20323f;border:1px solid #37596e;overflow:hidden;position:relative;">
+        <span id="moodFill" style="display:block;height:100%;width:50%;background:#6fd48a;"></span>
+        <span style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#9fc0d2;opacity:.8;"></span>
+      </span>
+      <span id="moodN">50</span>
+    </div>
+    <div class="topDiv"></div>
     <span id="age">Age of Refuge</span>
     <div class="spacer"></div>
     <button id="gmenuBtn" title="Game menu — sound, graphics, saves & more (pauses the game)" style="cursor:pointer;background:#1c4d6d;border:1px solid #7fc4e8;color:#eef8ff;border-radius:6px;padding:4px 16px;font-size:13px;font-weight:600;">☰ Menu</button>
@@ -108,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b325</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b326</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -760,7 +769,45 @@ function initRealms(){ res={};tech={};realmAI={};diplo={};aiWars={};
     realmAI[o]={t:Math.random(),wave:0,attackTimer:80,aggro:(30+Math.random()*50)*P.aggroMul,warCheck:120+Math.random()*120,pers,
       taste:{farm:Math.max(1,Math.round((4+Math.round(rr()*3))*P.taste.farm)), mill:Math.max(0,Math.round((1+Math.round(rr()*2))*P.taste.mill)), barracks:Math.max(1,Math.round((1+Math.round(rr()*2))*P.taste.barracks)),
         tower:Math.round(Math.round(rr()*3)*P.taste.tower), watch:Math.max(0,Math.round((1+Math.round(rr()*1))*P.taste.watch)), church:rr()<0.75?1:0}};
-    diplo[o]={score:10,stance:'neutral'}; } }
+    diplo[o]={score:10,stance:'neutral'}; }
+  // b326 STRONGHOLD #1 — POPULARITY. One number a realm actually governs by. Everything that
+  // makes a kingdom pleasant to live in pushes it up, everything that makes it grim pushes it
+  // down, and the number decides how fast strangers turn up at your gate wanting to be your
+  // peasants. Starts at the balance point so a new game neither bleeds nor booms.
+  for(const o of REALMS)mood[o]={pop:50, tax:1, arrive:0, leave:0, log:null};
+  // b326 STRONGHOLD #2 — a LORD, not a colour. Each AI realm gets a name, a face and a
+  // temperament, and cycles through observable states rather than silently scaling numbers.
+  LORD_POOL_SHUFFLE();
+  for(const o of AI_REALMS){ const L=LORD_POOL.pop()||{name:'The Marshal',ic:'⚔',blurb:'a soldier of no particular fame'};
+    realmAI[o].lord=L; realmAI[o].state='idle'; realmAI[o].stateT=0; realmAI[o].lastRaid=-999;
+    // b326 STRONGHOLD #3 — HONOUR. What this realm thinks of you, and of each other realm.
+    // Gifts and kept peace raise it, wars and raids sink it, and a realm that despises the
+    // same neighbour you do is a realm that will march with you.
+    diplo[o].honour=0; }
+  honour={}; for(const a of AI_REALMS)for(const b of AI_REALMS)if(a!==b)honour[a+'|'+b]=0; }
+// The named lords, drawn without replacement so no two realms share a face in one game.
+const LORD_POOL_BASE=[
+  {name:'Lord Aldric the Patient',ic:'🛡',blurb:'builds walls before he builds barracks'},
+  {name:'Duchess Maren Ashford',ic:'👑',blurb:'buys what she cannot besiege'},
+  {name:'The Boar of Kestrelmoor',ic:'🐗',blurb:'attacks first and counts after'},
+  {name:'Sir Cadogan Vale',ic:'⚔',blurb:'keeps his word longer than most'},
+  {name:'Old Ferris Blackwater',ic:'🌾',blurb:'would rather farm than fight, until pushed'},
+  {name:'Lady Isolde the Cold',ic:'❄',blurb:'forgets nothing and forgives less'},
+  {name:'Baron Guthrie Ninefields',ic:'🍖',blurb:'feeds his people fat and his army thin'},
+  {name:'The Ironwright',ic:'⚙',blurb:'answers every question with artillery'}];
+let LORD_POOL=[];
+function LORD_POOL_SHUFFLE(){ LORD_POOL=LORD_POOL_BASE.slice();
+  for(let i=LORD_POOL.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=LORD_POOL[i];LORD_POOL[i]=LORD_POOL[j];LORD_POOL[j]=t;} }
+let mood={}, honour={};
+// The tax dial. Below par you are giving money away and they love you for it; above par you are
+// taking it, and the resentment climbs faster than the take does — which is what stops "tax at
+// maximum forever" from being the only strategy anyone ever needs.
+const TAX_STEPS=[
+  {name:'Largesse',  ic:'🎁', gold:-0.9, mood:+9, tip:'You pay THEM. Coin flows out; they adore you for it.'},
+  {name:'No tax',    ic:'⚖',      gold:0,    mood:+3, tip:'Nothing taken, nothing resented.'},
+  {name:'Light tax', ic:'💰', gold:0.7,  mood:-3, tip:'A tithe they can live with.'},
+  {name:'Heavy tax', ic:'💰', gold:1.5,  mood:-9, tip:'They pay, and they grumble.'},
+  {name:'Cruel tax', ic:'🔥', gold:2.4,  mood:-20,tip:'Every coin you squeeze costs you two peasants.'}];
 initRealms();
 let selected=[],selBuilding=null,placing=null,groups={},attackMove=false,patrolMode=false,buildCat=null,demoMode=false;
 let running=false,gameOver=false,tideLevel=SEA,elapsed=0,waterY=SEA*HSCALE;
@@ -2731,8 +2778,39 @@ WEAPONS.sabre=()=>{ const g=WEAPONS.sword(); g.children[0].rotation.z=.14; retur
 // a chibi frame, half size is a toy. The bone carries the rig's own 0.947, divided back out here.
 const TOOL_GRIP_S=0.62;
 const TOOL_GRIP_R=new THREE.Euler(-Math.PI/2,0,0);
-// whichever looping clip a man falls back to when a one-shot finishes — b325 added 'work' to the set
-function baseAction(ud){ return ud.animMode==='walk'?ud.walkA:ud.animMode==='work'?(ud.workA||ud.idleA):ud.idleA; }
+function baseAction(ud){ return ud.animMode==='walk'?ud.walkA:ud.idleA; }
+// b326 THE CHOP. Measured off Lisa's rig by posing one bone at a time and photographing it:
+// rotating UpperArmR about its own +X swings the arm in the forward plane, 0 hanging at her
+// side and -2.15 straight overhead. So a felling stroke is a slow lift to overhead and a fast
+// drop to her knee, with the elbow folded at the top and straight at the strike. The tool is
+// parented to FistR, so the axe comes along for free and lands where the hands land.
+// SWUNG ON TOP OF the idle clip, never instead of it, so her coat and legs stay still.
+const _chopAx=new THREE.Vector3(1,0,0), _chopQ=new THREE.Quaternion();
+const CHOP_CYCLE=1.15;
+function chopArm(e,ud,dt,mixerRan){
+  const A=ud.armR; if(!A)return;
+  const mv=e.path&&e.pi<e.path.length;
+  const busy=!mv&&e.type==='worker'&&(
+    (e.cmd==='gather'&&e.gather&&(e.gather.type==='wood'||e.gather.type==='metal'||e.gather.type==='gold'))
+    ||e.cmd==='build'||e.cmd==='repair');
+  if(!busy){ A.have=false; e._chopP=undefined; return; }
+  // the clip's own pose for this frame is the baseline the swing is added to
+  if(mixerRan||!A.have){ A.bu.copy(A.up.quaternion); A.bl.copy(A.low.quaternion); A.have=true; }
+  e._chopP=((e._chopP===undefined? (e.id%17)/17 : e._chopP)+dt/CHOP_CYCLE)%1;
+  const p=e._chopP;
+  // 0 .. .62 lift (eased, so it is unhurried), .62 .. .80 strike (fast), .80 .. 1 hold at the cut
+  let s; if(p<0.62){ const t=p/0.62; s=1-t*t*(3-2*t); }          // 1 = down at the trunk, 0 = overhead
+  else if(p<0.80){ const t=(p-0.62)/0.18; s=t*t; }
+  else s=1;
+  const upA=-2.15+s*2.00, lowA=-0.85+s*0.75;
+  A.up.quaternion.copy(A.bu).multiply(_chopQ.setFromAxisAngle(_chopAx,upA));
+  A.low.quaternion.copy(A.bl).multiply(_chopQ.setFromAxisAngle(_chopAx,lowA));
+  A.up.updateMatrixWorld(true);
+  // one chip of wood at the moment of the strike, and only for men you can actually see
+  if(p>=0.62&&p<0.80&&!e._chipT){ e._chipT=1; }
+  else if(p<0.62||p>=0.80){ if(e._chipT&&p<0.62){ e._chipT=0;
+    if(e.cmd==='gather'&&e.gather&&e.gather.type==='wood'&&Math.hypot(e.x-camTarget.x,e.z-camTarget.z)<80)
+      spawnPart(e.x+Math.cos(e.dir)*0.7,heightAtWorld(e.x,e.z)+0.5,e.z+Math.sin(e.dir)*0.7,'chip'); } } }
 // each kind is built once, merged to a single mesh (colours baked to vertices) and cloned from
 // then on — an armed army costs one extra draw per visible man, not four
 const _wCache={};
@@ -2902,14 +2980,15 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     // felling a tree played the IDLE loop: arms at her sides, perfectly still, while a detached
     // axe waggled at her fist. Workers get a fourth mode that loops the swing clip for as long as
     // the job lasts, and the axe, now bone-parented, follows the arm that swings it.
-    // CLONE the clip. mixer.clipAction caches one action per (clip, root), and the only swing
-    // Lisa's rig carries is SwordSlash — the very clip atkClip picks — so work and attack came
-    // back as the SAME action object. The first time anything called playOnce it left that action
-    // on LoopOnce with clampWhenFinished, and the labouring loop then ran once and froze on its
-    // last frame: a woman standing stock still with an axe laid across her shoulder. Exactly the
-    // fault reported. A cloned clip is a different key, so the two can never tread on each other.
-    const workClip=type==='worker'?pick(/2H_Melee_Attack_Chop/,/1H_Melee_Attack_Chop/,/SwordSlash/i,/Punch/i,/PickUp/i):null;
-    g.userData.workA=workClip?mixer.clipAction(workClip.clone()):null;
+    // b326: THE ARM, NOT THE WHOLE WOMAN. b325 looped SwordSlash for labour and the owner was
+    // right about the result — that clip is a full-body lunge, so felling a tree threw her coat,
+    // hips and both legs about like a duellist. The rig has no chopping clip and never will, so
+    // the swing is driven here instead: her body keeps the calm idle loop and ONLY the right arm
+    // is posed, over the shoulder and down. Bones cached now, swung in chopArm().
+    if(type==='worker'){ const bn={};
+      ch.traverse(o=>{ if(o.isBone&&(o.name==='UpperArmR'||o.name==='LowerArmR'))bn[o.name]=o; });
+      if(bn.UpperArmR&&bn.LowerArmR){ g.userData.armR={up:bn.UpperArmR,low:bn.LowerArmR,
+        bu:new THREE.Quaternion(),bl:new THREE.Quaternion(),have:false}; } }
     g.userData.mixer=mixer;g.userData.walkA=wc?mixer.clipAction(wc):null;g.userData.idleA=ic?mixer.clipAction(ic):null;g.userData.animMode='idle';
     deSync(g.userData);
     if(g.userData.idleA)g.userData.idleA.play();
@@ -4378,7 +4457,114 @@ function foesOfOwner(o){ if(_foeStamp!==_stepN){_foeMap={};_foeStamp=_stepN;}
   let a=_foeMap[o]; if(a)return a;
   a=[]; for(const e of ents)if(!e.inGar&&isHostile(o,e.owner))a.push(e);
   return _foeMap[o]=a; }
+// ==================================================== b326 POPULARITY (Stronghold #1)
+// The one meter a Stronghold player actually plays. Its whole job is to be READABLE: every
+// contribution below is a named line the owner can see in the tooltip, so when the number
+// falls he knows which lever moved rather than watching a mystery gauge slide.
+const MOOD_ENT={garden:6,statue:5,church:4,wonder:10};   // things that make a town worth living in
+function moodFactors(o){
+  const F=[], mine=blds.filter(b=>b.owner===o&&b.done);
+  // FOOD VARIETY. Not how much food — how many DIFFERENT things are on the table. One kind of
+  // bread forever is a hard life however much of it there is.
+  const kinds=[];
+  if(mine.some(b=>b.type==='farm'&&(b._grow||0)>0.15))kinds.push('crops');
+  if(mine.some(b=>b.type==='mill'))kinds.push('flour');
+  if(mine.some(b=>b.type==='bakery'&&(b._bakeRate||0)>0))kinds.push('bread');
+  if(mine.some(b=>b.type==='dock'))kinds.push('fish');
+  if(ents.some(e=>e.owner===o&&e.cmd==='hunt'))kinds.push('game');
+  const starving=res[o].f<1;
+  if(starving)F.push({k:'Empty stores',v:-28,ic:'💀'});
+  else if(!kinds.length)F.push({k:'Nothing but rations',v:-10,ic:'🍖'});
+  else F.push({k:kinds.length+' kind'+(kinds.length>1?'s':'')+' of food ('+kinds.join(', ')+')',v:(kinds.length-1)*6,ic:'🍖'});
+  // TAX
+  const T=TAX_STEPS[mood[o].tax]||TAX_STEPS[1];
+  F.push({k:T.name,v:T.mood,ic:T.ic});
+  // ENTERTAINMENT & FAITH — diminishing, so a hundred statues is not a strategy
+  let ent=0; for(const t in MOOD_ENT){ const n=mine.filter(b=>b.type===t).length;
+    if(n)ent+=MOOD_ENT[t]*(1+Math.log(n)); }
+  if(ent)F.push({k:'Gardens, statues & the faith',v:Math.round(Math.min(24,ent)),ic:'🌷'});
+  // CROWDING — men sleeping four to a bed are not happy men
+  const cap=popCap(o),used=popUsed(o);
+  if(cap&&used>cap*0.92)F.push({k:'Crowded — not enough beds',v:-12,ic:'🏠'});
+  else if(cap&&used<cap*0.6)F.push({k:'Room to spare',v:+4,ic:'🏠'});
+  // THE WAR. A realm under the hammer is a frightened realm.
+  if(o==='player'?AI_REALMS.some(r=>isHostile('player',r)):isHostile(o,'player'))F.push({k:'At war',v:-6,ic:'⚔'});
+  return F; }
+function moodTarget(o){ let t=50; for(const f of moodFactors(o))t+=f.v; return clamp(t,0,100); }
+let _moodT=0;
+function updatePopularity(dt){
+  _moodT-=dt; const slice=_moodT<=0; if(slice)_moodT=1.0;
+  for(const o of REALMS){ const M=mood[o]; if(!M)continue;
+    if(slice){ const tgt=moodTarget(o); M.pop+=clamp(tgt-M.pop,-3,3); M.log=moodFactors(o); }   // it MOVES toward the target, it doesn't snap — a bad week isn't instant ruin
+    // the tax take itself
+    const T=TAX_STEPS[M.tax]||TAX_STEPS[1];
+    const heads=ents.filter(e=>e.owner===o&&e.type==='worker').length;
+    if(T.gold)res[o].g=Math.max(0,res[o].g+T.gold*heads*0.02*dt);
+    // AND THE POINT OF ALL OF IT: who turns up at the gate, and who walks out of it.
+    const hall=blds.find(b=>b.owner===o&&b.type==='hall'&&b.done);
+    if(!hall)continue;
+    // MEASURED AND TUNED DOWN. The first pass ran at 0.42 and pinning popularity at 85 for three
+    // minutes brought 34 families — it filled the housing cap on its own and made every other way
+    // of getting workers pointless. 0.085 gives about three or four a minute at 85 and five at a
+    // hundred: worth chasing, not a substitute for the Keep.
+    if(M.pop>52){ M.arrive+=(M.pop-52)/48*dt*0.085;
+      if(M.arrive>=1){ M.arrive-=1;
+        if(popUsed(o)+1<=popCap(o)){ const u=spawnUnit('worker',o,hall.tx+(hall.w>>1),hall.ty+hall.h+1);
+          if(u){ if(o==='player'){flashMsg('🙋 A family arrives at your gate — word of your rule is spreading');sfxWhere(hall.cx,hall.cz);}
+            const n=nearestNode(u,o==='player'?'wood':realmWant(o)); if(n)gatherOrder(u,n); } } } }
+    else if(M.pop<40){ M.leave+=(40-M.pop)/40*dt*0.06;                  // and misery empties a town, at the same measured pace
+      if(M.leave>=1){ M.leave-=1;
+        const go=ents.filter(e=>e.owner===o&&e.type==='worker');
+        if(go.length>3){ const q=go[Math.floor(Math.random()*go.length)];
+          if(o==='player')flashMsg('🚶 A peasant has had enough of your rule and left your lands');
+          q._emigrated=true; q.hp=0; } } } } }
+// ==================================================== b326 THE LORDS (Stronghold #2 & #3)
+// A realm's state is the thing you can SEE from outside — is it quiet, is it digging in, is it
+// selling the silver, is it emptying the treasury into one last charge. Simple state machine,
+// read off threat and its own popularity, not deep AI.
+const LORD_STATE={
+  idle:    {ic:'🕊', name:'At ease',    tip:'building, minding its own business'},
+  defence: {ic:'🛡', name:'On guard',   tip:'troops held at home — it expects to be hit'},
+  recovery:{ic:'💰', name:'Recovering', tip:'selling goods and buying peace while it rebuilds'},
+  last:    {ic:'🔥', name:'Last stand', tip:'nothing left to lose — everything it has, at once'}};
+function lordThreat(o){ let t=0;
+  const hall=blds.find(b=>b.owner===o&&b.type==='hall');
+  if(!hall)return 99;
+  for(const e of ents)if(e.owner!==o&&isHostile(o,e.owner)&&!UNIT[e.type].noAtk&&Math.hypot(e.x-hall.cx,e.z-hall.cz)<70)t++;
+  return t; }
+function updateLords(dt){
+  for(const o of AI_REALMS){ const ai=realmAI[o]; if(!ai||!ai.lord)continue;
+    ai.stateT-=dt; if(ai.stateT>0)continue; ai.stateT=6;
+    const mine=blds.filter(b=>b.owner===o&&b.done).length, army=ents.filter(e=>e.owner===o&&!UNIT[e.type].noAtk).length;
+    const threat=lordThreat(o), m=mood[o]?mood[o].pop:50;
+    const was=ai.state;
+    ai.state = (mine<=2||army<=1) ? 'last'
+             : threat>=4          ? 'defence'
+             : (m<38||res[o].g<25)? 'recovery'
+             : 'idle';
+    if(ai.state!=='was'&&ai.state!==was&&realmKnown(o)&&ai.state!=='idle')
+      flashMsg(ai.lord.ic+' '+ai.lord.name+' — '+LORD_STATE[ai.state].name.toLowerCase()+' ('+LORD_STATE[ai.state].tip+')');
+    // RECOVERY sells goods and sues for peace, exactly as the source does
+    if(ai.state==='recovery'){ if(res[o].w>200){res[o].w-=100;res[o].g+=45;}
+      if(isHostile(o,'player')&&diplo[o].honour>-30&&Math.random()<0.22)makePeace(o,true); }
+    // LAST STAND dumps the treasury into one final muster
+    if(ai.state==='last'&&res[o].g>60){ const bk=blds.find(b=>b.owner===o&&b.type==='barracks'&&b.done);
+      if(bk&&bk.queue.length<3){ res[o].g-=60; bk.queue.push({type:'infantry',t:6}); } } } }
+// Honour: the running account of how each realm feels about each other realm, and about you.
+function nudgeHonour(o,d,why){ if(!diplo[o])return; diplo[o].honour=clamp((diplo[o].honour||0)+d,-100,100);
+  if(why&&realmKnown(o)&&Math.abs(d)>=8)flashMsg((realmAI[o]&&realmAI[o].lord?realmAI[o].lord.ic+' '+realmAI[o].lord.name:realmName(o))+(d>0?' warms to you — ':' takes offence — ')+why); }
+let _honT=0;
+function updateHonour(dt){ _honT-=dt; if(_honT>0)return; _honT=10;
+  for(const o of AI_REALMS){ if(!diplo[o])continue;
+    // peace kept is worth something, war is corrosive, and it all decays toward indifference
+    if(isHostile(o,'player'))diplo[o].honour=clamp(diplo[o].honour-2.5,-100,100);
+    else diplo[o].honour=clamp(diplo[o].honour+0.8,-100,100);
+    // MY ENEMY'S ENEMY. A realm at war with the same lord you are at war with warms to you —
+    // and one that watched you sack a realm it liked does not.
+    for(const p of AI_REALMS)if(p!==o){ const k=[o,p].sort().join('|');
+      if(aiWars[k]&&isHostile('player',p))diplo[o].honour=clamp(diplo[o].honour+1.6,-100,100); } } }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
+  updatePopularity(dt); updateLords(dt); updateHonour(dt);
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   rescueCaravans(dt);
   // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
@@ -4468,6 +4654,9 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   _t=_pt('misc',_t);
   ents=ents.filter(e=>{if(e.hp<=0){if(e.carryRelic)spawnRelic(e.x,e.z);   // b300: the relic hits the ground, not the grave
     if(e.cargo&&e.cargo.length){for(const id of e.cargo){const u=ents.find(en=>en.id===id);if(u)u.hp=0;}}   // b310: a sunk transport takes everyone aboard with it
+    // b326: a peasant who has had enough of you WALKS OUT. He is not killed, so no blood, no
+    // corpse, no death rattle and nothing counts him among your losses — he simply goes.
+    if(e._emigrated){ scene.remove(e.mesh); e._dead=true; return false; }
     for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
     const udd=e.mesh.userData;
     if(udd.mixer&&udd.deathA){ if(udd.walkA)udd.walkA.stop(); if(udd.idleA)udd.idleA.stop(); if(udd.oneA)udd.oneA.stop();
@@ -5072,22 +5261,11 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     if((ud.oneT||0)>0){ ud.oneT-=dt;
       if(ud.oneT<=0){ if(ud.oneA)ud.oneA.fadeOut(0.15); ud.oneA=null;
         const back=baseAction(ud); if(back)deSyncTo(back.reset(),ud).fadeIn(0.15).play(); } }
-    else { const mv=e.path&&e.pi<e.path.length;
-      // b325: standing still with a tool in hand and a job in front of you is not idling
-      const working=!mv&&ud.workA&&e.type==='worker'&&(
-        (e.cmd==='gather'&&e.gather&&(e.gather.type==='wood'||e.gather.type==='metal'||e.gather.type==='gold'))
-        ||e.cmd==='build'||e.cmd==='repair');
-      const want=mv?'walk':working?'work':'idle';
-      const actOf=m=>m==='walk'?ud.walkA:m==='work'?ud.workA:ud.idleA;
-      if(want!==ud.animMode&&ud.walkA&&ud.idleA){ const to=actOf(want), from=actOf(ud.animMode);
+    else { const mv=e.path&&e.pi<e.path.length, want=mv?'walk':'idle';
+      if(want!==ud.animMode&&ud.walkA&&ud.idleA){ const to=mv?ud.walkA:ud.idleA, from=mv?ud.idleA:ud.walkA;
         // reset() winds the clip back to zero, which is what locked a halting company together
-        if(to){ to.setLoop(THREE.LoopRepeat,Infinity); to.clampWhenFinished=false;
-          if(want==='work')to.setEffectiveTimeScale(0.85);          // a felling stroke is heavier than a sword cut
-          deSyncTo(to.reset(),ud).fadeIn(0.15).play(); }
-        if(from)from.fadeOut(0.15); ud.animMode=want; }
-      else if(want==='work'&&ud.workA&&!ud.workA.isRunning()){   // belt and braces: never leave a labourer frozen mid-stroke
-        ud.workA.setLoop(THREE.LoopRepeat,Infinity); ud.workA.clampWhenFinished=false;
-        ud.workA.setEffectiveTimeScale(0.85); deSyncTo(ud.workA.reset(),ud).fadeIn(0.1).play(); } } }
+        deSyncTo(to.reset(),ud).fadeIn(0.15).play(); from.fadeOut(0.15); ud.animMode=want; } }
+    if(k!==0)chopArm(e,ud,dt,k<=1||((e.id+animFrame)%k)===0); }
   else if(ud.limbs){ const mv=e.path&&e.pi<e.path.length;
     if(mv){ const s=Math.sin(e.walk*10)*0.65;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
@@ -6473,7 +6651,20 @@ function qlineHTML(b){ if(!b.queue.length)return '<span style="color:#7fa8bd">Id
 function refreshUI(){const cmds=$('cmds'),info=$('selInfo'),formBar=$('formBar');cmds.innerHTML='';if(formBar)formBar.innerHTML='';const can=c=>res.player.w>=(c.w||0)&&res.player.m>=(c.m||0)&&res.player.f>=(c.f||0)&&res.player.g>=(c.g||0);
   if(placing){info.innerHTML=`<b>Placing ${BLD[placing].name}</b><br>Left-click to build. Hold Shift or Ctrl = place several. Esc cancels.`;return;}
   if(selBuilding){const b=blds.find(x=>x.id===selBuilding);if(b){info.innerHTML=`<b>${BLD[b.type].name}</b> <span style="color:#7fa8bd">(${b.owner})</span> · HP ${Math.max(0,Math.round(b.hp))}/${b.maxHp}`+(b.done?'':` · <span style="color:#e0c878">building ${Math.round(b.progress*100)}%</span>`)+(b.done&&TRAINERS.has(b.type)&&b.owner==='player'?'<br><span id="qline">'+qlineHTML(b)+'</span><br><span style="color:#6f93a8;font-size:11px">'+(b.rally?'🚩 rally set — right-click ground moves it':'right-click ground = rally flag')+'</span>':'');
-    if(b.owner==='player'&&b.done){if(b.type==='hall'){trainBtn(cmds,b,'worker','⚒','Worker',can);const T=tech.player;
+    if(b.owner==='player'&&b.done){if(b.type==='hall'){
+      // b326: THE TAX DIAL. The other half of the popularity system — the lever the owner turns.
+      // Sits at the head of the Keep because that is where a lord decides what his people pay.
+      { const M=mood.player, T0=TAX_STEPS[M.tax];
+        const tb=document.createElement('div'); tb.className='btn';
+        tb.style.cssText+=';min-width:150px;border-color:'+(T0.mood<0?'#c98a4a':'#6fd48a');
+        tb.innerHTML='<span class="ic">'+T0.ic+'</span>'+T0.name
+          +'<small>'+(T0.mood>=0?'+':'')+T0.mood+' popularity · click to change</small>';
+        tb.title=T0.tip+'\n\nTax fills the treasury and empties the affection of your people. '
+          +'Popularity above 50 brings new families to your gate; below 40 they start to leave.';
+        tb.onclick=()=>{ M.tax=(M.tax+1)%TAX_STEPS.length; const N=TAX_STEPS[M.tax];
+          flashMsg(N.ic+' '+N.name+' — '+N.tip); SFX.cmd(); refreshUI(); };
+        cmds.appendChild(tb); }
+      trainBtn(cmds,b,'worker','⚒','Worker',can);const T=tech.player;
         if(T.age===1){const c={f:AGE2.f,w:AGE2.w};techBtn(cmds,'⏫','Advance to Age II',`${AGE2.f}🍖 ${AGE2.w}🌲`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;T.ageTimer=AGE2.time;T.ageTo=2;flashMsg('Advancing to the Age of the Drowned Coast…');refreshUI();});}
         else if(T.age===2){const c={f:AGE3.f,w:AGE3.w,m:AGE3.m};techBtn(cmds,'⏫','Advance to Age III',`${AGE3.f}🍖 ${AGE3.w}🌲 ${AGE3.m}⛏️`,can(c)&&T.ageTimer<=0,()=>{if(!can(c)){flashMsg('Not enough resources');return;}res.player.f-=c.f;res.player.w-=c.w;res.player.m-=c.m;T.ageTimer=AGE3.time;T.ageTo=3;flashMsg('Advancing to the Age of the Crown…');refreshUI();});}
         else info.innerHTML+='<br><span style="color:#e0c878">Age of the Crown reached</span>';
@@ -6618,6 +6809,7 @@ function shortOf(c){const r=res.player,parts=[];
 // Cache is cleared when the character library finishes loading, so the portraits show the real
 // models rather than the procedural stand-ins that exist for the first second of a game.
 const _portrait={};
+const PORTRAIT_BG=0x51637a;   // mid slate — light enough for a navy Knight, dark enough for a pale peasant
 function unitPortrait(type){
   if(_portrait[type]!==undefined)return _portrait[type];
   _portrait[type]=null;
@@ -6627,11 +6819,18 @@ function unitPortrait(type){
     // the pixels by hand made them DARKER still (archer 39.9 -> 17.8 mean luminance), because
     // ACES compresses mid-tones. The portrait rig was simply lit dimmer than the game's sun.
     // These numbers lift the archer 48.5 -> 59.9 with 0% of him clipping to white.
+    // b326: brightening alone was never going to fix this. A Knight in a French navy coat on a
+    // near-black backdrop is a dark shape on a dark ground however hard you light it — the fault
+    // was CONTRAST, not exposure. Portraits sit on a mid slate now, and every subject gets a rim
+    // light from behind to cut its silhouette away from the ground, which is what a photographer
+    // would do and what the dark units actually needed.
     const S=128;
     const sc=new THREE.Scene();
-    sc.add(new THREE.AmbientLight(0xffffff,1.9));
-    const key=new THREE.DirectionalLight(0xfff2dd,2.5); key.position.set(3,5,4); sc.add(key);
-    const fill=new THREE.DirectionalLight(0x9fc4ff,0.85); fill.position.set(-4,2,-3); sc.add(fill);
+    sc.add(new THREE.AmbientLight(0xffffff,2.1));
+    const key=new THREE.DirectionalLight(0xfff2dd,2.6); key.position.set(3,5,4); sc.add(key);
+    const fill=new THREE.DirectionalLight(0x9fc4ff,0.9); fill.position.set(-4,2,-3); sc.add(fill);
+    const rim=new THREE.DirectionalLight(0xffffff,1.6); rim.position.set(-2.2,3.4,-5); sc.add(rim);
+    const rim2=new THREE.DirectionalLight(0xdfeaff,0.9); rim2.position.set(4,1.2,-4); sc.add(rim2);
     const m=makeUnitMesh(type,'player');
     // REMOVE the health bar, don't just hide it: Box3.setFromObject expands over invisible
     // children too, and a bar 2.8 up is enough to shove the man into a corner of his own portrait.
@@ -6650,7 +6849,7 @@ function unitPortrait(type){
     const rt=new THREE.WebGLRenderTarget(S,S,{colorSpace:THREE.SRGBColorSpace});
     const prevRT=renderer.getRenderTarget(), prevCol=new THREE.Color(); renderer.getClearColor(prevCol);
     const prevAl=renderer.getClearAlpha(), prevSh=renderer.shadowMap.enabled;
-    renderer.shadowMap.enabled=false; renderer.setClearColor(0x0a1622,1);   // b325: matches .upic's own background, so the letterboxing from object-fit:contain is invisible
+    renderer.shadowMap.enabled=false; renderer.setClearColor(PORTRAIT_BG,1);   // matches .upic's own background, so the letterboxing from object-fit:contain is invisible
     renderer.setRenderTarget(rt); renderer.render(sc,cam);
     const buf=new Uint8Array(S*S*4); renderer.readRenderTargetPixels(rt,0,0,S,S,buf);
     renderer.setRenderTarget(prevRT); renderer.setClearColor(prevCol,prevAl); renderer.shadowMap.enabled=prevSh;
@@ -6721,6 +6920,19 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
     :pq&&pu+pq>=pc?'Population '+pu+' of '+pc+', with '+pq+' more already ordered — that fills you. Build Houses before ordering again.'
     :pu>=pc?'Population full — build Houses!':'Population / capacity — Houses +8, Keep +15, Castles +12, sworn villages +6'+(pq?'. (+'+pq+') is training now.':'');
   const wn=document.getElementById('wrkN'); if(wn)wn.textContent=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'?1:0),0);
+  // b326: the popularity meter. Colour carries the meaning at a glance — green above the line
+  // means strangers are arriving, amber is a town holding steady, red is one that is emptying.
+  const mb=document.getElementById('moodFill');
+  if(mb&&mood.player){ const p=mood.player.pop;
+    mb.style.width=Math.round(p)+'%';
+    mb.style.background = p>=52?'#6fd48a' : p>=40?'#e0c46a' : '#e07a6a';
+    const mi=document.getElementById('moodIc'); if(mi)mi.textContent = p>=75?'😍':p>=52?'🙂':p>=40?'😐':p>=25?'☹️':'😡';
+    const mn=document.getElementById('moodN'); if(mn)mn.textContent=Math.round(p);
+    const box=document.getElementById('moodBox');
+    if(box){ const F=mood.player.log||[];
+      box.title='POPULARITY '+Math.round(p)+'/100 — '+(p>=52?'peasants are arriving of their own accord':p>=40?'nobody is coming and nobody is leaving':'your people are walking out')
+        +'\n\n'+F.map(f=>(f.v>=0?'  +':'  ')+f.v+'  '+f.ic+' '+f.k).join('\n')
+        +'\n\nSet the tax at your Keep. Food variety, gardens, statues and room to breathe all lift it.'; } }
   const nIdle=ents.reduce((n,e)=>n+(e.owner==='player'&&e.type==='worker'&&e.cmd==='idle'?1:0),0);
   if(!$('forces').classList.contains('hidden')&&Math.random()<0.08)renderForces();
   $('idleN').textContent=nIdle;const ib=$('idleBtn');
@@ -7186,6 +7398,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
+      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
