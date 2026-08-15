@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b326</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b327</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2708,7 +2708,18 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
   s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z); } }
 
 // ==================================================== UNIT / BUILDING MESHES
-const UNIT_CHAR={hero:'LeeRider',spear:'LeePikeman',infantry:'Meiya',grenadier:'BlueSoldier',chukonu:'Ninja',hoplite:'KnightM',monk:'Mage',priest:'Mage',cardinal:'Mage',highlander:'Barbarian',archer:'BruceBowman',privateer:'Privateer',viking:'Viking',samurai:'Samurai'};
+// b327: NO MORE UNTEXTURED MEN. Surveyed every character template in the library and they fall
+// into three tiers: the owner's own five (20,000 tris, 2048 colour AND a normal map), the bought
+// pack (about 6,000 tris, textured, no relief), and a bottom tier of 2,500-3,000-tri models
+// carrying NO TEXTURE AT ALL — vertex colours only, which is why the Chu-Ko-Nu read as a blank
+// white doll with a red headband in the owner's screenshot. Every type that pointed at that
+// bottom tier is moved onto a textured model. Nothing untextured is left on the battlefield.
+//   was: grenadier BlueSoldier(2994) · chukonu Ninja(2720) · hoplite KnightM(2992)
+//        samurai Samurai(2540) · viking Viking(6264, also untextured)
+const UNIT_CHAR={hero:'LeeRider',spear:'LeePikeman',infantry:'Meiya',grenadier:'Meiya',
+  chukonu:'BruceBowman',hoplite:'LeePikeman',monk:'Mage',priest:'Mage',cardinal:'Mage',
+  highlander:'Barbarian',archer:'BruceBowman',privateer:'Privateer',viking:'Barbarian',
+  samurai:'Rogue_Hooded'};
 // b148: weapons. Shaft materials are shared, so a whole army of pikes costs a handful of draws
 // once the merge/instancing has done its work. Every piece is built around the grip at the origin.
 // one material family for all of it — same roughness, same metalness — so the merge can fold a
@@ -6285,8 +6296,23 @@ function updateSlotMarks(ang){ const s=selUnits().filter(e=>UNIT[e.type].dom!=='
       m.visible=true;m.position.set(wx0,heightAtWorld(wx0,wz0)+0.9,wz0);m.rotation.y=Math.PI/2-ang; }
     else m.visible=false; }); }
 function hideSlotMarks(){slotMarks.forEach(m=>m.visible=false);}
-function resize(){const s=document.getElementById('stage');vw=s.clientWidth;vh=s.clientHeight;renderer.setSize(vw,vh,false);camera.aspect=vw/vh;camera.updateProjectionMatrix();if(composer)composer.setSize(vw,vh);}
+// b327: THE BLACK FRAME. resize() only ever ran off the window's resize event and never touched
+// the pixel ratio, so a browser zoom — which changes devicePixelRatio underneath you, and on some
+// steps fires no usable resize at all — left the drawing buffer sized for the OLD ratio while the
+// canvas kept its new CSS box. The picture then filled a corner and the rest of the stage stayed
+// the page's black. Nothing to do with the game at all, which is why it came and went with zoom.
+function resize(){const s=document.getElementById('stage');vw=s.clientWidth;vh=s.clientHeight;
+  const pr=Math.min(devicePixelRatio,QUAL==='high'?2:QUAL==='med'?1.5:1);
+  if(renderer.getPixelRatio()!==pr){renderer.setPixelRatio(pr);if(composer)composer.setPixelRatio(pr);}
+  renderer.setSize(vw,vh,false);camera.aspect=vw/vh;camera.updateProjectionMatrix();if(composer)composer.setSize(vw,vh);}
 window.addEventListener('resize',resize);
+// Belt and braces, because zoom is not reliably a resize: every frame, cheaply check that what
+// the renderer thinks it is drawing still matches the box it is drawing into, and re-sync if not.
+function syncStageSize(){ const s=document.getElementById('stage'); if(!s)return;
+  const w=s.clientWidth,h=s.clientHeight;
+  const pr=Math.min(devicePixelRatio,QUAL==='high'?2:QUAL==='med'?1.5:1);
+  if(!w||!h)return;
+  if(w!==vw||h!==vh||renderer.getPixelRatio()!==pr)resize(); }
 // b323: men were turning into capsules 44 units out, which when zoomed out is most of the screen —
 // an army read as green pills on grass. The full-model radius floor is raised and the budget with
 // it. The adaptive _lodScale below still protects the frame rate (it can pull the line back to
@@ -7341,6 +7367,7 @@ let plSiteT=0;
 let last=0,simAcc=0;
 const SIM_DT=1/30;   // fixed-step sim: game speed independent of frame rate
 function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)frame=0.5;
+  syncStageSize();   // b327: two integer compares a frame, and the black frame can never come back
   if(running&&!gameOver&&!paused){ autosaveT-=frame;if(autosaveT<=0){autosaveT=40;saveGame(true);}
     simAcc+=frame*gameSpeed; let steps=0;
     while(simAcc>=SIM_DT&&steps<6*gameSpeed){ updateCamera(SIM_DT); update(SIM_DT); simAcc-=SIM_DT; steps++; }
@@ -7399,6 +7426,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,
+      resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
       get woodNodes(){return woodNodes;},get metalNodes(){return metalNodes;},get goldNodes(){return goldNodes;},chopReachable,nearestNode,nextJob,
