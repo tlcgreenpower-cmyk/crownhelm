@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b328</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b329</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4018,7 +4018,49 @@ function pendingBld(o,t){let n=0;for(const b of blds)if(b.owner===o&&b.type===t&
 function effDmg(e){const T=tech[e.owner],U=UNIT[e.type];let d=U.dmg*(1+T.weapon*0.15);
   if(T.cavdoc&&U.cav)d*=1.1; if(T.rangedoc&&U.ranged)d*=1.1;
   if(T.unique&&U.coat&&U.ranged&&faction[e.owner]==='english')d*=1.15;
-  return d*(1+0.1*(e.rank||0));}
+  return d*(1+0.1*(e.rank||0))*regBonus(e).atk;}
+// b329 COSSACKS #1 & #2 — REGIMENTS AND ENTRENCHMENT.
+// A crowd is not a regiment. Form eight or more soldiers up under an officer and they fight as a
+// body: a flat bonus to what they give and what they take, held only while the officer lives and
+// the men are actually in their places. Then, if you plant that body and tell it to stand, it digs
+// in — a bar fills, and once it is full the bonus is severe, but they will not take a step until
+// you break the formation. Positional play, rewarded.
+const REG_MIN=8;                      // fewer men than this is a mob, not a regiment
+const REG_ATK=1.12, REG_DEF=0.88;     // what a formed body gives and takes
+const ENT_TIME=9;                     // seconds of standing still before the works are dug
+const ENT_ATK=1.30, ENT_DEF=0.62;     // and what digging in is worth
+const regiments={};                   // id -> {officer, owner, n, ent}
+let regSeq=1;
+const _REG_NONE={atk:1,def:1,ent:0};
+function regOf(e){ const R=e&&e.reg&&regiments[e.reg]; return (R&&!R.dead)?R:null; }
+function regBonus(e){ const R=regOf(e); if(!R||R.n<REG_MIN)return _REG_NONE;
+  if(R.ent>=1)return {atk:ENT_ATK,def:ENT_DEF,ent:1};
+  return {atk:REG_ATK,def:REG_DEF,ent:R.ent}; }
+// The officer is the man the regiment is built around — he already carries the standard, so the
+// player can SEE which body is which and who to shoot at to break it.
+function updateRegiments(dt){
+  for(const k in regiments){ const R=regiments[k];
+    const men=ents.filter(e=>e.reg===+k&&e.hp>0);
+    R.n=men.length;
+    const off=men.find(e=>e.id===R.officer);
+    if(!off||R.n<REG_MIN){ R.dead=true;
+      if(R.owner==='player'&&!R._told){ R._told=1;
+        flashMsg(off?'⚑ A regiment is too thin to hold its shape — re-form it':'⚑ Your officer is down — the regiment breaks and loses its bonus'); }
+      continue; }
+    // Digging in is gated on the ORDER, not on whether they happen to be standing still — the
+    // first version decayed the works the instant a move order came in, so the men politely
+    // un-dug themselves and marched off, which is precisely what standing ground is not.
+    // Stand Ground is the commitment; taking them off it is the only thing that breaks the works.
+    const holding=men.every(e=>e.stance==='hold');
+    if(holding){ const still=men.every(e=>!(e.path&&e.pi<e.path.length));
+      if(still||R.ent>=1){ const was=R.ent;
+        R.ent=Math.min(1,R.ent+dt/ENT_TIME);
+        if(was<1&&R.ent>=1&&R.owner==='player')flashMsg('⛏ The regiment is dug in — nothing shifts them, and they will not march until you take them off Stand Ground'); } }
+    else if(R.ent>0){ const was2=R.ent; R.ent=Math.max(0,R.ent-dt/2.5);   // breaking works is quicker than digging them
+      if(was2>=1&&R.ent<1&&R.owner==='player')flashMsg('⛏ The regiment abandons its works'); }
+  }
+  // a regiment that is dug in does not march, whatever it is told
+  for(const e of ents){ const R=regOf(e); if(R&&R.ent>=1&&e.path){ e.path=null; e.slot=null; } } }
 // ---- veterancy: soldiers earn stripes in battle — harder-hitting, tougher, gold pips overhead ----
 const RANK_XP=[60,180,400];
 function gainXp(e,amt){ if(e.type==='worker'||UNIT[e.type].noAtk)return; e.xp=(e.xp||0)+amt*(tech[e.owner].unique&&faction[e.owner]==='sacred'?1.5:1);
@@ -4129,6 +4171,32 @@ function clearStall(e){e._sd=undefined;e._sn=0;}
 
 // ==================================================== COMMANDS
 let formation='ranks',formSpread=1;   // 1 = shoulder-to-shoulder, 2 = open order
+// b329: the six kinds of soldier a line is made of, and the order they stand in, front to back.
+// Pikes are their own class rather than lumped in with the swords — a hedge of points in front of
+// your muskets is the whole reason the era fought the way it did, and it was not expressible before.
+const BATTLE_CLASS={
+  pike: {ic:'🛡',name:'Pikes & spears', tip:'Polearms — the hedge that stops a charge'},
+  melee:{ic:'⚔',name:'Swords & axes',  tip:'Close-quarters foot'},
+  shot: {ic:'🔫',name:'Muskets & bows', tip:'Everything that shoots on foot'},
+  cav:  {ic:'🐎',name:'Horse',          tip:'Mounted, of every kind'},
+  guns: {ic:'💣',name:'Guns & engines', tip:'Artillery, rams and towers'},
+  aid:  {ic:'➕',name:'Priests & doctors',tip:'Healers and anyone who does not fight'}};
+// Classify off REACH, not off the `ranged` flag. The flag marks which units throw a projectile
+// mesh, and the Skirmisher — range 17 — does not carry it, so the old b118 ordering had been
+// quietly marching the game's main missile troops into the FRONT rank all along.
+function classOf(t){ const U=UNIT[t]; if(!U)return 'melee';
+  if(U.heal||U.noAtk)return 'aid';
+  if(U.siege||U.ramOnly)return 'guns';
+  if(U.cav)return 'cav';
+  if(U.ranged||(U.range||0)>=6)return 'shot';
+  if(U.spear||t==='spear'||t==='hoplite'||t==='pikeman'||(U.name&&/pike|spear|halberd/i.test(U.name)))return 'pike';
+  return 'melee'; }
+let battleOrder=['pike','melee','shot','cav','guns','aid'];
+const BATTLE_PRESETS={
+  'Pike wall':   ['pike','melee','shot','cav','guns','aid'],
+  'Firing line': ['shot','pike','melee','cav','guns','aid'],
+  'Horse first': ['cav','melee','pike','shot','guns','aid'],
+  'Guns forward':['guns','shot','pike','melee','cav','aid']};
 const FORMS={
   ranks:{ic:'\u25a4',name:'Ranks',slot:(i,n)=>{const cols=Math.max(1,Math.ceil(Math.sqrt(n*1.6)));return[(i%cols)-((cols-1)>>1),Math.floor(i/cols)];}},
   line:{ic:'\u2501',name:'Line',slot:(i,n)=>{const cols=Math.max(1,Math.ceil(n/2));return[(i%cols)-((cols-1)>>1),Math.floor(i/cols)];}},
@@ -4166,13 +4234,37 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   grp.add(fl);grp.position.set(-.35*MAN_SCALE,0,-.35*MAN_SCALE);grp.scale.setScalar(MAN_SCALE);   // b227: and so does the standard
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
-function commandMove(list,x,z,amove,fdir){for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;u._onDeck=false;if(u.stance==='defend')u.post={x,z};if(UNIT[u.type].unpack){u.unpacked=false;u.unpackT=0;u._unpackMsg=0;}}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege. b309: relocating a Trebuchet re-packs it — no free re-aim after a walk
+function commandMove(list,x,z,amove,fdir){
+  // b329: MEN IN A TRENCH DO NOT MARCH. Clearing their path each tick was not enough — the march
+  // logic simply re-pathed them a frame later, and re-issuing the order quietly re-formed them
+  // into a fresh regiment with no works at all, so digging in had no teeth whatsoever. The order
+  // is refused at the door instead: take them off Stand Ground first, and the works break.
+  { const dugIn=list.filter(u=>{const R=regOf(u);return R&&R.ent>=1;});
+    if(dugIn.length){ list=list.filter(u=>!dugIn.includes(u));
+      if(dugIn[0].owner==='player')flashMsg('⛏ Dug in — they will not budge. Take them off Stand Ground to break the works first');
+      if(!list.length)return; } }
+  for(const u of list){u.pfCool=0;u.siegeB=null;u.patrol=null;u._onDeck=false;if(u.stance==='defend')u.post={x,z};if(UNIT[u.type].unpack){u.unpacked=false;u.unpackT=0;u._unpackMsg=0;}}const gx=txFromW(x),gy=tzFromW(z);   // b212: an explicit move cancels any standing siege. b309: relocating a Trebuchet re-packs it — no free re-aim after a walk
   // b118: real-army order — melee line front, muskets centre, cavalry next, guns & healers rear,
   // and every regiment stands TOGETHER (same types form contiguous blocks in the ranks)
-  const rank=t=>{const U=UNIT[t];return (U.heal||U.noAtk)?5:(U.siege||U.ramOnly)?4:U.cav?2:U.ranged?1:0;};   // healers ALWAYS at the very back (owner rule)
+  // b329 (owner request): WHO STANDS WHERE IS YOURS TO DECIDE. b118 fixed the order in code —
+  // melee front, muskets centre, cavalry, guns and healers rear — which is a sound default and
+  // nothing you could argue with. Now it is a default, not a rule: battleOrder is a list the
+  // player rearranges, and the line forms up in whatever order it holds.
+  const rank=t=>{ const i=battleOrder.indexOf(classOf(t)); return i<0?battleOrder.length:i; };
   astarBudget+=ml0Count(list);
   const ml=[...list].sort((q,r)=>rank(q.type)-rank(r.type)||q.type.localeCompare(r.type)||q.id-r.id);
   if(ml.length>=8&&!ml.some(u=>u.mesh.userData.banner)){const bearer=ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk&&UNIT[u.type].dom==='land')||ml[0];giveBanner(bearer);}
+  // b329: forming up under a standard IS forming a regiment. The man carrying it is the officer,
+  // so the thing the player already sees on the field is the thing that holds the bonus together —
+  // and the thing an enemy can shoot at to break it.
+  if(ml.length>=REG_MIN){
+    const off=ml.find(u=>u.mesh.userData.banner)||ml.find(u=>!UNIT[u.type].siege&&!UNIT[u.type].noAtk)||ml[0];
+    if(off){ if(!off.mesh.userData.banner)giveBanner(off);
+      const rid=regSeq++;
+      regiments[rid]={officer:off.id,owner:off.owner,n:ml.length,ent:0,dead:false};
+      for(const u of ml)u.reg=rid;
+      if(off.owner==='player')flashMsg('⚑ Regiment formed under a standard — '+ml.length+' men, +12% given and taken. Stand them on Stand Ground to dig in'); } }
+  else for(const u of ml)u.reg=null;
   const slots=formSlots(ml.length,x,z,fdir,ml.reduce((m,u)=>Math.max(m,UNIT[u.type].r),0.9));
   ml.forEach((e,i)=>{e.cmd=amove?'amove':'move';e.target=null;e.gather=null;e.build=null;e.tendB=null;
     let sx=slots[i][0],sz=slots[i][1];
@@ -4557,6 +4649,34 @@ function bldExposure(b){ if(!b||!b.owner)return 1;
 // fraction of the man's own health now, so a Cuirassier and a Skirmisher wear down at the same
 // RATE rather than the Skirmisher dying six times as fast, and it stops at a fifth of his health:
 // an army caught deep in someone else's country comes home in a bad way, but it comes home.
+// b329 COSSACKS #3 — UNGUARDED GUNS CHANGE HANDS. A cannon is a very expensive object with a crew
+// of nobody: leave it standing on its own and the first enemy who walks up to it owns it. Turns
+// siege into something you have to escort, and gives a raid a prize better than a kill.
+const CAPTURE_R=2.8;        // how close an enemy must get to lay hands on it
+const GUARD_R=15;           // and how near its own side must be for it to count as guarded
+let _capT=0;
+function updateCapture(dt){
+  _capT-=dt; if(_capT>0)return; _capT=0.5;
+  for(const g of ents){
+    if(g.hp<=0||!SIEGE_TYPES.has(g.type))continue;
+    if(ents.some(f=>f!==g&&f.owner===g.owner&&f.hp>0&&!UNIT[f.type].siege&&Math.hypot(f.x-g.x,f.z-g.z)<GUARD_R))continue;
+    const taker=ents.find(f=>f.hp>0&&f.owner!==g.owner&&isHostile(f.owner,g.owner)&&!UNIT[f.type].siege&&!UNIT[f.type].noAtk
+      &&UNIT[f.type].dom!=='water'&&Math.hypot(f.x-g.x,f.z-g.z)<CAPTURE_R);
+    if(!taker)continue;
+    const from=g.owner;
+    g.owner=taker.owner; g.cmd='idle'; g.target=null; g.path=null; g.slot=null; g.reg=null;
+    g.hp=Math.max(1,g.hp*0.8);                       // it takes a knock in the taking
+    g.stance='aggro'; g.post=null; g.patrol=null; g.siegeB=null; g.march=null;
+    selected=selected.filter(id=>id!==g.id);
+    scene.remove(g.mesh);                            // rebuilt so it wears the new colours
+    g.mesh=makeUnitMesh(g.type,g.owner);
+    g.mesh.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.depthTest===false))o.receiveShadow=true;});
+    scene.add(g.mesh); placeMesh(g);
+    for(let i=0;i<10;i++)spawnPart(g.x+(Math.random()-.5)*1.6,heightAtWorld(g.x,g.z)+0.8+Math.random()*1.6,g.z+(Math.random()-.5)*1.6,'chip');
+    if(taker.owner==='player'){ flashMsg('⛓ Captured! '+realmName(from)+"'s "+UNIT[g.type].name+' is yours — it was standing unguarded');
+      sfxWhere(g.x,g.z); SFX.cmd(); }
+    else if(from==='player'){ flashMsg('⛓ Your '+UNIT[g.type].name+' has been taken by '+realmName(taker.owner)+' — guns left alone get captured');
+      sfxWhere(g.x,g.z); } } }
 const ATTRITION_FRAC=0.0025;   // of max HP, per second — about six and a half minutes to the floor
 const ATTRITION_FLOOR=0.20;
 let _atT=0;
@@ -4682,7 +4802,7 @@ function updateHonour(dt){ _honT-=dt; if(_honT>0)return; _honT=10;
     for(const p of AI_REALMS)if(p!==o){ const k=[o,p].sort().join('|');
       if(aiWars[k]&&isHostile('player',p))diplo[o].honour=clamp(diplo[o].honour+1.6,-100,100); } } }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
-  updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt);
+  updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt); updateRegiments(dt); updateCapture(dt);
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   rescueCaravans(dt);
   // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
@@ -5479,7 +5599,7 @@ function elevAt(x,z){return elev[ti(clamp(txFromW(x),0,MAP_W-1),clamp(tzFromW(z)
 function elevMult(e,t){const ea=elevAt(e.x,e.z),ta=elevAt(t.x,t.z);if(ea>ta+0.35)return 1.25;if(ta>ea+0.35)return 0.75;return 1;}
 function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk||UNIT[e.type].ramOnly)return;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e)*elevMult(e,t)+counterBonus(e,t),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player'){sfxWhere(e.x,e.z);U.siege?SFX.boom():SFX.bow();}}
-  else{t.hp-=effDmg(e)*elevMult(e,t)+counterBonus(e,t);t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
+  else{t.hp-=(effDmg(e)*elevMult(e,t)+counterBonus(e,t))*regBonus(t).def;t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
 function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;b._hitBy=e.owner;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;const mult=(U.siege?6:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4)*bldExposure(b);   // AoE2 pacing: fat buildings fall fast to siege, slowly to muskets
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player'){sfxWhere(e.x,e.z);SFX.boom();}}
   else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);
@@ -5507,8 +5627,8 @@ function updateProjectiles(dt){for(const p of projs){p.t+=dt;const tx=p.target.x
   const prog=Math.min(1,p.t/(d/p.speed+0.2));const arc=p.kind==='boulder'?Math.sin(prog*Math.PI)*6:0;p.py=(heightAtWorld(p.px,p.pz)+1.5)+arc;
   p.mesh.position.set(p.px,p.py,p.pz);if(p.kind==='arrow')p.mesh.lookAt(tx,ty,tz);else p.mesh.rotation.x+=dt*8;}
   projs=projs.filter(p=>{if(p.dead){scene.remove(p.mesh);return false;}return true;});}
-function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');for(let i=0;i<4;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1.6,p.target.z,'smoke');if(Math.random()<0.4)stampScorch(p.target.x,p.target.z,1);sfxWhere(p.target.x,p.target.z);SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
-  if(p.target.bld){if(!p.target.bld._gone){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(!p.target._dead){p.target.hp-=p.dmg;p.target.flinch=0.15;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
+function applyProj(p){if(p.splash){for(let i=0;i<8;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'debris');for(let i=0;i<4;i++)spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1.6,p.target.z,'smoke');if(Math.random()<0.4)stampScorch(p.target.x,p.target.z,1);sfxWhere(p.target.x,p.target.z);SFX.boom();for(const e of ents)if(e.owner!==p.owner&&Math.hypot(e.x-p.target.x,e.z-p.target.z)<p.splash)e.hp-=p.dmg*regBonus(e).def;for(const b of blds)if(b.owner!==p.owner&&Math.hypot(b.cx-p.target.x,b.cz-p.target.z)<p.splash){b.hp-=p.dmg;if(b.hp<=0)destroyBuilding(b);}return;}
+  if(p.target.bld){if(!p.target.bld._gone){p.target.bld.hp-=p.dmg;if(p.target.bld.hp<=0)destroyBuilding(p.target.bld);if(p.target.bld&&p.target.bld.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}else if(!p.target._dead){p.target.hp-=p.dmg*regBonus(p.target).def;p.target.flinch=0.15;if(p.target.hp<=0&&p.owner==='player'&&p.target.owner!=='player')statKills++;spawnPart(p.target.x,heightAtWorld(p.target.x,p.target.z)+1,p.target.z,'spark');if(p.target.owner==='player'&&p.owner!=='player')pingAttack(p.target.x,p.target.z);}}
 // b206: ONE MESH A TYPE, AND PARTICLES THAT ACTUALLY FADE.
 // Every particle used to be its own THREE.Mesh, and every particle of a type shared ONE material.
 // Two consequences, both measured. Two hundred particles in view were two hundred draw calls against
@@ -6921,7 +7041,52 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo'),formBar=$('formBar')
         tb.title=STANCE[k].tip+' (Z cycles)';
         tb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:11px;color:#dff0f9;background:'+(cur===k?'#2c5c7a':'#17303f')+';border:1px solid '+(cur===k?'#8fd4f0':'#2c5164');
         tb.onclick=()=>setStance(sel.filter(e=>e.type!=='worker'),k); fr.appendChild(tb); }
-      (formBar||info).appendChild(fr); }
+      (formBar||info).appendChild(fr);
+      // b329 (owner request): BATTLE ORDER — the line front to back, and it is his to arrange.
+      // Click a class to bring it one rank forward; the one already at the front wraps to the rear.
+      const br=document.createElement('div');
+      br.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:5px';
+      const lbl=document.createElement('span');
+      lbl.textContent='Battle order — front'; lbl.style.cssText='font-size:10.5px;color:#7fa8bd';
+      br.appendChild(lbl);
+      battleOrder.forEach((ck,i)=>{ const C=BATTLE_CLASS[ck]; const cb=document.createElement('button');
+        cb.textContent=(i+1)+' '+C.ic;
+        cb.title=C.name+' — '+C.tip+'\nRank '+(i+1)+' of '+battleOrder.length+'. Click to move them one rank forward.';
+        cb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 7px;font-size:11px;color:#f0e6cf;background:'
+          +(i===0?'#4a3a18':'#25313a')+';border:1px solid '+(i===0?'#c9a44a':'#3d5566');
+        cb.onclick=()=>{ const j=i===0?battleOrder.length-1:i-1;
+          const t=battleOrder[i]; battleOrder[i]=battleOrder[j]; battleOrder[j]=t;
+          flashMsg('⚑ '+C.name+' to rank '+(j+1)+' — re-issue the move order to re-form the line'); SFX.cmd(); refreshUI(); };
+        br.appendChild(cb); });
+      const rl=document.createElement('span');
+      rl.textContent='rear'; rl.style.cssText='font-size:10.5px;color:#7fa8bd';
+      br.appendChild(rl);
+      for(const pn in BATTLE_PRESETS){ const pb=document.createElement('button'); pb.textContent=pn;
+        const on=BATTLE_PRESETS[pn].join()===battleOrder.join();
+        pb.title='Set the whole line at once';
+        pb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:10.5px;color:#dff0f9;background:'
+          +(on?'#2c5c7a':'#17303f')+';border:1px solid '+(on?'#8fd4f0':'#2c5164');
+        pb.onclick=()=>{ battleOrder=BATTLE_PRESETS[pn].slice();
+          flashMsg('⚑ '+pn+' — re-issue the move order to re-form the line'); SFX.cmd(); refreshUI(); };
+        br.appendChild(pb); }
+      (formBar||info).appendChild(br);
+      // and the regiment's own state, if these men are in one
+      const R=regOf(sel[0]);
+      if(R&&R.n>=REG_MIN){ const rr2=document.createElement('div');
+        rr2.style.cssText='margin-top:5px;font-size:11px;color:#e8dcbb;display:flex;align-items:center;gap:6px';
+        const dug=R.ent>=1;
+        rr2.innerHTML='<span>⚑ Regiment of '+R.n+(dug?' — <b style="color:#ffd98a">DUG IN</b> (+30% given, −38% taken, cannot move)'
+            :' (+12% given, −12% taken)')+'</span>';
+        if(!dug&&R.ent>0){ const bar=document.createElement('span');
+          bar.style.cssText='display:inline-block;width:70px;height:7px;border-radius:4px;background:#20323f;border:1px solid #37596e;overflow:hidden';
+          bar.innerHTML='<span style="display:block;height:100%;width:'+Math.round(R.ent*100)+'%;background:#c9a44a"></span>';
+          rr2.appendChild(bar);
+          const t2=document.createElement('span'); t2.textContent='digging in'; t2.style.cssText='font-size:10.5px;color:#9fc0d2';
+          rr2.appendChild(t2); }
+        else if(!dug){ const t3=document.createElement('span');
+          t3.textContent='· set Stand Ground to dig in'; t3.style.cssText='font-size:10.5px;color:#7fa8bd';
+          rr2.appendChild(t3); }
+        (formBar||info).appendChild(rr2); } }
     if(sel.some(e=>e.type==='worker')){
       const CATS={
         town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['miningcamp','⛏️','Mining Camp'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue'],['wonder','🏛️','Wonder',3]]},
@@ -7551,7 +7716,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
-      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,
+      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
