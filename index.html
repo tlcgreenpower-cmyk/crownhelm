@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b329</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b330</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -594,7 +594,7 @@ const COST={
   tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:1,time:10,age:1}, priest:{f:90,pop:1,time:12,age:1}, doctor:{f:70,w:20,pop:1,time:11,age:1}, cardinal:{f:180,g:120,pop:1,time:20,age:2},
   warboat:{w:80,g:50,pop:1,time:13,age:2}, privateer:{f:80,g:100,pop:1,time:14,age:2}, viking:{f:60,w:30,pop:1,time:9,age:1}, samurai:{f:90,g:120,pop:1,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
-  gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},fort:{w:120,m:70,age:2},wonder:{w:400,m:250,g:250,f:100,age:3},wall:{w:15},gate:{w:30,m:20},
+  gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},fort:{w:120,m:70,age:2},tradepost:{w:80,g:40,age:1},wonder:{w:400,m:250,g:250,f:100,age:3},wall:{w:15},gate:{w:30,m:20},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},bakery:{w:80,m:20,age:2},armourer:{w:120,m:60},
   statue:{m:30,g:20},garden:{w:25},bridge:{w:35},range:{w:100},stable:{w:110,m:20,age:2},
   miningcamp:{w:60,m:20},
@@ -710,6 +710,8 @@ const BLD={
   // purpose is to PUSH YOUR BORDER out over ground you do not otherwise hold, so you can lean on
   // a neighbour's edge without committing to a town there.
   fort:{w:2,h:2,hp:2200,name:'Fort',vis:12,fort:true},
+  // b330: only ever raised ON a trade-route post — see the placement check
+  tradepost:{w:2,h:2,hp:1100,name:'Trading Post',vis:8},
 };
 // b328 RoN #1 — NATIONAL BORDERS. Every realm radiates territory from the things it has planted
 // in the ground. Kept deliberately soft and generous: Crownhelm is open-world and roaming is the
@@ -718,7 +720,7 @@ const BLD={
 // up there takes far more damage — and give the map a legible answer to "whose land is this".
 const BORDER_R={hall:46, castle:34, fort:30, wonder:30, tower:13, watch:13};
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
-const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wonder:320,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55,miningcamp:30,fort:95};
+const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wonder:320,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55,miningcamp:30,fort:95,tradepost:40};
 const GAR_CAP={tower:4,watch:2,castle:10,hall:8,fort:6};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
@@ -4616,6 +4618,185 @@ function foesOfOwner(o){ if(_foeStamp!==_stepN){_foeMap={};_foeStamp=_stepN;}
   let a=_foeMap[o]; if(a)return a;
   a=[]; for(const e of ents)if(!e.inGar&&isHostile(o,e.owner))a.push(e);
   return _foeMap[o]=a; }
+// ==================================================== b330 TREASURES (AoE3 #1)
+// The single best fit in the whole dossier for a game that is actually open-world: loot lying
+// about the map with something unpleasant sitting on it. Nothing is hostile until you make it so
+// — walk past and the guardians ignore you — and the harder the guard, the better the prize. It
+// gives roaming a reason beyond curiosity without inventing a new faction or any new netcode:
+// the guardians are wolves, which already hunt, already fight back, and already look right.
+let treasures=[];
+const TREASURE_TIERS=[
+  {n:1,ic:'\u{1FA99}',name:'a scatter of coin',   give:{g:120},                  blurb:'120 gold'},
+  {n:2,ic:'\u{1F4E6}',name:'an abandoned wagon',  give:{w:220,f:160},            blurb:'220 timber and 160 food'},
+  {n:3,ic:'⛏',   name:"a prospector's cache",give:{m:220,g:180},            blurb:'220 ore and 180 gold'},
+  {n:4,ic:'\u{1F5FF}',name:'a forgotten shrine',  give:{g:300},unit:'infantry',  blurb:'300 gold, and a soldier who has been waiting a long time'},
+  {n:5,ic:'\u{1F451}',name:'a warlord’s hoard',give:{g:450,m:200},bonus:'weapon',blurb:'450 gold, 200 ore — and the smiths learn something from the steel'}];
+function makeTreasureMesh(tier){
+  const g=new THREE.Group();
+  const cairn=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.5,0.7,7),M.rock);
+  cairn.position.y=0.35; cairn.castShadow=true; g.add(cairn);
+  const chest=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.9,1.0),M.wood);
+  chest.position.y=1.15; chest.castShadow=true; g.add(chest);
+  const lid=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,1.5,8,1,false,0,Math.PI),M.wood);
+  lid.rotation.z=Math.PI/2; lid.position.y=1.6; lid.castShadow=true; g.add(lid);
+  for(const bz of[-0.34,0.34]){ const band=new THREE.Mesh(new THREE.BoxGeometry(1.56,0.95,0.1),M.gold);
+    band.position.set(0,1.18,bz); g.add(band); }
+  const lock=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.3,0.22),M.gold);
+  lock.position.set(0.78,1.15,0); g.add(lock);
+  // a lamp on a pole, so the eye finds it across a big map — brighter for a richer prize
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,3.2,5),M.trunk);
+  pole.position.set(-1.3,1.6,0); g.add(pole);
+  const glowC=[0xffd27a,0xffc266,0xffb04e,0xff9a3a,0xff7a2a][Math.min(4,tier.n-1)];
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.3,9,7),
+    new THREE.MeshStandardMaterial({color:glowC,emissive:glowC,emissiveIntensity:1.5,roughness:.5}));
+  lamp.position.set(-1.3,3.25,0); g.add(lamp);
+  g.userData.lamp=lamp;
+  return g; }
+function spawnTreasures(count){
+  for(const t of treasures)if(t.mesh)scene.remove(t.mesh);
+  treasures=[];
+  const halls=blds.filter(b=>b.type==='hall');
+  let tries=0;
+  while(treasures.length<count&&tries<count*40){ tries++;
+    const tx=6+Math.floor(Math.random()*(MAP_W-12)), ty=6+Math.floor(Math.random()*(MAP_H-12));
+    if(!inB(tx,ty)||isFlooded(tx,ty)||buildGrid[ti(tx,ty)]!==0)continue;
+    if(elev[ti(tx,ty)]<1.9)continue;                                   // not on the shoreline
+    const x=wx(tx),z=wz(ty);
+    if(halls.some(h=>Math.hypot(h.cx-x,h.cz-z)<58))continue;           // never in anyone's back garden
+    if(treasures.some(o=>Math.hypot(o.x-x,o.z-z)<40))continue;         // and spread out
+    // richer prizes sit further from every keep — the reward for going a long way
+    const far=halls.length?Math.min.apply(null,halls.map(h=>Math.hypot(h.cx-x,h.cz-z))):200;
+    // MEASURED. My first thresholds (230/180/140/100) were pitched for a map far bigger than
+    // this one — every treasure on the board came out tier 1 or 2 because the furthest any of
+    // them ever sits from a keep is about 130. Read the real spread off a fresh map and cut the
+    // bands to it, so the top prizes actually exist and still mean a long walk.
+    const want=far>125?5:far>105?4:far>88?3:far>72?2:1;
+    const tier=TREASURE_TIERS[Math.min(TREASURE_TIERS.length-1,want-1)];
+    const mesh=makeTreasureMesh(tier); mesh.position.set(x,heightAtWorld(x,z),z); scene.add(mesh);
+    const guards=[];
+    for(let i=0;i<tier.n;i++){ const gm=makeSheep('wolf'); scene.add(gm);
+      const gx=x+Math.cos(i/tier.n*6.283)*3.2, gz=z+Math.sin(i/tier.n*6.283)*3.2;
+      const w={mesh:gm,kind:'wolf',meat:70,spd:2.0,hp:6+tier.n*2,hx:x,hz:z,x:gx,z:gz,tx:gx,tz:gz,wait:Math.random()*3,graze:0,guardOf:treasures.length};
+      sheep.push(w); guards.push(w); }
+    treasures.push({x,z,tier,guards,taken:false,mesh}); } }
+function updateTreasures(dt){
+  if(!treasures.length)return;
+  for(const t of treasures){
+    if(t.taken)continue;
+    if(t.mesh&&t.mesh.userData.lamp)t.mesh.userData.lamp.material.emissiveIntensity=1.2+Math.sin(elapsed*2.2+t.x)*0.45;
+    if(t.guards.some(g=>g.hp>0&&sheep.indexOf(g)>=0))continue;         // the guard still stands
+    const taker=ents.find(e=>e.hp>0&&UNIT[e.type].dom!=='water'&&Math.hypot(e.x-t.x,e.z-t.z)<4.5);
+    if(!taker)continue;
+    t.taken=true; const o=taker.owner, G=t.tier.give;
+    for(const k in G)res[o][k]=(res[o][k]||0)+G[k];
+    if(t.tier.unit){ const u=spawnUnit(t.tier.unit,o,txFromW(t.x),tzFromW(t.z)); if(u)u.cmd='idle'; }
+    if(t.tier.bonus==='weapon'&&tech[o].weapon<3)tech[o].weapon++;
+    if(t.mesh){ for(let i=0;i<18;i++)spawnPart(t.x+(Math.random()-.5)*2,heightAtWorld(t.x,t.z)+1+Math.random()*2,t.z+(Math.random()-.5)*2,'heal');
+      scene.remove(t.mesh); t.mesh=null; }
+    if(o==='player'){ flashMsg(t.tier.ic+' '+t.tier.name.replace(/^a[n]? /,'You have claimed a ')+' — '+t.tier.blurb);
+      sfxWhere(t.x,t.z); SFX.age(); } } }
+function treasureAt(x,z){ for(const t of treasures){ if(!t.taken&&Math.hypot(x-t.x,z-t.z)<3.4)return t; } return null; }
+// ==================================================== b330 TRADE ROUTES (AoE3 #3)
+// The most-repeated idea in the whole dossier — four of the five games have some version of it.
+// A road already crosses this map; the route is a chain of fixed posts strung along it, neutral
+// until somebody builds on one. Hold posts and gold trickles in; hold MOST of them and the
+// trickle becomes a monopoly, which is what makes the route worth fighting over rather than
+// merely worth owning.
+let tradeSites=[];
+const TRADE_YIELD=0.42;        // gold a second, per post you hold
+const TRADE_MONOPOLY=1.9;      // and what holding more than half of them is worth
+function spawnTradeRoute(count){
+  for(const s of tradeSites)if(s.mesh)scene.remove(s.mesh);
+  tradeSites=[];
+  // a line across the map, bowed a little so it is not a ruler-straight road
+  const a=Math.random()*Math.PI, bow=(Math.random()-0.5)*0.5;
+  for(let i=0;i<count;i++){
+    const t=(i+0.5)/count, u=(t-0.5)*2;
+    const along=u*(MAP_W*0.40), off=Math.sin(t*Math.PI)*bow*MAP_H*0.45;
+    let tx=Math.round(MAP_W/2+Math.cos(a)*along-Math.sin(a)*off);
+    let ty=Math.round(MAP_H/2+Math.sin(a)*along+Math.cos(a)*off);
+    let ok=false;
+    for(let r=0;r<9&&!ok;r++)for(let d=0;d<12&&!ok;d++){
+      const nx=tx+Math.round(Math.cos(d/12*6.283)*r), ny=ty+Math.round(Math.sin(d/12*6.283)*r);
+      if(inB(nx,ny)&&!isFlooded(nx,ny)&&elev[ti(nx,ny)]>=1.9&&buildGrid[ti(nx,ny)]===0){tx=nx;ty=ny;ok=true;} }
+    if(!ok)continue;
+    const x=wx(tx),z=wz(ty);
+    if(tradeSites.some(o=>Math.hypot(o.x-x,o.z-z)<26))continue;
+    const g=new THREE.Group();
+    const base=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.8,0.4,8),M.stoneD);
+    base.position.y=0.2; base.receiveShadow=true; g.add(base);
+    const post=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,3.4,6),M.trunk);
+    post.position.y=2.0; post.castShadow=true; g.add(post);
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(1.9,0.16,0.16),M.wood);
+    arm.position.set(0.6,3.3,0); arm.castShadow=true; g.add(arm);
+    const sign=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.7,0.08),M.wood);
+    sign.position.set(1.2,2.9,0); sign.castShadow=true; g.add(sign);
+    g.position.set(x,heightAtWorld(x,z),z); scene.add(g);
+    tradeSites.push({x,z,tx,ty,mesh:g,sign,owner:null}); } }
+function tradeSiteAt(x,z){ for(const s of tradeSites){ if(Math.hypot(x-s.x,z-s.z)<6)return s; } return null; }
+function tradePostsOf(o){ return blds.filter(b=>b.owner===o&&b.type==='tradepost'&&b.done).length; }
+let _trT=0;
+function updateTradeRoute(dt){
+  if(!tradeSites.length)return;
+  _trT-=dt; if(_trT<=0){ _trT=1.0;
+    // keep each signpost wearing the colours of whoever holds it
+    for(const s of tradeSites){
+      const b=blds.find(q=>q.type==='tradepost'&&q.done&&Math.hypot(q.cx-s.x,q.cz-s.z)<6);
+      const own=b?b.owner:null;
+      if(own!==s.owner){ s.owner=own;
+        s.sign.material=own?new THREE.MeshStandardMaterial({color:(FACTIONS[faction[own]]||FACTIONS.english).coat,roughness:.8}):M.wood; } } }
+  const total=tradeSites.length;
+  for(const o of REALMS){ const n=tradePostsOf(o); if(!n)continue;
+    const mono=n>total/2?TRADE_MONOPOLY:1;
+    res[o].g=(res[o].g||0)+TRADE_YIELD*n*mono*dt; }
+  // tell the player once when the route becomes his
+  const mine=tradePostsOf('player');
+  if(mine>total/2&&!updateTradeRoute._mono){ updateTradeRoute._mono=1;
+    flashMsg('💰 You hold most of the trade road — the caravans pay you nearly twice over'); }
+  else if(mine<=total/2)updateTradeRoute._mono=0; }
+// ==================================================== b330 DOWNED, NOT DEAD (AoE3 #2)
+// A commander is worth more as a story than as a casualty. Run him to zero and he goes down
+// rather than dies: helpless, bleeding, and lying there as an object both sides want. Get a man
+// to him and he is back on his feet; let the enemy stand over him and he is gone for good, and
+// they take a ransom for the trouble. Costs one unit state and a timer.
+const DOWN_REVIVE=5.0;      // seconds a friend needs to get him up
+const DOWN_CAPTURE=9.0;     // seconds an enemy needs to finish it
+const DOWN_RANSOM=180;      // what finishing him is worth to them
+function goDown(e){
+  e.downed=true; e.hp=1; e.reviveT=0; e.captureT=0;
+  e.cmd='idle'; e.target=null; e.path=null; e.slot=null; e.gather=null; e.build=null;
+  if(e.mesh){ e.mesh.rotation.z=1.35; e.mesh.position.y-=0.25; }        // he is on the ground
+  for(let i=0;i<10;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
+  if(e.owner==='player'){ flashMsg('🩸 Your King is down — get a man to him before they do'); pingAttack(e.x,e.z); SFX.hit(); }
+  else flashMsg('🩸 '+realmName(e.owner)+"'s King is down — stand over him and finish it"); }
+function getUp(e,frac){
+  e.downed=false; e.reviveT=0; e.captureT=0;
+  e.hp=Math.max(1,Math.round(e.maxHp*frac));
+  if(e.mesh){ e.mesh.rotation.z=0; e.mesh.position.y+=0.25; }
+  for(let i=0;i<14;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1+Math.random()*2,e.z,'heal');
+  if(e.owner==='player'){ flashMsg('👑 Your King is back on his feet'); SFX.age(); } }
+function updateDowned(dt){
+  for(const e of ents){
+    if(!e.downed)continue;
+    if(e.hp<=0)e.hp=1;                                                  // nothing finishes him but the capture timer
+    const foe=ents.find(f=>f.hp>0&&!f.downed&&f.owner!==e.owner&&isHostile(f.owner,e.owner)&&!UNIT[f.type].noAtk&&Math.hypot(f.x-e.x,f.z-e.z)<5);
+    if(foe){ e.reviveT=0; e.captureT+=dt;
+      if(Math.random()<dt*2.2)spawnPart(e.x+(Math.random()-.5)*1.5,heightAtWorld(e.x,e.z)+0.7,e.z+(Math.random()-.5)*1.5,'blood');
+      if(e.captureT>=DOWN_CAPTURE){
+        res[foe.owner].g=(res[foe.owner].g||0)+DOWN_RANSOM;
+        if(e.owner==='player')flashMsg('💀 Your King is dead — '+realmName(foe.owner)+' took '+DOWN_RANSOM+' gold in ransom for the body');
+        else if(foe.owner==='player')flashMsg('💀 '+realmName(e.owner)+"'s King is finished — "+DOWN_RANSOM+' gold in ransom');
+        e.downed=false; e._finished=true; e.hp=0;                        // now he really is gone
+        if(e.mesh)e.mesh.rotation.z=0; }
+      continue; }
+    const friend=ents.find(f=>f.hp>0&&!f.downed&&f.owner===e.owner&&f!==e&&Math.hypot(f.x-e.x,f.z-e.z)<5);
+    if(friend){ e.captureT=Math.max(0,e.captureT-dt); e.reviveT+=dt;
+      if(Math.random()<dt*2.5)spawnPart(e.x+(Math.random()-.5)*1.2,heightAtWorld(e.x,e.z)+0.9,e.z+(Math.random()-.5)*1.2,'heal');
+      if(e.reviveT>=DOWN_REVIVE)getUp(e,0.45); }
+    else { e.captureT=Math.max(0,e.captureT-dt*0.5); e.reviveT=0;
+      e.downT=(e.downT||0)+dt;
+      if(e.downT>=70)getUp(e,0.22); }                                    // left alone long enough, he crawls up on his own
+  } }
 // ==================================================== b328 BORDERS, FORTS, ATTRITION (RoN #1-3)
 // The border sources are rebuilt only when the building list actually changes — territory is
 // asked about on every shot fired and every step a man takes, so it has to be a lookup, not a scan.
@@ -4803,6 +4984,7 @@ function updateHonour(dt){ _honT-=dt; if(_honT>0)return; _honT=10;
       if(aiWars[k]&&isHostile('player',p))diplo[o].honour=clamp(diplo[o].honour+1.6,-100,100); } } }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
   updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt); updateRegiments(dt); updateCapture(dt);
+  updateTreasures(dt); updateDowned(dt); updateTradeRoute(dt);
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   rescueCaravans(dt);
   // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
@@ -4895,6 +5077,11 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
     // b326: a peasant who has had enough of you WALKS OUT. He is not killed, so no blood, no
     // corpse, no death rattle and nothing counts him among your losses — he simply goes.
     if(e._emigrated){ scene.remove(e.mesh); e._dead=true; return false; }
+    // b330: a commander does not die here. He goes down, and what happens next is decided by
+    // whoever reaches him first. Already-downed men are pinned at one hit point so that further
+    // blows cannot short-circuit the capture timer that is the only thing able to finish him.
+    if(e.downed){ e.hp=1; return true; }
+    if(e.type==='hero'&&!e._finished){ goDown(e); return true; }
     for(let i=0;i<7;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'blood');
     const udd=e.mesh.userData;
     if(udd.mixer&&udd.deathA){ if(udd.walkA)udd.walkA.stop(); if(udd.idleA)udd.idleA.stop(); if(udd.oneA)udd.oneA.stop();
@@ -6459,6 +6646,11 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
   // point; what a border buys you is the right to say who does NOT build on your doorstep.
   { const claim=territoryAt(wx(tx+(b.w>>1)),wz(ty+(b.h>>1)));
     if(claim&&claim!=='player'){ flashMsg('🚩 That is '+realmName(claim)+"'s land — plant a Fort to push your own border out, or take theirs down"); return; } }
+  // b330: a Trading Post is not a building you put where you like — it goes ON a post of the
+  // trade road, and nowhere else. That is what makes the road a place worth holding.
+  if(type==='tradepost'){ const site=tradeSiteAt(wx(tx+(b.w>>1)),wz(ty+(b.h>>1)));
+    if(!site){ flashMsg('🏪 A Trading Post only stands on a trade-road marker — look for the signposts strung across the map'); return; }
+    if(blds.some(q=>q.type==='tradepost'&&Math.hypot(q.cx-site.x,q.cz-site.z)<6)){ flashMsg('🏪 That marker already carries a post'); return; } }
   res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.f-=(c.f||0);res.player.g-=(c.g||0);const nb=addBuilding(type,tx,ty,'player',false);
   if(inherit&&inherit.la!==undefined){ nb.la=inherit.la; nb.lx=inherit.lx; nb.lz=inherit.lz;
     nb._baseY=heightAtWorld(nb.lx,nb.lz);   // b149: shifted along the line, so it rises from ITS own ground
@@ -7090,7 +7282,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo'),formBar=$('formBar')
     if(sel.some(e=>e.type==='worker')){
       const CATS={
         town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['miningcamp','⛏️','Mining Camp'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue'],['wonder','🏛️','Wonder',3]]},
-        mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['armourer','🛡','Armourer'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2],['fort','🚩','Fort',2]]},
+        mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['armourer','🛡','Armourer'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2],['fort','🚩','Fort',2],['tradepost','🏪','Trading Post']]},
         def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House'],['bridge','🌉','Bridge']]}};
       const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
       if(buildCat&&CATS[buildCat]){
@@ -7582,6 +7774,9 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
     for(let i=0;i<4;i++)spawnUnit('worker',o,hx-1+i,hy+4);
     spawnUnit('spear',o,hx+3,hy+3); spawnUnit('infantry',o,hx-2,hy+3);
     if(winMode==='regicide')spawnUnit('hero',o,hx,hy+4); }   // b311: every realm needs a King on the board from turn one, or Regicide has nothing to actually win by
+  // b330: the roaming layer — loot with something sitting on it, and a trade road across the map.
+  // Both go down AFTER the keeps, because both are placed relative to where the keeps ended up.
+  spawnTreasures(11); spawnTradeRoute(7);
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);standardView(true);
   for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal
@@ -7612,6 +7807,8 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
     if(ms)ms.value=curMapId; if(ps)ps.value=String(playerCount); if(ds)ds.value=difficulty; }
   newGame();   // rebuilds the identical deterministic world, then we restore the saved state over it
   for(const e of ents)scene.remove(e.mesh); ents=[];
+  for(const t of treasures)if(t.mesh)scene.remove(t.mesh); treasures=[];
+  for(const s of tradeSites)if(s.mesh)scene.remove(s.mesh); tradeSites=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
   res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed; statKills=s.kills||0;
   mkt={w:1,f:1,m:1}; if(s.mkt)for(const k in mkt)if(typeof s.mkt[k]==='number')mkt[k]=s.mkt[k];   // pre-b221 saves start at par
@@ -7716,7 +7913,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
-      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
+      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
