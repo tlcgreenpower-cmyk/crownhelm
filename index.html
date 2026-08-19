@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b327</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b328</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -594,7 +594,7 @@ const COST={
   tradecart:{w:100,g:60,pop:1,time:14,age:2}, monk:{f:60,pop:1,time:10,age:1}, priest:{f:90,pop:1,time:12,age:1}, doctor:{f:70,w:20,pop:1,time:11,age:1}, cardinal:{f:180,g:120,pop:1,time:20,age:2},
   warboat:{w:80,g:50,pop:1,time:13,age:2}, privateer:{f:80,g:100,pop:1,time:14,age:2}, viking:{f:60,w:30,pop:1,time:9,age:1}, samurai:{f:90,g:120,pop:1,time:14,age:2},
   house:{w:40},farm:{w:55},storehouse:{w:45},barracks:{w:110},siege:{w:130,m:60,age:2},dock:{w:90,m:30,age:2},tower:{w:60,m:40},
-  gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},wonder:{w:400,m:250,g:250,f:100,age:3},wall:{w:15},gate:{w:30,m:20},
+  gunshop:{w:120,m:40},church:{w:100},castle:{w:220,m:150,age:2},fort:{w:120,m:70,age:2},wonder:{w:400,m:250,g:250,f:100,age:3},wall:{w:15},gate:{w:30,m:20},
   mill:{w:60},watch:{w:50,m:20},market:{w:100},bakery:{w:80,m:20,age:2},armourer:{w:120,m:60},
   statue:{m:30,g:20},garden:{w:25},bridge:{w:35},range:{w:100},stable:{w:110,m:20,age:2},
   miningcamp:{w:60,m:20},
@@ -706,10 +706,20 @@ const BLD={
   range:{w:3,h:2,hp:1400,name:'Archery Range',vis:7}, stable:{w:3,h:2,hp:1400,name:'Stable',vis:7},
   dock:{w:3,h:2,hp:1500,name:'Dock',vis:8}, tower:{w:1,h:1,hp:1000,name:'Tower',vis:11},
   miningcamp:{w:2,h:2,hp:900,name:'Mining Camp',vis:6,drop:'ore'},
+  // b328 RoN #2 — the Fort. Not a settlement and not a castle: a garrison post whose whole
+  // purpose is to PUSH YOUR BORDER out over ground you do not otherwise hold, so you can lean on
+  // a neighbour's edge without committing to a town there.
+  fort:{w:2,h:2,hp:2200,name:'Fort',vis:12,fort:true},
 };
+// b328 RoN #1 — NATIONAL BORDERS. Every realm radiates territory from the things it has planted
+// in the ground. Kept deliberately soft and generous: Crownhelm is open-world and roaming is the
+// point, so neutral land stays free for anyone to build on. What borders actually do is make a
+// RIVAL'S ground hostile — you cannot raise a building inside it, and anything of yours that ends
+// up there takes far more damage — and give the map a legible answer to "whose land is this".
+const BORDER_R={hall:46, castle:34, fort:30, wonder:30, tower:13, watch:13};
 // AoE2-matched construction times (seconds for ONE builder; crews follow the AoE2 curve (n+2)/3)
-const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wonder:320,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55,miningcamp:30};
-const GAR_CAP={tower:4,watch:2,castle:10,hall:8};   // who can hold a garrison, and how many
+const BUILD_T={hall:150,house:25,farm:15,storehouse:35,barracks:50,siege:40,gunshop:40,church:40,castle:200,wonder:320,wall:10,gate:70,mill:35,watch:15,market:60,statue:15,garden:20,dock:35,tower:80,bridge:14,range:50,stable:50,bakery:45,armourer:55,miningcamp:30,fort:95};
+const GAR_CAP={tower:4,watch:2,castle:10,hall:8,fort:6};   // who can hold a garrison, and how many
 // b107: staged research — 3 tiers each, gated by Age, and the smiths need TIME (one research at a time)
 const RSCH={
   weapon:{ic:'⚔',name:'Weapons',costs:[{m:80,f:80},{m:150,f:120},{m:220,f:180}],times:[70,110,150],age:[1,2,3]},
@@ -3482,6 +3492,52 @@ function makeArcheryRange(wpx,hpx,teamMat){
   return g;
 }
 function makeBldMesh(type,owner,seed){const b=BLD[type],g=new THREE.Group();const wpx=b.w*TILE,hpx=b.h*TILE;
+  // b328 THE FORT. A frontier post, not a small castle: an earth rampart with a timber palisade
+  // ring, a raised fighting platform on one side and the realm's colours on a tall pole, because
+  // the whole point of the thing is to be SEEN standing on ground you are claiming.
+  if(type==='fort'){
+    const _fk2=(typeof faction!=='undefined'&&faction&&faction[owner])||'english';
+    const F=FACTIONS[_fk2]||FACTIONS.english;
+    const R=Math.min(wpx,hpx)*0.46;
+    const bank=new THREE.Mesh(new THREE.CylinderGeometry(R*1.18,R*1.42,1.5,12),new THREE.MeshStandardMaterial({color:0x6d5a3c,roughness:1,flatShading:true}));
+    bank.position.y=0.75; bank.receiveShadow=true; g.add(bank);
+    const yard=new THREE.Mesh(new THREE.CylinderGeometry(R*1.02,R*1.02,0.18,12),new THREE.MeshStandardMaterial({color:0x7d6a4a,roughness:1}));
+    yard.position.y=1.55; g.add(yard);
+    for(let i=0;i<18;i++){ const a=i/18*Math.PI*2;                       // the palisade, stake by stake
+      if(a>2.55&&a<3.73)continue;                                        // leave a gateway
+      const hgt=2.5+((i*7)%3)*0.16;
+      const st=new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.22,hgt,5),M.trunk);
+      st.position.set(Math.cos(a)*R*1.1,1.5+hgt/2,Math.sin(a)*R*1.1); st.rotation.z=((i*11)%5-2)*0.02;
+      st.castShadow=true; g.add(st);
+      const tip=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.4,5),M.trunk);
+      tip.position.set(st.position.x,1.5+hgt+0.18,st.position.z); g.add(tip); }
+    for(const sx of[-1,1]){                                              // gate posts, stouter than the rest
+      const gp=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.3,3.4,6),M.wood);
+      gp.position.set(Math.cos(3.14+sx*0.62)*R*1.1,1.5+1.7,Math.sin(3.14+sx*0.62)*R*1.1); gp.castShadow=true; g.add(gp); }
+    const lint=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.34,R*1.35),M.wood);
+    lint.position.set(Math.cos(3.14)*R*1.1,4.9,0); lint.castShadow=true; g.add(lint);
+    // the fighting platform, so a garrison has somewhere to stand and be seen standing
+    const deck=new THREE.Mesh(new THREE.BoxGeometry(R*1.05,0.26,R*0.72),M.wood);
+    deck.position.set(R*0.34,3.0,0); deck.castShadow=true; g.add(deck);
+    for(const dz of[-R*0.3,R*0.3]){ const leg=new THREE.Mesh(new THREE.BoxGeometry(0.24,1.5,0.24),M.wood);
+      leg.position.set(R*0.34,2.25,dz); g.add(leg); }
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.16,R*0.72),M.wood);
+    rail.position.set(R*0.82,3.7,0); g.add(rail);
+    for(let k=0;k<4;k++){ const rung=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.09,0.09),M.wood);  // the ladder up
+      rung.position.set(-R*0.1,1.85+k*0.32,R*0.05); g.add(rung); }
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.13,6.4,6),M.wood);
+    pole.position.set(-R*0.34,1.5+3.2,0); pole.castShadow=true; g.add(pole);
+    const banner=new THREE.Mesh(new THREE.BoxGeometry(0.08,1.5,2.1),new THREE.MeshStandardMaterial({color:F.coat,roughness:.8,side:THREE.DoubleSide}));
+    banner.geometry.translate(0,0,1.05); banner.position.set(-R*0.34,6.6,0); banner.castShadow=true; g.add(banner);
+    const trim=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.3,2.1),new THREE.MeshStandardMaterial({color:F.trim,roughness:.7,side:THREE.DoubleSide}));
+    trim.geometry.translate(0,0,1.05); trim.position.set(-R*0.34,5.95,0); g.add(trim);
+    const brazier=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.2,0.4,8),M.stoneD);
+    brazier.position.set(R*0.2,1.85,-R*0.55); g.add(brazier);
+    const coals=new THREE.Mesh(new THREE.SphereGeometry(0.24,7,5),new THREE.MeshStandardMaterial({color:0xd8632a,emissive:0xc04a12,emissiveIntensity:.7,roughness:.9}));
+    coals.position.set(R*0.2,2.08,-R*0.55); coals.scale.y=0.5; g.add(coals);
+    const hbF=makeHealthBar(); hbF.scale.setScalar(2.4); hbF.position.y=7.6; g.add(hbF); g.userData.hb=hbF;
+    g.traverse(o=>{ if(o.isMesh)o.receiveShadow=true; });
+    return g; }
   if(type==='range'){
     // guarded: a realm can be asked for its colours before its faction is assigned (map builder,
     // previews), and an undefined lookup here used to take the whole building mesh down with it
@@ -3779,7 +3835,7 @@ function farmSurfaceY(b,x,z){
     if(y>=g-0.05&&y<=g+2.2)return y; }
   return g; }
 const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
-function addBuilding(type,tx,ty,owner,done){const b=BLD[type];
+function addBuilding(type,tx,ty,owner,done){const b=BLD[type];bldStamp++;
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   if(type==='farm')bl.crop=FARM_CROPS[farmCropIndex(farmSeed(tx,ty))].n;
   const _sd=farmSeed(tx,ty);
@@ -3942,7 +3998,7 @@ function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; remo
 // b169: removeBuildUI, not just the scaffold. The progress bar hangs on its own group in the scene,
 // so razing a half-built thing used to leave its little orange bar floating there for the rest of
 // the session — invisible behind the rubble, but still drawn, every frame, forever.
-function removeBuilding(bl){bl._gone=1;scene.remove(bl.mesh);removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
+function removeBuilding(bl){bl._gone=1;bldStamp++;scene.remove(bl.mesh);removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
 
 // ==================================================== POP / TECH
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='house')c+=(b.up?9:5);else if(b.type==='hall')c+=10;}
@@ -4468,6 +4524,57 @@ function foesOfOwner(o){ if(_foeStamp!==_stepN){_foeMap={};_foeStamp=_stepN;}
   let a=_foeMap[o]; if(a)return a;
   a=[]; for(const e of ents)if(!e.inGar&&isHostile(o,e.owner))a.push(e);
   return _foeMap[o]=a; }
+// ==================================================== b328 BORDERS, FORTS, ATTRITION (RoN #1-3)
+// The border sources are rebuilt only when the building list actually changes — territory is
+// asked about on every shot fired and every step a man takes, so it has to be a lookup, not a scan.
+let bldStamp=0;   // bumped whenever the building list changes, so the border cache knows to rebuild
+let _bSrc=[], _bStamp=-1;
+function borderSources(){
+  if(_bStamp===bldStamp)return _bSrc;
+  _bStamp=bldStamp; _bSrc=[];
+  for(const b of blds){ if(!b.done||b._gone)continue; const r=BORDER_R[b.type]; if(!r)continue;
+    _bSrc.push({x:b.cx,z:b.cz,r,o:b.owner}); }
+  return _bSrc; }
+// Whose land is this? The claim with the deepest bite wins, so a Keep beats a Tower that is
+// merely nearer, and two realms overlapping resolve to whoever is further inside their own ground.
+function territoryAt(x,z){ let best=null,bd=0;
+  for(const s of borderSources()){ const dx=x-s.x,dz=z-s.z,d2=dx*dx+dz*dz;
+    if(d2>=s.r*s.r)continue; const bite=1-Math.sqrt(d2)/s.r;
+    if(bite>bd){bd=bite;best=s.o;} }
+  return best; }
+function inOwnLand(o,x,z){ const t=territoryAt(x,z); return t===null||t===o; }
+// b328 RoN #3 — ATTRITION. An army deep in a rival's country is an army at the end of its supply
+// line. Slow, survivable, and completely avoidable: stay out of hostile ground, keep a Caravan
+// with the column, or take the ground properly by planting a Fort on it.
+// A building standing on someone else's ground has no townsfolk to put out its fires and no
+// neighbours to lean on. RoN uses ten times damage; three is enough to make the point here
+// without turning one raid into an instant loss.
+function bldExposure(b){ if(!b||!b.owner)return 1;
+  const t=territoryAt(b.cx,b.cz);
+  return (t&&t!==b.owner&&isHostile(t,b.owner))?3:1; }
+// MEASURED AND TUNED. A flat 0.85 a second read fine on paper and killed a 110hp musketeer in
+// two minutes of standing still — that is not a supply line, that is a minefield. It is a
+// fraction of the man's own health now, so a Cuirassier and a Skirmisher wear down at the same
+// RATE rather than the Skirmisher dying six times as fast, and it stops at a fifth of his health:
+// an army caught deep in someone else's country comes home in a bad way, but it comes home.
+const ATTRITION_FRAC=0.0025;   // of max HP, per second — about six and a half minutes to the floor
+const ATTRITION_FLOOR=0.20;
+let _atT=0;
+function updateAttrition(dt){
+  _atT-=dt; if(_atT>0)return; const step=2.0; _atT=step;
+  if(!borderSources().length)return;
+  for(const e of ents){
+    if(e.hp<=0||UNIT[e.type].dom==='water')continue;
+    const t=territoryAt(e.x,e.z);
+    if(t===null||t===e.owner||!isHostile(t,e.owner))continue;
+    // a supply wagon in the column feeds it — the Caravan already walks and paths like a worker
+    if(ents.some(s=>s.owner===e.owner&&s.type==='caravan'&&Math.hypot(s.x-e.x,s.z-e.z)<18))continue;
+    const floor=e.maxHp*ATTRITION_FLOOR;
+    if(e.hp<=floor)continue;
+    const dmg=Math.min(e.hp-floor,e.maxHp*ATTRITION_FRAC*step);
+    { e.hp-=dmg;
+      if(e.owner==='player'&&!updateAttrition._w){ updateAttrition._w=1; setTimeout(()=>updateAttrition._w=0,25000);
+        flashMsg('🩸 Your men are wearing down in '+realmName(t)+"'s country — send a Caravan with them, or take the ground with a Fort"); } } } }
 // ==================================================== b326 POPULARITY (Stronghold #1)
 // The one meter a Stronghold player actually plays. Its whole job is to be READABLE: every
 // contribution below is a named line the owner can see in the tooltip, so when the number
@@ -4575,7 +4682,7 @@ function updateHonour(dt){ _honT-=dt; if(_honT>0)return; _honT=10;
     for(const p of AI_REALMS)if(p!==o){ const k=[o,p].sort().join('|');
       if(aiWars[k]&&isHostile('player',p))diplo[o].honour=clamp(diplo[o].honour+1.6,-100,100); } } }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
-  updatePopularity(dt); updateLords(dt); updateHonour(dt);
+  updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt);
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   rescueCaravans(dt);
   // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
@@ -5139,7 +5246,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
         else orderPath(e,dp.tx+(dp.w>>1),dp.ty+dp.h,dp.id); } break;}
     case 'build':{const b=e.build;if(!b||b._gone||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;bldStamp++;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
       if(b.type==='wonder'){ b.wonderStart=elapsed;
         flashMsg((b.owner==='player'?'🏛️ Your Wonder stands complete — hold it ':'🏛️ '+realmName(b.owner)+' raises a Wonder — deny them ')+Math.floor(WONDER_SURVIVE/60)+' minutes and '+(b.owner==='player'?'the realm is yours':'they win the realm outright')+'!'); }}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-b.cx,e.z-b.cz))){clearStall(e);e.cmd='idle';e.build=null;e.noWork=elapsed+8;}   // can't reach the site — stop treading water
@@ -5373,7 +5480,7 @@ function elevMult(e,t){const ea=elevAt(e.x,e.z),ta=elevAt(t.x,t.z);if(ea>ta+0.35
 function doAttack(e,t){if(e.cd>0||UNIT[e.type].noAtk||UNIT[e.type].ramOnly)return;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;if(e.mesh.userData.mixer)playOnce(e,'attackA');
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,t,effDmg(e)*elevMult(e,t)+counterBonus(e,t),e.owner,projKind(U));muzzleFX(e,U);gainXp(e,effDmg(e)*0.7);if(e.owner==='player'){sfxWhere(e.x,e.z);U.siege?SFX.boom():SFX.bow();}}
   else{t.hp-=effDmg(e)*elevMult(e,t)+counterBonus(e,t);t.flinch=0.15;const ka=Math.atan2(t.z-e.z,t.x-e.x);t.x+=Math.cos(ka)*0.5;t.z+=Math.sin(ka)*0.5;spawnPart(t.x,heightAtWorld(t.x,t.z)+1,t.z,'spark');gainXp(e,effDmg(e));if(t.hp<=0){gainXp(e,25);if(e.owner==='player'&&t.owner!=='player')statKills++;}if(e.owner==='player'){sfxWhere(t.x,t.z);SFX.hit();}}if(t.owner==='player'&&e.owner!=='player')pingAttack(t.x,t.z);}
-function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;b._hitBy=e.owner;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;const mult=U.siege?6:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4;   // AoE2 pacing: fat buildings fall fast to siege, slowly to muskets
+function doAttackB(e,b){if(e.cd>0||UNIT[e.type].noAtk)return;b._hitBy=e.owner;const U=UNIT[e.type];if(U.siege){let ad=e.dir-e.disp;while(ad>Math.PI)ad-=2*Math.PI;while(ad<-Math.PI)ad+=2*Math.PI;if(Math.abs(ad)>0.4)return;}e.cd=U.cd;e.atk=0.2;const mult=(U.siege?6:e.type==='grenadier'?1.1:U.ranged?0.25:e.type==='knight'?0.3:0.4)*bldExposure(b);   // AoE2 pacing: fat buildings fall fast to siege, slowly to muskets
   if(U.ranged){spawnProj(e.x,heightAtWorld(e.x,e.z)+1.5,e.z,{x:b.cx,z:b.cz,y:heightAtWorld(b.cx,b.cz)+3,bld:b},effDmg(e)*mult,e.owner,projKind(U));muzzleFX(e,U);if(U.siege&&e.owner==='player'){sfxWhere(e.x,e.z);SFX.boom();}}
   else{b.hp-=effDmg(e)*mult;if(b.hp<=0)destroyBuilding(b);
     if(U.petard){e.hp=0;for(let i=0;i<10;i++)spawnPart(e.x,heightAtWorld(e.x,e.z)+1,e.z,'debris');sfxWhere(e.x,e.z);SFX.boom();}}   // b309: spent on the one blast
@@ -6165,6 +6272,7 @@ function placeAI(o,type){const hall=blds.find(b=>b.owner===o&&b.type==='hall'),b
     const tx=Math.round(anchor.tx+Math.cos(ang)*rr), ty=Math.round(anchor.ty+Math.sin(ang)*rr);
     if(!canPlace(tx-margin,ty-margin,b.w+2*margin,b.h+2*margin))continue;
     if(minFootElev(tx,ty,b.w,b.h)<2.1)continue;
+    if(!inOwnLand(o,wx(tx),wz(ty)))continue;   // b328: the border rule binds the realms too, not just the player
     res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true; }
   for(let r=2;r<15;r++)for(let a=0;a<16;a++){const ang=a/16*Math.PI*2,tx=Math.round(anchor.tx+Math.cos(ang)*r),ty=Math.round(anchor.ty+Math.sin(ang)*r);if(canPlace(tx,ty,b.w,b.h)&&minFootElev(tx,ty,b.w,b.h)>=2.1){res[o].w-=COST[type].w||0;res[o].m-=COST[type].m||0;addBuilding(type,tx,ty,o,false);return true;}}
   return false;}
@@ -6207,7 +6315,7 @@ function updateGhost(){
   // b144: a gate or tower dropped on your own wall REPLACES that stretch — so the shadow snaps
   // into the line, takes its angle, and shows green instead of pretending the ground is taken
   const onWall=(placing==='gate'||placing==='tower')&&inB(tx,ty)?blds.find(q=>q.id===buildGrid[ti(tx,ty)]&&q.type==='wall'&&q.owner==='player'&&q.done):null;
-  const ok=(onWall?true:(placing==='dock'?canPlaceDock(tx,ty,b.w,b.h):placing==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h)))&&(COST[placing].age||1)<=tech.player.age&&res.player.w>=(COST[placing].w||0)&&res.player.m>=(COST[placing].m||0);
+  const ok=(onWall?true:(placing==='dock'?canPlaceDock(tx,ty,b.w,b.h):placing==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h)))&&inOwnLand('player',wx(tx+(b.w>>1)),wz(ty+(b.h>>1)))&&(COST[placing].age||1)<=tech.player.age&&res.player.w>=(COST[placing].w||0)&&res.player.m>=(COST[placing].m||0);
   if(!ghost||ghost._type!==placing){ if(ghost)scene.remove(ghost);   // the real building as a see-through shadow at the cursor
     ghost=makeBldMesh(placing,'player'); ghost._type=placing;
     if(ghost.userData.hb)ghost.userData.hb.visible=false;
@@ -6226,6 +6334,11 @@ function tryPlace(type){const b=BLD[type],c=COST[type],tx=hoverTile.tx,ty=hoverT
     const wb=blds.find(x=>x.id===wid&&x.type==='wall'&&x.owner==='player'&&x.done);
     if(wb){ inherit={la:wb.la,lx:wb.lx,lz:wb.lz}; removeBuilding(wb); } }   // b144: step into the wall's exact place and angle
   const ok=type==='dock'?canPlaceDock(tx,ty,b.w,b.h):type==='bridge'?canPlaceBridge(tx,ty,b.w,b.h):canPlace(tx,ty,b.w,b.h);if(!ok){flashMsg(type==='dock'?'Docks must touch water':type==='bridge'?'Bridges must stand ON water — lay them tile by tile across':'Can\'t build there');return;}
+  // b328: you may raise a building on your own ground or on nobody's, but not inside a rival's
+  // borders. Neutral land stays open to everyone — this is an open-world game and roaming is the
+  // point; what a border buys you is the right to say who does NOT build on your doorstep.
+  { const claim=territoryAt(wx(tx+(b.w>>1)),wz(ty+(b.h>>1)));
+    if(claim&&claim!=='player'){ flashMsg('🚩 That is '+realmName(claim)+"'s land — plant a Fort to push your own border out, or take theirs down"); return; } }
   res.player.w-=(c.w||0);res.player.m-=(c.m||0);res.player.f-=(c.f||0);res.player.g-=(c.g||0);const nb=addBuilding(type,tx,ty,'player',false);
   if(inherit&&inherit.la!==undefined){ nb.la=inherit.la; nb.lx=inherit.lx; nb.lz=inherit.lz;
     nb._baseY=heightAtWorld(nb.lx,nb.lz);   // b149: shifted along the line, so it rises from ITS own ground
@@ -6595,6 +6708,7 @@ const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deli
   gunshop:'Muskets and Grenadiers; Cannon & Howitzer from Age II.',
   siege:'Catapults and Battering Rams (Age II).',
   dock:'Warboats; Privateers at Age II. Must touch water — and a good stretch of shoreline hauls in real food on its own, no farmhand needed.',
+  fort:'Border post — pushes your border out over open ground, garrisons 6, and denies rivals the right to build there.',
   castle:'Great fortress — trains elites and your faction champion, fires on foes, garrisons 10.',
   wall:'Stone curtain. Fortify upgrade +50%.', gate:'A door in your wall — only YOUR troops pass.',
   tower:'Arrow tower; Boulder Thrower upgrade, then Cannon Mount at Age III. Garrisons 4.',
@@ -6811,7 +6925,7 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo'),formBar=$('formBar')
     if(sel.some(e=>e.type==='worker')){
       const CATS={
         town:{ic:'🏠',name:'Town',items:[['house','🏠','House'],['farm','🌾','Farm'],['mill','🌬️','Mill'],['bakery','🍞','Bakery'],['storehouse','📦','Storehouse'],['miningcamp','⛏️','Mining Camp'],['market','⚖️','Market'],['church','⛪','Church'],['garden','🌷','Garden'],['statue','🗽','Statue'],['wonder','🏛️','Wonder',3]]},
-        mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['armourer','🛡','Armourer'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2]]},
+        mil:{ic:'⚔',name:'Military',items:[['barracks','⚔','Barracks'],['armourer','🛡','Armourer'],['range','🏹','Arch. Range'],['stable','🐎','Stable',2],['gunshop','🔫','Gun Shop'],['siege','⊙','Siege Wk.',2],['dock','⚓','Dock',2],['castle','🏰','Castle',2],['fort','🚩','Fort',2]]},
         def:{ic:'🛡','name':'Defence',items:[['wall','🧱','Wall'],['gate','🚪','Gate'],['tower','🗼','Tower'],['watch','🔭','Watch House'],['bridge','🌉','Bridge']]}};
       const catBtn=(ic,label,fn,open)=>{const btn=document.createElement('div');btn.className='btn';btn.style.background=open?'#1c4d6d':'';btn.innerHTML=`<span class="ic">${ic}</span>${label}<small>${open?'▲ close':'▼ open'}</small>`;btn.onclick=fn;cmds.appendChild(btn);};
       if(buildCat&&CATS[buildCat]){
@@ -7151,6 +7265,18 @@ function drawMiniTerrain(){miniTerr.width=mini.width;miniTerr.height=mini.height
 function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;}const w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;mctx.clearRect(0,0,w,h);
   if(performance.now()-miniTerrAt>900){miniTerrAt=performance.now();drawMiniTerrain();}
   mctx.drawImage(miniTerr,0,0);
+  // b328: TERRITORY, at a glance. Each realm's claim washed over the minimap in its own colour —
+  // drawn as soft discs rather than a per-tile scan, which would cost thousands of lookups a frame
+  // for a picture two hundred pixels across. Rival ground only shows where you have actually been.
+  { mctx.save(); mctx.globalAlpha=0.19;
+    for(const s of borderSources()){
+      const tx=s.x/TILE+MAP_W/2, ty=s.z/TILE+MAP_H/2;
+      if(s.o!=='player'&&!explored[ti(clamp(Math.round(tx),0,MAP_W-1),clamp(Math.round(ty),0,MAP_H-1))])continue;
+      const rr=s.r/TILE*sx;
+      const grd=mctx.createRadialGradient(tx*sx,ty*sy,rr*0.25,tx*sx,ty*sy,rr);
+      grd.addColorStop(0,ownerCss(s.o)); grd.addColorStop(1,'rgba(0,0,0,0)');
+      mctx.fillStyle=grd; mctx.beginPath(); mctx.arc(tx*sx,ty*sy,rr,0,7); mctx.fill(); }
+    mctx.restore(); }
   for(const b of blds){if(b.owner!=='player'&&!explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))])continue;mctx.fillStyle=ownerCss(b.owner);mctx.fillRect(b.tx*sx,b.ty*sy,Math.max(2,b.w*sx),Math.max(2,b.h*sy));}
   for(const e of ents){if(e.inGar)continue;const tx=txFromW(e.x),ty=tzFromW(e.z);if(e.owner!=='player'&&(!inB(tx,ty)||visNow[ti(tx,ty)]!==1))continue;mctx.fillStyle=e.owner==='player'?'#bfe4ff':ownerCss(e.owner);mctx.fillRect((e.x/TILE+MAP_W/2)*sx-1.5,(e.z/TILE+MAP_H/2)*sy-1.5,3,3);}
   for(const v of villages){ if(!explored[ti(v.tx,v.ty)])continue;
@@ -7425,7 +7551,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
-      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,
+      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
