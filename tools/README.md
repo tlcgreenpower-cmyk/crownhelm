@@ -61,3 +61,47 @@ renderer.info.programs.filter(p => p.diagnostics && p.diagnostics.runnable === f
 ```
 
 Run that after any shader change. It has caught a failure that nothing else would have.
+
+## The Blender character pipeline (`tools/blender/`)
+
+These were living in a session scratchpad, which is wiped when the session ends — and one of the
+things that pipeline knows is worth roughly the whole look of the game, so they belong in git.
+
+Lee's PC has no Python and no Node. Blender ships its own Python, so everything here runs through
+`blender.exe --background --python <script> -- <args>`:
+
+    "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --python tools\blender\rig_pipeline.py -- "<src_pbr.glb>" "<out.glb>" rigged SwordSlash
+
+**`rig_pipeline.py`** turns a generated `*_pbr.glb` into something the game can use: cleans the
+mesh, decimates to ~20k triangles, builds a humanoid rig, weights it, authors Idle / Walk /
+Death / Victory / attack clips, and exports.
+
+Two hard-won rules live in it, and breaking either one costs you the look of every character:
+
+1. **Keep the normal map.** An early version deleted every map but base colour on the reasoning
+   that "this engine never reads them". That was wrong, and it is the entire reason Meiya looked
+   better than everyone else for weeks — she came in by another route and kept her full PBR set,
+   while Bruce, the Pikeman, the Rider and Lisa rendered as flat painted plastic with no surface
+   relief at all. Colour keeps its native 2048; relief drops to 1024 and gloss to 512, which is
+   invisible to the eye and keeps the file around 6.5MB instead of 11.6MB.
+2. **Metallic stays out.** `metalness` with no environment map turns a character into a black
+   silhouette (b320), which is why `liftCharacterTone` pins it to zero.
+
+Bone weighting uses `ARMATURE_ENVELOPE`, not `ARMATURE_AUTO`. These generated meshes are thousands
+of disconnected shards, and bone-heat weighting needs connectivity — it fails outright, weighting
+literally zero vertices of 7,968.
+
+**`survey.py`** — prints triangle count, image sizes and which shader inputs are actually textured
+for any list of .glb files. Run it before and after a pipeline change; it is how the dropped normal
+maps were found.
+
+**`bruce_fix.py`** — one-off clean-up for a generated model: remaps lipstick-red mouth pixels in the
+diffuse sheet to a natural lip tone, and can delete a region of vertices by bounding box. Kept as a
+worked example of both jobs.
+
+## Serving and screenshots on Windows (`serve-8137.ps1`, `shotsink.ps1`)
+
+PowerShell HttpListener versions of the Python tools above, for the machine that has no Python.
+`serve-8137.ps1` serves the repo on 8137 with no-cache headers and the right MIME type for `.glb`.
+`shotsink.ps1` is `shotsink.py` in PowerShell: POST a data URL to `http://localhost:8139/<name>`
+and it writes a real `.jpg` you can open.
