@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b338</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b339</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -7398,47 +7398,55 @@ function refreshUI(){const cmds=$('cmds'),info=$('selInfo'),formBar=$('formBar')
       (formBar||info).appendChild(fr);
       // b329 (owner request): BATTLE ORDER — the line front to back, and it is his to arrange.
       // Click a class to bring it one rank forward; the one already at the front wraps to the rear.
+      // b339: this bay is 224px wide and 100px tall, and the first cut of the battle order put
+      // TWELVE more items into it — six chips, two word labels and four named presets — which
+      // wrapped into a scrolling thicket and buried the formation buttons above it. Six chips and
+      // one cycling preset button instead: the whole line still reads left to right, front to
+      // rear, and the row costs seven items rather than twelve.
       const br=document.createElement('div');
-      br.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:5px';
-      const lbl=document.createElement('span');
-      lbl.textContent='Battle order — front'; lbl.style.cssText='font-size:10.5px;color:#7fa8bd';
-      br.appendChild(lbl);
+      br.style.cssText='display:flex;gap:3px;flex-wrap:wrap;align-items:center;margin-top:4px';
+      const presetName=Object.keys(BATTLE_PRESETS).find(k=>BATTLE_PRESETS[k].join()===battleOrder.join());
+      const pb=document.createElement('button');
+      pb.textContent='⚑ '+(presetName||'Custom');
+      pb.title='BATTLE ORDER — the chips to the right are your line, front rank first.\n'
+        +'Click this to cycle: '+Object.keys(BATTLE_PRESETS).join(' · ')+'\n'
+        +'Click a chip to bring that kind one rank forward.\nRe-issue the move order to re-form the line.';
+      pb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 7px;font-size:10.5px;color:#f3e4be;background:#3a2c17;border:1px solid #c9a44a';
+      pb.onclick=()=>{ const keys=Object.keys(BATTLE_PRESETS);
+        const i2=presetName?keys.indexOf(presetName):-1;
+        const nx=keys[(i2+1)%keys.length];
+        battleOrder=BATTLE_PRESETS[nx].slice();
+        flashMsg('⚑ '+nx+' — re-issue the move order to re-form the line'); SFX.cmd(); refreshUI(); };
+      br.appendChild(pb);
       battleOrder.forEach((ck,i)=>{ const C=BATTLE_CLASS[ck]; const cb=document.createElement('button');
-        cb.textContent=(i+1)+' '+C.ic;
-        cb.title=C.name+' — '+C.tip+'\nRank '+(i+1)+' of '+battleOrder.length+'. Click to move them one rank forward.';
-        cb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 7px;font-size:11px;color:#f0e6cf;background:'
+        cb.textContent=C.ic;
+        cb.title=C.name+' — '+C.tip+'\nRank '+(i+1)+' of '+battleOrder.length
+          +(i===0?' (the front rank)':'')+'.\nClick to bring them one rank forward.';
+        cb.style.cssText='cursor:pointer;border-radius:5px;padding:2px 5px;font-size:11px;line-height:1;color:#f0e6cf;background:'
           +(i===0?'#4a3a18':'#25313a')+';border:1px solid '+(i===0?'#c9a44a':'#3d5566');
         cb.onclick=()=>{ const j=i===0?battleOrder.length-1:i-1;
           const t=battleOrder[i]; battleOrder[i]=battleOrder[j]; battleOrder[j]=t;
-          flashMsg('⚑ '+C.name+' to rank '+(j+1)+' — re-issue the move order to re-form the line'); SFX.cmd(); refreshUI(); };
+          flashMsg('⚑ '+C.name+' to rank '+(j+1)+' of '+battleOrder.length+' — re-issue the move order to re-form the line');
+          SFX.cmd(); refreshUI(); };
         br.appendChild(cb); });
-      const rl=document.createElement('span');
-      rl.textContent='rear'; rl.style.cssText='font-size:10.5px;color:#7fa8bd';
-      br.appendChild(rl);
-      for(const pn in BATTLE_PRESETS){ const pb=document.createElement('button'); pb.textContent=pn;
-        const on=BATTLE_PRESETS[pn].join()===battleOrder.join();
-        pb.title='Set the whole line at once';
-        pb.style.cssText='cursor:pointer;border-radius:6px;padding:2px 8px;font-size:10.5px;color:#dff0f9;background:'
-          +(on?'#2c5c7a':'#17303f')+';border:1px solid '+(on?'#8fd4f0':'#2c5164');
-        pb.onclick=()=>{ battleOrder=BATTLE_PRESETS[pn].slice();
-          flashMsg('⚑ '+pn+' — re-issue the move order to re-form the line'); SFX.cmd(); refreshUI(); };
-        br.appendChild(pb); }
       (formBar||info).appendChild(br);
       // and the regiment's own state, if these men are in one
       const R=regOf(sel[0]);
       if(R&&R.n>=REG_MIN){ const rr2=document.createElement('div');
-        rr2.style.cssText='margin-top:5px;font-size:11px;color:#e8dcbb;display:flex;align-items:center;gap:6px';
+        rr2.style.cssText='margin-top:4px;font-size:10.5px;color:#e8dcbb;display:flex;align-items:center;gap:5px;flex-wrap:wrap';
         const dug=R.ent>=1;
-        rr2.innerHTML='<span>⚑ Regiment of '+R.n+(dug?' — <b style="color:#ffd98a">DUG IN</b> (+30% given, −38% taken, cannot move)'
-            :' (+12% given, −12% taken)')+'</span>';
+        const head=document.createElement('span');
+        head.textContent=dug?'⛏ Dug in ×'+R.n:'⚑ Regiment ×'+R.n;
+        head.style.color=dug?'#ffd98a':'#e8dcbb';
+        head.title=dug?'Entrenched: +30% damage given, 38% less taken — and they will not march until you take them off Stand Ground.'
+                      :'Formed under an officer: +12% damage given, 12% less taken, while he lives and the ranks stay full.\nPut them on Stand Ground to dig in.';
+        rr2.appendChild(head);
         if(!dug&&R.ent>0){ const bar=document.createElement('span');
-          bar.style.cssText='display:inline-block;width:70px;height:7px;border-radius:4px;background:#20323f;border:1px solid #37596e;overflow:hidden';
+          bar.title='Digging in'; bar.style.cssText='display:inline-block;width:56px;height:7px;border-radius:4px;background:#20323f;border:1px solid #37596e;overflow:hidden';
           bar.innerHTML='<span style="display:block;height:100%;width:'+Math.round(R.ent*100)+'%;background:#c9a44a"></span>';
-          rr2.appendChild(bar);
-          const t2=document.createElement('span'); t2.textContent='digging in'; t2.style.cssText='font-size:10.5px;color:#9fc0d2';
-          rr2.appendChild(t2); }
+          rr2.appendChild(bar); }
         else if(!dug){ const t3=document.createElement('span');
-          t3.textContent='· set Stand Ground to dig in'; t3.style.cssText='font-size:10.5px;color:#7fa8bd';
+          t3.textContent='· Stand Ground to dig in'; t3.style.cssText='font-size:10px;color:#7fa8bd';
           rr2.appendChild(t3); }
         (formBar||info).appendChild(rr2); } }
     if(sel.some(e=>e.type==='worker')){
@@ -8135,7 +8143,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
-      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,rigStaticHorse,stepStaticHorse,placeAI,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
+      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,rigStaticHorse,stepStaticHorse,placeAI,get selected(){return selected;},set selected(v){selected=v;},refreshUI,selUnits,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
