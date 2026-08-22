@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b331</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b332</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2882,8 +2882,14 @@ function addTeamAccent(g,owner,y,s){ const tm=ownerMats(owner).A;
   cape.position.set(0,y,-0.28*s); cape.rotation.x=0.18; g.add(cape); }
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // mounted cavalry: real animated horse with a rider seated on top
-  const HORSE_OF={knight:'HorseW',dragoon:'HorseA',wolfrider:'HorseA',cuirassier:'HorseW'};
-  const RIDER_OF={knight:'KnightM',dragoon:'Soldier',wolfrider:'Viking',cuirassier:'GoldKnight'};
+  // b332: THE HORSE WAS NEVER THE PROBLEM — THE MAN ON IT WAS. b327 moved every FOOT type off the
+  // untextured 2,500-tri bottom tier, and I missed that the four riders were still drawn from
+  // exactly that tier: KnightM, Soldier, Viking and GoldKnight, all vertex-colour only. That is
+  // why a good brown horse was carrying a grey toy soldier with a painted-on eye slit. Every
+  // rider now comes from a textured model, and the Scout gets a horse at last — he is the fastest
+  // thing in the game and has been walking about on foot since b309.
+  const HORSE_OF={knight:'HorseW',dragoon:'HorseA',wolfrider:'HorseA',cuirassier:'HorseW',scout:'HorseA'};
+  const RIDER_OF={knight:'Knight',dragoon:'Privateer',wolfrider:'Barbarian',cuirassier:'Henry',scout:'Rogue_Hooded'};
   if(HORSE_OF[type]&&CHAR_LIB&&CHAR_LIB.lib[HORSE_OF[type]]&&CHAR_LIB.lib[RIDER_OF[type]]){
     const hsrc=CHAR_LIB.lib[HORSE_OF[type]];
     const horse=CHAR_LIB.clone(hsrc.scene);
