@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b332</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b333</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2880,6 +2880,56 @@ function addTeamAccent(g,owner,y,s){ const tm=ownerMats(owner).A;
   const cape=new THREE.Mesh(new THREE.PlaneGeometry(0.62*s,0.92*s),
     new THREE.MeshStandardMaterial({color:tm.color,side:THREE.DoubleSide,roughness:.75}));
   cape.position.set(0,y,-0.28*s); cape.rotation.x=0.18; g.add(cape); }
+// b333 THE KING'S HORSE STOPS GLIDING. His model is a single fused horse-and-rider exported with
+// no skeleton at all, so while every other horseman trots, the King slid across the field on four
+// stiff legs — the owner spotted it early and it has been outstanding ever since. There is no rig
+// to animate and the rider cannot be cut away from the horse (measured: down the model's height
+// the front-to-back span stays ~1.1 until y 1.37 and then collapses to 0.3, so the horse and the
+// rider's legs occupy the same band and no flat cut separates them).
+// So the legs get a skeleton built for them. Everything below the barrel is sorted into four
+// clusters by which quarter of the horse it stands under, each cluster is given a pivot at the
+// shoulder or haunch, and the vertices are swung about it on the CPU. Geometry is cloned per King
+// so two of them never share a stride.
+const HORSE_LEG_TOP=0.52;      // where the legs stop and the barrel begins, in model units
+function rigStaticHorse(ch){
+  let mesh=null; ch.traverse(o=>{ if(o.isMesh&&!mesh)mesh=o; });
+  if(!mesh||!mesh.geometry||!mesh.geometry.attributes.position)return;
+  mesh.geometry=mesh.geometry.clone();                 // his own copy, so his stride is his own
+  const p=mesh.geometry.attributes.position, n=p.count;
+  let minY=1e9,maxY=-1e9; for(let i=0;i<n;i++){const y=p.getY(i); if(y<minY)minY=y; if(y>maxY)maxY=y;}
+  const cut=minY+(maxY-minY)*HORSE_LEG_TOP/1.89;
+  const legs=[[],[],[],[]], pivZ=[0,0,0,0], pivX=[0,0,0,0], cnt=[0,0,0,0];
+  for(let i=0;i<n;i++){ const y=p.getY(i); if(y>=cut)continue;
+    const x=p.getX(i), z=p.getZ(i);
+    const q=(z<0?0:2)+(x<0?0:1);                       // fore/hind by z, left/right by x
+    legs[q].push(i); pivZ[q]+=z; pivX[q]+=x; cnt[q]++; }
+  const groups=[];
+  for(let q=0;q<4;q++){ if(cnt[q]<12)continue;
+    groups.push({idx:legs[q], px:pivX[q]/cnt[q], pz:pivZ[q]/cnt[q], py:cut,
+                 phase:(q===0||q===3)?0:Math.PI}); }  // diagonal pairs, the way a horse actually trots
+  if(!groups.length)return;
+  mesh.userData.legRig={groups, base:Float32Array.from(p.array), attr:p};
+  mesh.frustumCulled=false;                            // the legs move outside the baked bounds
+}
+function stepStaticHorse(e){
+  let mesh=null; e.mesh.traverse(o=>{ if(o.isMesh&&o.userData.legRig&&!mesh)mesh=o; });
+  if(!mesh)return;
+  const R=mesh.userData.legRig, p=R.attr, base=R.base;
+  const moving=e.path&&e.pi<e.path.length;
+  const t=e.walk||0;
+  const amp=moving?0.62:0.0;
+  if(!moving&&!R._dirty)return;                        // a standing horse costs nothing at all
+  R._dirty=moving;
+  for(const G of R.groups){
+    const a=amp*Math.sin(t*7.4+G.phase);
+    const ca=Math.cos(a), sa=Math.sin(a);
+    for(let k=0;k<G.idx.length;k++){ const i=G.idx[k], o=i*3;
+      const y=base[o+1]-G.py, z=base[o+2]-G.pz;        // swing about the pivot, in the sagittal plane
+      p.array[o]   = base[o];
+      p.array[o+1] = G.py + y*ca - z*sa;
+      p.array[o+2] = G.pz + y*sa + z*ca; } }
+  p.needsUpdate=true;
+}
 function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const tm=ownerMats(owner).A;
   // mounted cavalry: real animated horse with a rider seated on top
   // b332: THE HORSE WAS NEVER THE PROBLEM — THE MAN ON IT WAS. b327 moved every FOOT type off the
@@ -2948,6 +2998,7 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
   if(CHAR_LIB&&ckey&&CHAR_LIB.lib[ckey]){
     const src=CHAR_LIB.lib[ckey];
     const ch=CHAR_LIB.clone(src.scene);
+    if(type==='hero')rigStaticHorse(ch);   // b333: the King's horse has no skeleton — give its legs one
     // the three holy orders share the Mage model — tint tells them apart (priest keeps the original look)
     const HOLY_TINT={monk:0xa8845c,cardinal:0xd95c4a};
     if(HOLY_TINT[type])ch.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(HOLY_TINT[type]);}});
@@ -5730,7 +5781,8 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       if(want!==ud.animMode&&ud.walkA&&ud.idleA){ const to=mv?ud.walkA:ud.idleA, from=mv?ud.idleA:ud.walkA;
         // reset() winds the clip back to zero, which is what locked a halting company together
         deSyncTo(to.reset(),ud).fadeIn(0.15).play(); from.fadeOut(0.15); ud.animMode=want; } }
-    if(k!==0)chopArm(e,ud,dt,k<=1||((e.id+animFrame)%k)===0); }
+    if(k!==0)chopArm(e,ud,dt,k<=1||((e.id+animFrame)%k)===0);
+    if(e.type==="hero")stepStaticHorse(e); }
   else if(ud.limbs){ const mv=e.path&&e.pi<e.path.length;
     if(mv){ const s=Math.sin(e.walk*10)*0.65;
       ud.limbs.armL.rotation.x=s; ud.limbs.armR.rotation.x=-s; ud.limbs.legL.rotation.x=-s*0.9; ud.limbs.legR.rotation.x=s*0.9; }
@@ -7970,7 +8022,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
-      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
+      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,rigStaticHorse,stepStaticHorse,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
