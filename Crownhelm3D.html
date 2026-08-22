@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b333</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b334</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -7164,6 +7164,29 @@ function buildGuide(){ const g=document.getElementById('guide'); if(g.dataset.bu
   for(const k in BLD_DESC)h+=card(BICON[k]||'🏠',BLD[k].name,cost(COST[k]),BLD_DESC[k]);
   h+='</div><div style="font:600 15px Georgia,serif;color:#c9a44a;margin:14px 0 8px">UNITS</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
   for(const k in UNIT_DESC)h+=card(UNIT_IC[k]||'⚔',UNIT[k].name,cost(COST[k]),UNIT_DESC[k]);
+  h+='</div>';
+  // b334: twelve systems went in over b326-b333 and not one of them explained itself. A meter
+  // that quietly decides whether anyone moves into your kingdom is worse than useless if nobody
+  // knows it is there — so every one of them gets a card, in the player's own words, saying what
+  // it does and what he is supposed to DO about it.
+  h+='<div style="font:600 15px Georgia,serif;color:#c9a44a;margin:14px 0 8px">RUNNING A KINGDOM</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
+  h+=card('🙂','Popularity','The meter in the top bar','How pleasant your realm is to live in, from 0 to 100. Above 52 and families arrive at your gate of their own accord; below 40 your peasants pack up and leave. Hover the meter and it lists every single thing pushing it up or down.');
+  h+=card('🍖','Food variety','Feeds popularity','Not how MUCH food you have — how many different kinds. Crops, flour, bread, fish and game each count once. One kind of bread forever is a hard life however much of it there is, so a Mill and a Bakery are worth more to your people than another farm.');
+  h+=card('💰','The tax dial','At your Keep','Five settings, from Largesse (you pay THEM, and they adore you) to Cruel. The resentment climbs faster than the take does, which is what stops "tax at maximum forever" from being the only strategy anyone needs.');
+  h+=card('🌷','Gardens, statues and the faith','Feeds popularity','Anything that makes a town worth living in lifts the meter — with diminishing returns, so a hundred statues is not a plan.');
+  h+='</div><div style="font:600 15px Georgia,serif;color:#c9a44a;margin:14px 0 8px">LAND AND WAR</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
+  h+=card('🚩','Borders','Look at the minimap','Every Keep, Castle, Fort and tower claims the ground around it, washed on the minimap in that realm\'s colour. Empty land stays open to anyone — but you cannot build inside a rival\'s borders, and anything of yours standing on their ground takes three times the damage.');
+  h+=card('🏯','The Fort','120🌲 70⛏️ · Age 2','A frontier post whose whole job is to push your border out over open ground. Garrisons six, and the men stand on the rampart where you can see them.');
+  h+=card('🩸','Supply lines','Attrition','An army deep inside a hostile realm wears down — about 15% of each man a minute, stopping at a fifth of his health. Send a Caravan along with the column and it stops entirely, or take the ground properly with a Fort.');
+  h+=card('⚑','Regiments','Move eight or more together','Eight soldiers formed up become a body under an officer — the man carrying the standard. +12% given and taken while he lives. Shoot the enemy\'s standard-bearer and their regiment comes apart.');
+  h+=card('⛏','Digging in','Stand Ground, and wait','Put a regiment on Stand Ground and it entrenches over nine seconds: +30% given, -38% taken, and it will not march a step until you take it off Stand Ground. Hold a bridge or a gate with it.');
+  h+=card('⛓','Capturing guns','Walk up to one','A cannon left with no friendly foot within fifteen paces is TAKEN by the first enemy who reaches it, colours and all — and so is theirs. Escort your artillery.');
+  h+=card('🎖','Battle order','Select soldiers, front to rear','Who stands in the front rank is yours to set. Click a class to bring it a rank forward, or take a preset — Pike wall, Firing line, Horse first, Guns forward. Re-issue the move order to re-form the line.');
+  h+='</div><div style="font:600 15px Georgia,serif;color:#c9a44a;margin:14px 0 8px">THE WIDER WORLD</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">';
+  h+=card('🪙','Treasures','Scattered across the map','Loot sitting in the open with wolves on it. Nothing attacks you until you attack it, and the harder the guard the better the prize — the richest hoards sit furthest from every keep. Look for the lamp on a pole.');
+  h+=card('🏪','The trade road','Trading Post, 80🌲 40💰','A line of signposts strung across the map. A Trading Post can only be raised ON one, and each you hold pays a steady trickle of gold. Hold more than half of them and the trickle nearly doubles.');
+  h+=card('👑','A King goes down, not dead','Your hero','Run your King to nothing and he collapses rather than dies. Get any man of yours to him and he is back on his feet in five seconds. Let the enemy stand over him for nine and he is gone for good — and they take 180 gold in ransom for the body.');
+  h+=card('🛡','The Lords','Realms panel','Each rival realm has a named lord with a temperament of his own, and he cycles openly between at ease, on guard, recovering and last stand. Honour tracks what he thinks of you: kept peace earns it, war corrodes it, and a lord at war with your enemy warms to you.');
   h+='</div>';
   // b161: the rival kingdoms behave like kingdoms now — worth telling the player plainly rather
   // than leaving them to work it out from the wreckage.
