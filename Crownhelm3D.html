@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b330</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b331</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2674,7 +2674,7 @@ function rescueCaravans(dt){ for(const e of ents){ if(e.type!=='caravan')continu
   if(e.cargo.length){ const hall=blds.find(b=>b.owner===e.owner&&b.type==='hall');
     if(hall){ const dh=Math.hypot(hall.cx-e.x,hall.cz-e.z);
       if(dh<Math.max(hall.w,hall.h)*TILE*0.5+3){ const ids=e.cargo.slice(); e.cargo=[];
-        ids.forEach(id=>{ const u=ents.find(en=>en.id===id); if(!u)return; u.inGar=null; u.mesh.visible=true;
+        ids.forEach(id=>{ const u=ents.find(en=>en.id===id); if(!u)return; u.inGar=null; u._onWall=false; u.mesh.visible=true;
           u.x=hall.cx+(Math.random()-.5)*6; u.z=hall.cz+(Math.random()-.5)*6; u.cmd='idle'; placeMesh(u); });
         if(e.owner==='player')flashMsg('🚚 Delivered safely home'); }
       else if((e._rescT2=(e._rescT2||0)-dt)<=0){ e._rescT2=1; e.cmd='move'; orderPath(e,hall.tx+(hall.w>>1),hall.ty+hall.h,hall.id); } } } } }
@@ -3224,16 +3224,48 @@ function deSync(ud){ if(!ud)return; const off=Math.random(), sc=0.94+Math.random
     const d=a.getClip()?a.getClip().duration:0; if(d)a.time=off*d; } }
 function deSyncTo(a,ud){ if(!a)return a; const d=a.getClip()?a.getClip().duration:0;
   if(d)a.time=((ud&&ud._phase)||0)*d; return a; }
+// b331 (owner request): PUT THE GARRISON ON THE WALL. A man who steps into a tower used to be
+// hidden outright — mesh invisible, gone from the board — so a fully-manned castle looked exactly
+// like an empty one and there was nothing to tell you the wall was held. He is not hidden now:
+// he is stood on the parapet, facing out, where the whole point is that you can SEE him up there.
+// Costs nothing extra to draw — it is the same mesh he already had, moved and turned.
+const PARAPET_Y={tower:7.4, watch:5.0, castle:9.6, hall:7.0, fort:3.35};
+const PARAPET_R={tower:1.25, watch:2.4, castle:4.6, hall:3.6, fort:2.5};
+function postToParapet(e,b){
+  if(!b||!e.mesh)return;
+  const list=b.gar||[], i=Math.max(0,list.indexOf(e.id)), n=Math.max(1,list.length);
+  const cap=GAR_CAP[b.type]||n;
+  // spread them round the rim by their slot, so nobody stands inside anybody else
+  const a=(i/Math.max(cap,n))*Math.PI*2+(b.id%7)*0.3;
+  const r=(PARAPET_R[b.type]||2.2);
+  const y=(PARAPET_Y[b.type]||5.0);
+  e.x=b.cx+Math.cos(a)*r; e.z=b.cz+Math.sin(a)*r;
+  e.dir=a; e.disp=a;                                  // facing outward, over the parapet
+  e.mesh.position.set(e.x, heightAtWorld(b.cx,b.cz)+y, e.z);
+  e.mesh.rotation.y=-a+Math.PI/2;
+  e.mesh.visible=true;
+  e._onWall=true; }
+// Re-seat everybody whenever a garrison changes size, so the ring stays even as men come and go.
+let _parT=0;
+function updateParapets(dt){
+  _parT-=dt; if(_parT>0)return; _parT=0.5;
+  for(const b of blds){ if(!b.gar||!b.gar.length)continue;
+    for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(u&&u.hp>0)postToParapet(u,b); } } }
 function makeHealthBar(){const grp=new THREE.Group();
   const mk=(w,ht,col,op,ro,z)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,ht),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthTest:false,depthWrite:false}));m.renderOrder=ro;m.position.z=z;grp.add(m);return m;};
   // b173: these used to be 1.9 wide and near-solid black — 45 pixels of slab against a unit only 54
   // pixels tall. Twenty men in a scrap and the battle vanished behind a wall of black rectangles,
   // which is precisely the moment you most want to see your soldiers. Two thirds the width, half
   // the height, and the frame is now a thin dark edge rather than a plate.
+  // b331: the frame used to be 0.20 deep around a 0.12 fill, so a THIRD of the bar's height was
+  // dark surround. Fine at arm's length; at the zoom the owner plays at, the bar is three pixels
+  // tall, two of them are that surround, and a company at full health reads as a row of black
+  // slabs with a green scratch in them — "life is missing", in his words, when none of it was.
+  // The border is now a hairline and the fill owns the bar.
   const W=1.16;
-  mk(W+0.12,.20,0x0a0f14,.55,996,0);        // frame draws FIRST
-  mk(W,.12,0x2a1010,.85,997,.01);           // empty track
-  const fg=mk(W,.12,0x54e468,1,998,.02);    // health fill on top
+  mk(W+0.09,.215,0x0a0f14,.62,996,0);       // frame draws FIRST
+  mk(W,.175,0x2a1010,.85,997,.01);          // empty track
+  const fg=mk(W,.175,0x54e468,1,998,.02);   // health fill on top
   grp.userData.fg=fg;grp.userData.hw=W/2;grp.visible=false;return grp;}
 // ---- b138: REAL FARMS — every field sows one of six crops on ridged soil, ringed by a post-and-rail fence ----
 const FARM_CROPS=[
@@ -3811,7 +3843,8 @@ const BRIDGE_DECK=1.15, BRIDGE_WALK=BRIDGE_DECK+0.32;
 // the trade every RTS makes because a floating heel reads as nothing and a buried shin reads as a
 // bug. Water domains are left alone: a boat near a beach must not be lifted onto the sand.
 const _FOOT_R=0.45;
-function placeMesh(e){ let y=heightAtWorld(e.x,e.z);
+function placeMesh(e){ if(e._onWall)return;   // b331: a man on a parapet is placed by postToParapet, not by the ground under him
+  let y=heightAtWorld(e.x,e.z);
   if(UNIT[e.type]&&UNIT[e.type].dom!=='water'){ const r=_FOOT_R*MAN_SCALE;
     const a=heightAtWorld(e.x-r,e.z),b=heightAtWorld(e.x+r,e.z),c=heightAtWorld(e.x,e.z-r),d=heightAtWorld(e.x,e.z+r);
     if(a>y)y=a; if(b>y)y=b; if(c>y)y=c; if(d>y)y=d; }
@@ -4317,7 +4350,7 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
       const ids=tower.cargo.slice(); tower.cargo=[];
       const dx=wtgt.cx-tower.x,dz=wtgt.cz-tower.z,dd=Math.hypot(dx,dz)||1;
       ids.forEach(id=>{ const u=ents.find(en=>en.id===id); if(!u)return;
-        u.inGar=null; u.mesh.visible=true;
+        u.inGar=null; u._onWall=false; u.mesh.visible=true;
         u.x=wtgt.cx+dx/dd*3+(Math.random()-0.5)*2; u.z=wtgt.cz+dz/dd*3+(Math.random()-0.5)*2; u.cmd='idle'; placeMesh(u); });
       spawnMoveMark(wtgt.cx,wtgt.cz,0xff9a6a); flashMsg('🗼 Over the wall!'); SFX.cmd(); return; } }
   const eb=bldAt(x,z,'player');if(eb){list.forEach(e=>attackBOrder(e,eb));spawnMoveMark(eb.cx,eb.cz,0xff4632);flashMsg('⚔ Attack! Your men assault the '+(BLD[eb.type].name));SFX.cmd();return;}
@@ -4343,7 +4376,7 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
     if(shipC){ const ltx=txFromW(x),lty=tzFromW(z);
       if(inB(ltx,lty)&&!isFlooded(ltx,lty)){ const ids=shipC.cargo.slice(); shipC.cargo=[];
         ids.forEach(id=>{ const u=ents.find(en=>en.id===id); if(!u)return;
-          u.inGar=null; u.mesh.visible=true;
+          u.inGar=null; u._onWall=false; u.mesh.visible=true;
           const dx=x-shipC.x,dz=z-shipC.z,dd=Math.hypot(dx,dz)||1;
           u.x=shipC.x+dx/dd*4+(Math.random()-0.5)*2; u.z=shipC.z+dz/dd*4+(Math.random()-0.5)*2; u.cmd='idle'; placeMesh(u); });
         spawnMoveMark(x,z,0x8fe6a8); flashMsg('⚓ Troops put ashore'); SFX.cmd(); return; } } }
@@ -4984,7 +5017,7 @@ function updateHonour(dt){ _honT-=dt; if(_honT>0)return; _honT=10;
       if(aiWars[k]&&isHostile('player',p))diplo[o].honour=clamp(diplo[o].honour+1.6,-100,100); } } }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
   updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt); updateRegiments(dt); updateCapture(dt);
-  updateTreasures(dt); updateDowned(dt); updateTradeRoute(dt);
+  updateTreasures(dt); updateDowned(dt); updateTradeRoute(dt); updateParapets(dt);
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   rescueCaravans(dt);
   // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
@@ -5214,7 +5247,7 @@ function updateRubble(dt){ for(const r of rubblePiles){ r.t+=dt; if(r.t>70)r.g.p
       spawnPart(r.x+(Math.random()-.5)*w, heightAtWorld(r.x,r.z)+0.7+Math.random()*0.8, r.z+(Math.random()-.5)*w, 'smoke'); } }
   rubblePiles=rubblePiles.filter(r=>{ if(r.t>=95){scene.remove(r.g);return false;} return true; }); }
 function ungarrison(b){ if(!b.gar)return; for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
-  const sp=spawnSpot(b,u.type); u.inGar=null; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
+  const sp=spawnSpot(b,u.type); u.inGar=null; u._onWall=false; u.cmd='idle'; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5; u.mesh.visible=true; placeMesh(u); }
   b.gar=[]; SFX.cmd(); }
 // ---- Town Bell (Age of Empires' finest panic button) --------------------------------
 // Ring it: every villager abandons the field and runs for the nearest tower, keep or castle
@@ -5238,7 +5271,7 @@ function townBell(){ if(!running||gameOver)return;
       // any villager the bell put here — and any villager at all, so a garrison that outlived a
       // save still empties on the all-clear rather than holding its farmhands forever
       b.gar=b.gar.filter(id=>{ const u=ents.find(t=>t.id===id); if(!u||(!u.bellJob&&u.type!=='worker'))return true;
-        const sp=spawnSpot(b,u.type); u.inGar=null; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5;
+        const sp=spawnSpot(b,u.type); u.inGar=null; u._onWall=false; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5;
         u.mesh.visible=true; placeMesh(u); resumeBellJob(u); n++; return false; }); }
     for(const e of ents)if(e.bellJob&&!e.inGar){resumeBellJob(e);n++;}   // still running when the all-clear sounded
     bellRung=false; SFX.cmd(); refreshUI();
@@ -5256,7 +5289,7 @@ const NOTABLE=new Set(['hall','castle','barracks','gunshop','range','stable','si
 let _newsT=-99;   // last time word of a rival war reached the player
 function destroyBuilding(b){ if(b.type==='church'&&b.relics){for(let i=0;i<b.relics;i++)spawnRelic(b.cx+(Math.random()-.5)*6,b.cz+(Math.random()-.5)*6);b.relics=0;}   // b300: a sacked Church spills its relics, not burns them
   if(b.gar&&b.gar.length){ for(const id of b.gar){ const u=ents.find(t=>t.id===id); if(!u)continue;
-    u.inGar=null; u.cmd='idle'; u.hp=Math.max(1,Math.round(u.hp*0.5));   // the garrison scrambles clear, battered
+    u.inGar=null; u._onWall=false; u.cmd='idle'; u.hp=Math.max(1,Math.round(u.hp*0.5));   // the garrison scrambles clear, battered
     u.x=b.cx+(Math.random()-.5)*4; u.z=b.cz+(Math.random()-.5)*4; u.mesh.visible=true; placeMesh(u); } b.gar=[]; }
   // b144 reported EVERY notable enemy building lost, which was right when the player was the only
   // thing on the map able to pull one down. b185 changed that: realms now genuinely sack each
@@ -5336,7 +5369,7 @@ function spawnSpot(b,type){const dom=UNIT[type].dom;for(let r=0;r<9;r++)for(cons
 let sepFlip=false,animFrame=0;
 function separateUnits(){ const cell=3, grid=new Map();
   for(const e of ents){ if(e.inGar)continue; const k=((e.x/cell)|0)*4096+((e.z/cell)|0); let a=grid.get(k); if(!a){a=[];grid.set(k,a);} a.push(e); }
-  for(const e of ents){ if(e._onDeck)continue;   // b275: a farmhand up on his own plot is not in the crowd
+  for(const e of ents){ if(e._onDeck||e.inGar)continue;   // b275: a farmhand up on his own plot is not in the crowd; b331: nor is a man on a parapet
     const cx=(e.x/cell)|0, cz=(e.z/cell)|0;
     for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){ const arr=grid.get((cx+dx)*4096+(cz+dz)); if(!arr)continue;
       for(const o of arr){ if(o.id<=e.id)continue; if(o._onDeck)continue; if(UNIT[e.type].dom!==UNIT[o.type].dom)continue;
@@ -5562,7 +5595,8 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       const dg=Math.hypot(e.x-b.cx,e.z-b.cz);
       if(dg<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){ b.gar=b.gar||[];
         if(b.gar.length>=GAR_CAP[b.type]){e.cmd='idle';e.garB=null;if(e.owner==='player')flashMsg('⛨ The '+BLD[b.type].name+' is full');break;}
-        b.gar.push(e.id); e.inGar=b.id; e.garB=null; e.mesh.visible=false; e.path=null; e.cmd='inside';
+        b.gar.push(e.id); e.inGar=b.id; e.garB=null; e.path=null; e.cmd='inside';
+        e.mesh.visible=true; postToParapet(e,b);   // b331 (owner request): he goes UP, not away
         selected=selected.filter(id=>id!==e.id); refreshUI(); }
       else if(arrived)orderPath(e,b.tx+(b.w>>1),b.ty+b.h,b.id); break;}
     // b280: same fix as nearestDrop (b279) — homeMarket is a blds scan and it ran every step for
@@ -5697,11 +5731,24 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     else for(const k in ud.limbs) ud.limbs[k].rotation.x*=Math.max(0,1-dt*8); }
   _u('u_anim');
   if(_vis){ const bn=e.mesh.userData.banner;if(bn)bn.rotation.y=Math.sin(elapsed*4+e.id)*0.4;
-    const hb=e.mesh.userData.hb;if(hb){if(e.hp<e.maxHp-0.5||(_selSet&&_selSet.has(e.id))){hb.visible=true;
+    const hb=e.mesh.userData.hb;if(hb){
       const hr=clamp(e.hp/e.maxHp,0,1);   // a man on the frame he dies in has negative hp; keep the fill inside its track
-      hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*hb.userData.hw;
-      hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
-      hb.quaternion.copy(e.mesh.quaternion).invert().multiply(camera.quaternion);}else hb.visible=false;} }
+      // b331: TWO rules, and the second is the one that matters. A bar is drawn for a man who is
+      // hurt, or one you have selected — but once the camera is far enough out that a bar is only
+      // a few pixels across, a SELECTED-BUT-UNHURT man draws nothing at all. Selecting eighty men
+      // used to paper the battlefield with bars that all said "fine", and eighty tiny bars that
+      // all say fine are indistinguishable from eighty that say wounded. Now silence means
+      // healthy, and anything you can see is something that actually needs you.
+      const hurt=e.hp<e.maxHp-0.5;
+      const show=hurt||((_selSet&&_selSet.has(e.id))&&camDist<85);
+      if(show){ hb.visible=true;
+        hb.userData.fg.scale.x=Math.max(0.01,hr);hb.userData.fg.position.x=-(1-hr)*hb.userData.hw;
+        hb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
+        // and hold a legible size on screen as the camera pulls back, instead of shrinking to a smudge
+        if(hb.userData.baseS===undefined)hb.userData.baseS=hb.scale.x;
+        const k=clamp(camDist/46,1,2.6);
+        if(Math.abs(hb.scale.x-hb.userData.baseS*k)>0.01)hb.scale.setScalar(hb.userData.baseS*k);
+        hb.quaternion.copy(e.mesh.quaternion).invert().multiply(camera.quaternion);}else hb.visible=false;} }
   _u('u_hb');
 }
 function nextBuildSite(e){ let best=null,bd=200;
@@ -6384,7 +6431,7 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
       else { for(const e of ents){ if(e.owner!==o||!e.bellJob||e.inGar)continue; resumeBellJob(e); }
         for(const b of blds){ if(b.owner!==o||!b.gar||!b.gar.length)continue;
           b.gar=b.gar.filter(id=>{ const u=ents.find(t=>t.id===id); if(!u||!u.bellJob)return true;
-            const sp=spawnSpot(b,u.type); u.inGar=null; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5;
+            const sp=spawnSpot(b,u.type); u.inGar=null; u._onWall=false; u.x=sp.x+(Math.random()-.5)*1.5; u.z=sp.z+(Math.random()-.5)*1.5;
             u.mesh.visible=true; placeMesh(u); resumeBellJob(u); return false; }); } } } }
   if(!ai.repT||elapsed>ai.repT){ ai.repT=elapsed+7;
     let worst=null,wf=0.9;
@@ -6775,7 +6822,11 @@ function updateUnitLOD(){
   _frM.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _frustum.setFromProjectionMatrix(_frM);
   const selSet=selected.length?new Set(selected):null;
   for(const e of ents){
-    if(e.inGar){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // tucked away inside a garrison
+    // b331: a garrison used to be tucked away out of sight. Men posted to a parapet stay drawn —
+    // they are the whole point — but they are skipped by the LOD's imposter and fog handling,
+    // because both work off ground position and would drop them off the wall.
+    if(e._onWall){ if(!e.mesh.visible)e.mesh.visible=true; e._off=false; nFull++; continue; }
+    if(e.inGar){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // tucked away inside a ship's hold
     const inFog=e.owner!=='player'&&!tileVis(e.x,e.z);
     if(inFog){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // fogged troops show NOWHERE — not even as imposters
     _frS.center.set(e.x,heightAtWorld(e.x,e.z)+1.4,e.z); _frS.radius=2.6;
@@ -7913,7 +7964,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
   _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
-      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
+      get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
       findPath,orderPath,get astarBudget(){return astarBudget;},set astarBudget(v){astarBudget=v;},
