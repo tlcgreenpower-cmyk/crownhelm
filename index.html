@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b341</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b342</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3449,7 +3449,11 @@ function addBldProps(b){
     const wx=b.cx+lx, wz=b.cz+lz;
     // non-indexed across the board: mergeGeometries refuses a mix, and a Dodecahedron is
     // non-indexed while a Box is not, so a stone next to a crate would silently drop the lot
-    const g=propGeo(spec[0]).clone().toNonIndexed();
+    // b342: only convert what actually needs converting. three.js warns loudly every time you ask
+    // it to un-index a geometry that is already non-indexed, and a Dodecahedron is already
+    // non-indexed — so building a rubble pile spat a wall of identical warnings into the console
+    // and buried anything worth reading there.
+    const _pg=propGeo(spec[0]).clone(); const g=_pg.index?_pg.toNonIndexed():_pg;
     const q=new THREE.Quaternion().setFromAxisAngle(_yAxis,rnd(i*11+6)*6.283);
     if(spec[0]==='log'||spec[0]==='plank')q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2));
     const s=0.85+rnd(i*13+7)*0.45;
@@ -7093,7 +7097,14 @@ window.addEventListener('keydown',ev=>{if(ev.target&&(ev.target.tagName==='INPUT
 window.addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false;if(ev.key==='Control')keys['control']=false;});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 function selUnits(){return selected.map(id=>ents.find(e=>e.id===id)).filter(e=>e&&!e.inGar);}
-function unitDoing(e){ if(e.cmd==='trade')return '🛒 On the trade road';
+function unitDoing(e){
+  // b342: a King lying on the grass was reported as 'Idle', which is the least useful thing the
+  // panel could possibly say about the most urgent moment in the game.
+  if(e.downed){ const foe=ents.some(f=>f.hp>0&&!f.downed&&f.owner!==e.owner&&isHostile(f.owner,e.owner)&&!UNIT[f.type].noAtk&&Math.hypot(f.x-e.x,f.z-e.z)<5);
+    const friend=ents.some(f=>f.hp>0&&!f.downed&&f.owner===e.owner&&f!==e&&Math.hypot(f.x-e.x,f.z-e.z)<5);
+    return foe?'🩸 DOWN — the enemy is standing over him':friend?'🩸 Down — being helped up':'🩸 Down — get a man to him'; }
+  if(e._onWall)return '🏰 On the wall';
+  if(e.cmd==='trade')return '🛒 On the trade road';
   if(e.cmd==='repair')return '🔧 Repairing';
   if(e.cmd==='convert')return '🙏 Preaching';
   if(UNIT[e.type].conv&&e.faith!==undefined&&e.faith<1)return '🙏 Faith '+Math.round(e.faith*100)+'%';
