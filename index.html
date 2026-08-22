@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b340</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b341</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -8000,7 +8000,7 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
     blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,rk:b.rschK||0,rt:Math.round(b.rschT||0),la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
-    ents:ents.map(e=>({t:e.type,o:e.owner,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,st:e.stance||null,fa:(e.faith===undefined?null:+e.faith.toFixed(3)),pt:e.patrol?{ax:Math.round(e.patrol.ax),az:Math.round(e.patrol.az),bx:Math.round(e.patrol.bx),bz:Math.round(e.patrol.bz),leg:e.patrol.leg}:null,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
+    ents:ents.map(e=>({t:e.type,o:e.owner,rg:e.reg||0,dn:e.downed?1:0,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,st:e.stance||null,fa:(e.faith===undefined?null:+e.faith.toFixed(3)),pt:e.patrol?{ax:Math.round(e.patrol.ax),az:Math.round(e.patrol.az),bx:Math.round(e.patrol.bx),bz:Math.round(e.patrol.bz),leg:e.patrol.leg}:null,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
     mkt:{...mkt},
     // b335: everything b326-b330 added, so a saved kingdom comes back as the kingdom you saved.
     // Caught by loading a save and reading it back: tax fell to default, popularity reset to the
@@ -8011,6 +8011,13 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     honour:{...honour},
     treas:treasures.map(t=>({x:Math.round(t.x*10)/10,z:Math.round(t.z*10)/10,n:t.tier.n,k:t.taken?1:0})),
     trade:tradeSites.map(t=>({x:Math.round(t.x*10)/10,z:Math.round(t.z*10)/10,tx:t.tx,ty:t.ty})),
+    // b341: regiments are runtime-only state — without this a company dug in on a bridge came
+    // back from a save as a loose crowd standing in the road, having quietly lost both its
+    // officer and its works. The officer is stored by his INDEX in the entity list, because ids
+    // are reissued on load and would point at a different man entirely.
+    regs:Object.keys(regiments).filter(k=>!regiments[k].dead).map(k=>{
+      const R=regiments[k]; const oi=ents.findIndex(e=>e.id===R.officer);
+      return oi<0?null:{id:+k,oi,o:R.owner,n:R.n,e:Math.round(R.ent*100)/100}; }).filter(Boolean),
     cam:{x:camTarget.x,z:camTarget.z,yaw:camYaw,pitch:camPitch,dist:camDist}};
   try{localStorage.setItem(key,JSON.stringify(s));if(!quiet)flashMsg('💾 Kingdom saved');}
   catch(err){flashMsg('Save failed: '+err.message);} }
@@ -8076,10 +8083,22 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
     // every monk's faith restored for free and every trade cart standing in the road for good -
     // none of the orders this session added were ever written into the save at all.
     if(se.st&&STANCE[se.st]){e.stance=se.st;if(se.st==='defend')e.post={x:e.x,z:e.z};}
+    if(se.rg)e.reg=se.rg;                                   // b341: back into the company he marched in
+    if(se.dn){ e.downed=true; e.hp=1; e.reviveT=0; e.captureT=0; e.downT=0;
+      if(e.mesh){ e.mesh.rotation.z=1.35; e.mesh.position.y-=0.25; } }   // and a fallen King is still fallen
     if(se.fa!==null&&se.fa!==undefined)e.faith=se.fa;
     if(se.pt&&e.type!=='worker'){e.patrol={ax:se.pt.ax,az:se.pt.az,bx:se.pt.bx,bz:se.pt.bz,leg:se.pt.leg||0};patrolGo(e);}}
   for(const e of ents){ if(e.type!=='tradecart')continue;   // and the carts pick their route back up
     const to=tradePartner(e.owner); if(to)tradeSend(e,to); }
+  // b341: rebuild the regiments HERE, once every man is back on the board — the officer is stored
+  // as an INDEX into the entity list rather than an id, because ids are reissued on load and would
+  // otherwise point at a different man entirely. Doing this earlier (where the rest of the new
+  // state is restored) ran against an empty list and quietly rebuilt nothing at all.
+  { for(const k in regiments)delete regiments[k];
+    if(s.regs)for(const R of s.regs){ const off=ents[R.oi]; if(!off)continue;
+      regiments[R.id]={officer:off.id,owner:R.o,n:R.n,ent:R.e||0,dead:false};
+      if(R.id>=regSeq)regSeq=R.id+1; }
+    for(const e of ents)if(e.reg&&!regiments[e.reg])e.reg=null; }   // a man whose company did not survive is simply a man
   // b144: with the forest halved, a regrown tree may stand where your town already is — clear those tiles
   if(_loadThin){ _loadThin=false; let cut=0;
     for(const b of blds)for(let y=b.ty;y<b.ty+b.h;y++)for(let x=b.tx;x<b.tx+b.w;x++){
