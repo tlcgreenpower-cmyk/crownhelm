@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b337</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b338</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -7812,6 +7812,16 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
     mctx.restore(); }
   for(const b of blds){if(b.owner!=='player'&&!explored[ti(clamp(b.tx,0,MAP_W-1),clamp(b.ty,0,MAP_H-1))])continue;mctx.fillStyle=ownerCss(b.owner);mctx.fillRect(b.tx*sx,b.ty*sy,Math.max(2,b.w*sx),Math.max(2,b.h*sy));}
   for(const e of ents){if(e.inGar)continue;const tx=txFromW(e.x),ty=tzFromW(e.z);if(e.owner!=='player'&&(!inB(tx,ty)||visNow[ti(tx,ty)]!==1))continue;mctx.fillStyle=e.owner==='player'?'#bfe4ff':ownerCss(e.owner);mctx.fillRect((e.x/TILE+MAP_W/2)*sx-1.5,(e.z/TILE+MAP_H/2)*sy-1.5,3,3);}
+  // b338: a treasure you have FOUND stays findable. Eleven hoards on a map this size are easy to
+  // stumble on once and never see again, which turns the best reason to go roaming into a thing
+  // that happens by accident. Only ones you have actually explored to are marked, so the map
+  // still has to be earned — and a claimed one stops being marked at all.
+  for(const t of treasures){ if(t.taken)continue;
+    const tx=clamp(txFromW(t.x),0,MAP_W-1), ty=clamp(tzFromW(t.z),0,MAP_H-1);
+    if(!explored[ti(tx,ty)])continue;
+    const mx=(t.x/TILE+MAP_W/2)*sx, my=(t.z/TILE+MAP_H/2)*sy;
+    mctx.fillStyle='#3a2c10'; mctx.beginPath(); mctx.arc(mx,my,3.2,0,7); mctx.fill();
+    mctx.fillStyle='#ffc94e'; mctx.beginPath(); mctx.arc(mx,my,2.1,0,7); mctx.fill(); }
   for(const v of villages){ if(!explored[ti(v.tx,v.ty)])continue;
     mctx.fillStyle=v.claimed?ownerCss(v.claimed):'#f0f0e0'; mctx.beginPath();mctx.arc((v.tx+.5)*sx,(v.ty+.5)*sy,2.4,0,7);mctx.fill(); }
   if(atkPing.t<3){ const px=(atkPing.x/TILE+MAP_W/2)*sx, py=(atkPing.z/TILE+MAP_H/2)*sy;
