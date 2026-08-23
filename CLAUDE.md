@@ -20,7 +20,14 @@ screenshots time out. Drive and photograph it instead:
   simulation and `__D.frame(1/30)` steps everything living on the render side (animation, LOD,
   parapets, the King's legs, herds). **Both** are needed; `update` alone misses half the game.
 - `window.TFshot({x,z,dist,pitch,yaw,w,h,q})` renders offscreen and returns a JPEG data URL.
-  POST it to `tools/shotsink.ps1` on port 8139 and it writes a real `.jpg` you can open.
+  POST it to `tools/shotsink.ps1` on port 8139 — the FILE NAME is the URL path and the raw data
+  URL is the whole body (`fetch('http://localhost:8139/myshot',{method:'POST',body:dataUrl})`),
+  not JSON. **pitch and yaw are RADIANS.** Passing degrees puts the camera at a random angle,
+  usually underground, and you get a picture of the sky full of black silhouettes — that is the
+  underside of the terrain, not a bug. Useful values: `pitch:0.6, dist:40` for a gameplay view,
+  `pitch:0.2, dist:4.5` for one character.
+- Buildings carry `cx`/`cz` (world) and `tx`/`ty` (tile); units carry `x`/`z`. A check written
+  against `b.x` silently compares `undefined` and passes every time.
 - `window.TF.info` for fps/ents/skinned/calls; `window._CHARLIB` for character templates;
   `renderer.info.render` after a TFshot for real draw calls and triangles.
 

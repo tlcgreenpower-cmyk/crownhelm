@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b345</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b346</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -6062,7 +6062,15 @@ function spawnPart(x,y,z,type){if(parts.length>=PART_CAP)parts.shift();
 const citMats=[0xa85a48,0x4a6a8a,0x6a8a4a,0x8a5a7a,0xb09a5a,0x5a8a8a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85,flatShading:true}));
 const citSkirt=new THREE.MeshStandardMaterial({color:0x7a6a55,roughness:.9,flatShading:true});
 const strawMat=new THREE.MeshStandardMaterial({color:0xd8b96a,roughness:1,flatShading:true});
-const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian','Anne','Henry','Mako','Sharky','WorkerM','WorkerF','Ninja','Soldier'];   // b315: Meiya mustered into the infantry line instead — see UNIT_CHAR
+// b346: b327 threw the untextured bottom tier off the BATTLEFIELD and left it walking round the
+// town. Counted on a grown world: 8 of the 22 townsfolk — better than a third of them — were
+// carrying a mesh with no texture map at all (2,524-tri Kimono, 2,720 Ninja, 2,994 Soldier and
+// BlueSoldier, 5,856 Viking). Those are the same blank white dolls that drew the owner's
+// complaint about the Chu-Ko-Nu, and the town is where the camera spends most of its life.
+// Every entry here now carries a real texture. Verified by walking the citizen list and counting
+// materials with a `map`: was 8 of 22 untextured, now 0 of 22.
+// b315: Meiya mustered into the infantry line instead — see UNIT_CHAR
+const CIT_CHARS=['Rogue_Hooded','Mage','Barbarian','Anne','Henry','Mako','Sharky','Barbarossa','Privateer','Knight','Lisa'];
 const CIT_CAP=22;   // townsfolk are skinned meshes, so the world affords only so many
 const CIT_FLOOR=o=>o==='village'?8:3;   // how many each pool keeps back, however much the player builds
 // b170: that budget used to go to whichever realm finished its houses first — across all eight
