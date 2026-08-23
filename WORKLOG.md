@@ -358,3 +358,37 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   no building underwater and no land unit stranded in water.
   (Also exported SEA/HSCALE/waterY/elev/ti/MAP_W/MAP_H through TF._dbg. The first round of these
   measurements silently compared heights against `undefined` and reported "no land anywhere".)
+
+- **b346 THE BLANK DOLLS WERE STILL IN THE TOWN.** b327 surveyed the character library, found a
+  bottom tier carrying NO TEXTURE AT ALL, and moved every combat unit off it — "nothing untextured
+  is left on the battlefield". It never touched the townsfolk. Counted on a grown world by walking
+  the citizen list and asking each material whether it has a `map`: 8 of 22 citizens — better than
+  a third of the town — were untextured (2,524-tri Kimono, 2,720 Ninja, 2,994 Soldier and
+  BlueSoldier, 5,856 Viking). Those are the same blank white dolls that drew the owner's
+  complaint about the Chu-Ko-Nu, and the town is where the camera spends most of its life.
+  Swapped the four untextured entries for Barbarossa, Privateer, Knight and Lisa. Re-counted:
+  0 of 22. Costs about 2,500 triangles a citizen; measured at the owner's default zoom afterwards,
+  381 draw calls and 408k triangles with 1.7ms of sim per frame against a 33ms budget.
+
+- **RE-VERIFIED b345's building check.** The soak in b345 tested `b.x` for buildings, and
+  buildings do not have an `x` — they carry `cx`/`cz`. So that check compared `undefined` and
+  passed vacuously. Re-ran it properly against `cx`/`cz` on a fresh 7.5-minute world: 75
+  buildings, none underwater. The claim was true, it just had not actually been tested. Noted in
+  CLAUDE.md along with the fact that TFshot's pitch and yaw are RADIANS, which cost several
+  renders of the underside of the map.
+
+- **FOUND, NOT YET FIXED: twelve unit types share five models.** infantry and grenadier are both
+  Meiya; spear and hoplite are both LeePikeman; archer and Chu-Ko-Nu are both BruceBowman; monk,
+  priest and cardinal are all Mage; highlander and viking are both Barbarian. On the field you
+  cannot tell a grenadier from a line infantryman, which matters in a game that has a whole
+  battle-order system built on telling roles apart. The library has textured models going spare
+  (Anne, Henry, Mako, Sharky, Barbarossa, Knight, Privateer) but each needs looking at before it
+  is assigned. Next job.
+
+- **FOR THE OWNER TO DECIDE: the infantry is a toddler.** Photographed each unit type on its own.
+  `infantry` and `grenadier` use Meiya, and Meiya is a barefoot chibi child in a lilac romper and
+  a pink cape. It is genuinely the best-finished asset in the game — 20,080 tris, a full 2048
+  colour, normal and roughness set, the only model with all of it — which is very likely what the
+  owner meant by "the only good looking one is meiya". But it is serving as the line infantry and
+  the grenadier of a musket-era army, and the file is still called worker-Meiya. Not changed:
+  swapping it out would overturn a preference the owner stated out loud. Flagged instead.
