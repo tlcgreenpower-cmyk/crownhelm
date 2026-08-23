@@ -296,3 +296,33 @@
   26.8/4s -> 12.8/10s. Still on the farm, still tending.
   LESSON: when something jitters, do not fix the movers you can see - COUNT them. Four separate
   pieces of code had write access to this man's position.
+
+## Overnight run, Sat 22–23 Aug 2026 — continuous, unattended
+
+Owner asked for a continuous overnight project: pick the highest-value thing, verify it by
+rendering or measuring, fix it, soak it, ship it, no questions. Running note below, newest last.
+
+- **b343 ENEMY GARRISONS SHOWED THROUGH FOG.** My own bug, one build old. Putting the garrison on
+  the parapet (b331) meant exempting those men from the LOD's imposter path, which works off
+  ground position and would have swapped a man on a battlement for a stand-in in the dirt. I
+  exempted them from the FOG test in the same breath — so an enemy garrison lit up on its walls
+  across an unexplored map and you could count the men in a castle you had never scouted.
+  Fog first, then the wall exemption, and off-screen wall men now get a real frustum test instead
+  of being skinned unconditionally. Verified both ways: 3 hidden while fogged, 3 visible the
+  moment a scout stands there, own garrison unaffected over two simulated minutes.
+
+- **TRIED AND REJECTED: derived normal maps for the bought character pack.** The pack models
+  (Knight, Mage, Barbarian, Rogue, the pirates — about ten unit types including all four cavalry
+  riders) carry a diffuse sheet and nothing else, which is exactly the fault that made Lee's own
+  characters look flat until b326. Wrote a Blender pass that reads diffuse luminance as height and
+  takes its gradient. Rendered the mounted Knight before and after at identical camera and light:
+  INDISTINGUISHABLE. Reason worth keeping — these models put their detail in GEOMETRY, faceted
+  plates and hard-edged helms over flat colour, so there is no luminance gradient to read and the
+  derived map comes out uniformly flat. Knight reverted byte for byte; script and the negative
+  result kept in tools/blender/add_normalmap.py so nobody tries it again from scratch.
+  Those models need more polygons or a hand-authored map, not a derived one.
+
+- **CHECKED, NO FAULT FOUND: treasure guardians holding their post.** Wolves hunt, so a pack could
+  in principle chase a passing worker and leave its hoard open. Measured over six simulated
+  minutes: worst drift 9 units from the hoard (from a starting 3), and zero of the eleven
+  treasures ended up unguarded. The tether works; no change made.
