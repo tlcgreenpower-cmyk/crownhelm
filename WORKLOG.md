@@ -337,3 +337,24 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   bother). Verified: four infantry stood at a hoard clear its guard unaided (110→103hp, claimed),
   and a fresh hands-off game has the realms take 4 of 11 in ten minutes while the big distant
   hoards mostly keep their guards — a race, not a famine.
+
+- **b345 THE COAST WAS A RULED LINE.** Photographed the seaboard and then measured it: the water's
+  edge on the east sat between x=182.0 and x=183.0 across 224 units of shore — ONE unit of wander
+  over the whole coast, because the rim rule cut the land purely as a function of distance to the
+  map rectangle, so the shoreline could not be anything but a straight line parallel to the border.
+  b174 had already tried to fix this and could not: its noisy skirt only shapes the mesh OUTSIDE
+  the playable rectangle, and the land had gone under water before it ever got there, so every bay
+  it cut was drowned and unseen. Moved the noise into the playable grid instead — the DEPTH of the
+  waterline is now the noisy quantity and the shore bends by itself. Measured after: the shore now
+  runs 11 to 40 units in and the map grows river mouths, bays, headlands and a gulf on the east.
+  Two guards on it: the outermost ring always drowns, so the world still ends in sea, and the
+  homeland plateaus are raised after the rim, so no realm can start underwater.
+  Also fixed the sea stacks while in there. The shallows rule only tested that ground was under
+  water AT ALL and then lifted every stack to just under the surface regardless of the depth of
+  the bed, so lakes in the middle of the map carried what photographed as a raft of dark rubble
+  floating on a pond. A stack now needs a bed within a rock's height of the surface, has to be in
+  the coastal ring rather than an inland lake, and stands on its bed instead of on the waterline.
+  Ten simulated minutes hands-off after the change: 3 realms, 120 buildings, 293 units, no errors,
+  no building underwater and no land unit stranded in water.
+  (Also exported SEA/HSCALE/waterY/elev/ti/MAP_W/MAP_H through TF._dbg. The first round of these
+  measurements silently compared heights against `undefined` and reported "no land anywhere".)
