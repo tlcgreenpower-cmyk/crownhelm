@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b346</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b347</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1119,7 +1119,20 @@ let CHAR_LIB=null,PIRATE_CANNON=null,PIRATE_SHIP=null,PIRATE_SHIP_L=null;
   await new Promise(res=>{loader.load('assets/pirate/Privateer.glb',g=>{lib['Privateer']={scene:g.scene,clips:g.animations};res();},undefined,()=>res());});
   await Promise.all([['Anne','Characters_Anne'],['Henry','Characters_Henry'],['Mako','Characters_Mako'],['Sharky','Characters_Sharky'],['Barbarossa','Characters_Captain_Barbarossa']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/pirate/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
-  await Promise.all([['Viking','Viking_Male'],['Samurai','Kimono_Male'],['Ninja','Ninja_Male'],['GoldKnight','Knight_Golden_Male'],['Soldier','Soldier_Male'],['WorkerM','Worker_Male'],['WorkerF','Worker_Female'],['KnightM','Knight_Male'],['BlueSoldier','BlueSoldier_Male']].map(([k,f])=>new Promise(res=>{
+  // b347 THE HISTORY PACK GETS ITS COLOURS BACK. These nine have been in the folder from the
+  // start and every attempt to field them ended with the owner reporting a blank white doll, so
+  // b327 wrote them off as untextured. Untextured was only half of it: they carry no image but
+  // they DO carry named per-material colours — Skin, Face, Main, Helmet, Armor, Red — which is
+  // exactly how this game's own art works. The VALUES were the fault. Read out of the glTF every
+  // one is nearly black (Soldier: Skin 0.0134, Main 0.063/0.091/0.040, Black 0.020) while Face is
+  // pure white in all nine and Skin is byte-identical across all nine — the signature of a colour
+  // conversion done once too often, which leaves white untouched and crushes everything else.
+  // Through b172's black-point lift that comes out a flat mid-grey body under a pure white face,
+  // which is the blank doll exactly. Geometry, rig and all seventeen clips were always fine.
+  // tools/blender/recolour_troops.py repaints them by material name into assets/troops.
+  await Promise.all([['Viking','Viking'],['Samurai','Samurai'],['Ninja','Ninja'],['GoldKnight','GoldKnight'],['Soldier','Soldier'],['KnightM','KnightM'],['BlueSoldier','BlueSoldier']].map(([k,f])=>new Promise(res=>{
+    loader.load('assets/troops/'+f+'.glb',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
+  await Promise.all([['WorkerM','Worker_Male'],['WorkerF','Worker_Female']].map(([k,f])=>new Promise(res=>{
     loader.load('assets/history/glTF/'+f+'.gltf',g=>{lib[k]={scene:g.scene,clips:g.animations};res();},undefined,()=>res()); })));
   // b302: Meiya and Lisa load unawaited, well after the b92/b172 batch loop below has already run
   // and moved on — so unlike every other character in the roster, they never got mergeSkinnedModel
@@ -2753,10 +2766,21 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
 // bottom tier is moved onto a textured model. Nothing untextured is left on the battlefield.
 //   was: grenadier BlueSoldier(2994) · chukonu Ninja(2720) · hoplite KnightM(2992)
 //        samurai Samurai(2540) · viking Viking(6264, also untextured)
-const UNIT_CHAR={hero:'LeeRider',spear:'LeePikeman',infantry:'Meiya',grenadier:'Meiya',
-  chukonu:'BruceBowman',hoplite:'LeePikeman',monk:'Mage',priest:'Mage',cardinal:'Mage',
-  highlander:'Barbarian',archer:'BruceBowman',privateer:'Privateer',viking:'Barbarian',
-  samurai:'Rogue_Hooded'};
+// b347 EVERY FOOT UNIT ITS OWN MAN, AND MEIYA OFF THE FIRING LINE (owner request).
+// Twelve types were drawing from five models: infantry and grenadier were both Meiya, spear and
+// hoplite both LeePikeman, archer and Chu-Ko-Nu both BruceBowman, highlander and viking both
+// Barbarian, monk/priest/cardinal all Mage. You could not tell a grenadier from a line
+// infantryman on the field, in a game whose battle-order screen is built on telling roles apart.
+// The seven repainted history-pack soldiers (see the loader above) close the gap, and Meiya —
+// who is a chibi child, and was serving as the line infantry of a musket-era army — takes the
+// staff as the Monk. She is the best-finished asset in the game (20,080 tris, the only model
+// with a full 2048 colour AND normal AND roughness set), so she keeps a front-line role rather
+// than being shelved.
+const MEIYA_HAT_S=0.87, MEIYA_HAT_Y=0.21;   // b347: fractions of the man's height — tuned on a render, see below
+const UNIT_CHAR={hero:'LeeRider',spear:'LeePikeman',infantry:'Soldier',grenadier:'BlueSoldier',
+  chukonu:'Ninja',hoplite:'KnightM',monk:'Meiya',priest:'Mage',cardinal:'Mage',
+  highlander:'Barbarian',archer:'BruceBowman',privateer:'Privateer',viking:'Viking',
+  samurai:'Samurai'};
 // b148: weapons. Shaft materials are shared, so a whole army of pikes costs a handful of draws
 // once the merge/instancing has done its work. Every piece is built around the grip at the origin.
 // one material family for all of it — same roughness, same metalness — so the merge can fold a
@@ -3024,9 +3048,11 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     const src=CHAR_LIB.lib[ckey];
     const ch=CHAR_LIB.clone(src.scene);
     if(type==='hero')rigStaticHorse(ch);   // b333: the King's horse has no skeleton — give its legs one
-    // the three holy orders share the Mage model — tint tells them apart (priest keeps the original look)
+    // the holy orders share the Mage model — a flat tint tells them apart. b347: the Monk is
+    // Meiya now, and this tint paints the WHOLE model one colour, which would throw away the one
+    // full PBR texture set in the game. Gate it on the model, not the unit type.
     const HOLY_TINT={monk:0xa8845c,cardinal:0xd95c4a};
-    if(HOLY_TINT[type])ch.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(HOLY_TINT[type]);}});
+    if(HOLY_TINT[type]&&ckey==='Mage')ch.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(HOLY_TINT[type]);}});
     const box=modelBox(ch),hgt=box.max.y-box.min.y||2;
     // b317: 3.0 was the right number when the hero was a standing man (Meiya) - measured against
     // a mounted Dragoon/Knight (3.51 tall) the new horse-and-rider King came out at 2.50, visibly
@@ -3037,6 +3063,30 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
     // marks him out.
     ch.scale.setScalar((type==='hero'?4.68:type==='highlander'?2.75:type==='samurai'?2.7:type==='cardinal'?2.65:2.4)*MAN_SCALE/hgt);
     ch.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});g.add(ch);
+    // b347 THE WIZARD'S HAT — the owner's words were "make meiya a wizard or something". She is
+    // the Monk now and she already carries the staff, but a chibi girl holding a staff still
+    // reads as a girl holding a stick; the hat is the thing that says wizard from forty units up.
+    // Parented to her head BONE rather than the unit group, so it rides the idle bob and the walk
+    // cycle instead of hovering beside her — the lesson b325 learned the hard way with the axe.
+    // Sized off hgt, the model's own measured height, so it holds whatever rig it lands on.
+    if(type==='monk'&&ckey==='Meiya'){
+      let head=null; ch.traverse(o=>{if(o.isBone&&o.name==='head')head=o;});
+      if(head){ const hat=new THREE.Group();
+        const felt=new THREE.MeshStandardMaterial({color:0x3b3570,roughness:.88,flatShading:true});
+        const band=new THREE.MeshStandardMaterial({color:0xc9a44a,roughness:.55,flatShading:true});
+        const cone=new THREE.Mesh(new THREE.ConeGeometry(.19,.46,7),felt); cone.position.y=.30; hat.add(cone);
+        const brim=new THREE.Mesh(new THREE.CylinderGeometry(.34,.36,.035,9),felt); brim.position.y=.075; hat.add(brim);
+        const rib=new THREE.Mesh(new THREE.CylinderGeometry(.20,.205,.055,9),band); rib.position.y=.115; hat.add(rib);
+        // Sizing it off hgt was the first try and it came out buried in her hair: hgt is in the
+        // MODEL's units, but a bone sits after ch.scale, so bone space is world space. Measured
+        // on her rig — head bone world scale 0.945, head bone 3.10, crown 4.30, feet 1.94 — so
+        // the hat is expressed as a fraction of the man's rendered height and divided back
+        // through the bone's own world scale, which holds for any rig this ever lands on.
+        head.updateWorldMatrix(true,false); const _hs=new THREE.Vector3(); head.getWorldScale(_hs);
+        const manH=2.4*MAN_SCALE, k=1/Math.max(1e-4,_hs.x);
+        hat.scale.setScalar(MEIYA_HAT_S*manH*k); hat.position.y=MEIYA_HAT_Y*manH*k;
+        hat.traverse(o=>{if(o.isMesh)o.castShadow=QUAL==='high';});
+        head.add(hat); } }
     armUnit(g,type);   // b148: and give the man something to fight with
     if(type==='worker'){ let hand=null; ch.traverse(o=>{if(o.isBone&&o.name==='FistR')hand=o;}); g.userData.hand=hand;   // tools ride the real hand bone
       const gun=new THREE.Group();   // hunting musket — shown only while on the hunt
