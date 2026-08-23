@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b348</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b349</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2071,7 +2071,71 @@ function updateFallingTrees(dt){ if(!fallingTrees.length)return;
     _tq2.setFromEuler(_te.set(tilt,f.ry,n.rz,'YXZ'));
     _tm4a.compose(_tvA.set(n.px,n.py,n.pz),_tq2,_tvB.setScalar(n.ts*k));
     for(const pt of n.tim){_tm4b.multiplyMatrices(_tm4a,pt.l);pt.im.setMatrixAt(pt.i,_tm4b);pt.im.instanceMatrix.needsUpdate=true;} }
-  fallingTrees=fallingTrees.filter(f=>{ if(f.fadeT&&f.fadeT>=2.4){setTreeK(f.n,0);addChopStump(f.n.px,f.n.pz);return false;} return true; }); }
+  // b349: `_falling` used to stay true forever once a trunk had come down, so it meant "this tree
+  // has fallen at some point" rather than "this tree is falling now". Regrowth needs the second
+  // reading — a stump that is still sinking into the ground must not sprout underneath itself.
+  fallingTrees=fallingTrees.filter(f=>{ if(f.fadeT&&f.fadeT>=2.4){setTreeK(f.n,0);addChopStump(f.n.px,f.n.pz);f.n._falling=false;return false;} return true; }); }
+// b349 THE WOODS COME BACK. Timber is the one resource in this game that never returned, on a map
+// the owner is meant to live on for an hour, and the whole economy is built on it. Measured on a
+// hands-off game at eighteen minutes: 62 of the map's 107 stands were stumps, not one realm had a
+// living tree within forty units of its keep (nearest 62, 88 and 79 units out), and the three
+// realms sat on 29, 14 and 73 wood against 514, 214 and 2,245 metal they had nothing to spend on.
+// r2 had SIXTEEN men on a metal seam and five in the woods. Wood gates houses, farms, barracks,
+// the Castle and both Age advances, so the map stalls: across every soak run tonight not one AI
+// realm has ever reached Age III, and the Age III content — unique guards, the Wonder, tier-3
+// research — has therefore never once appeared in a game.
+// A cleared stand now seeds itself and grows again. Slowly, so felling the woods at your door is
+// still a real cost and you cannot camp one tree; steadily enough that country cleared in the
+// first ten minutes is worth coming back to by the thirtieth. Rules kept deliberately narrow:
+// only a FULLY cleared stump regrows (a half-worked trunk lying on the ground is somebody's job,
+// not a seedling), nothing sprouts on ground anyone has since built on or beside, and a sapling
+// blocks nothing until it is big enough to be worth an axe.
+// The first cut of this let the new stand carry its timber as it grew, and it did nothing at all:
+// measured at fifteen minutes, seven stands regrowing out of fifty-one cleared and the realms
+// still pinned at 12, 54 and 22 wood. A sapling with three wood in it is the NEAREST wood on the
+// map, so a woodcutter walked straight to it and took it back to nothing, over and over. Nobody
+// fells a sapling. A young stand carries no timber at all until it is grown — which also means
+// every other part of the game needs no new rule, because `amount` stays 0 and a node with no
+// amount is already invisible to nearestNode, to the AI, and to the player's right click.
+const FOREST_STAND=220;       // the timber in a virgin stand — the figure `scatter` seeds them with
+const FOREST_MATURE=11;       // minutes from bare stump to a stand worth an axe
+const FOREST_YIELD=0.60;      // young timber — a regrown stand is worth less than virgin forest
+const FOREST_SEED_WAIT=45;    // seconds a stump lies bare before the first shoot shows
+const FOREST_TICK=2.0;        // walks every node, so it runs on its own slow clock
+let _forestAcc=0;
+// The clearance radius here was ±2 tiles first, and it stopped the whole feature dead: counted at
+// ten minutes, ALL 38 bare stumps were rejected for a building within reach and exactly none were
+// seeding. Obvious in hindsight — a woodcutter fells the nearest timber, and the town then grows
+// out over the ground he cleared, so the stumps and the buildings are the same ground by
+// construction. ±1 keeps a tree out of a doorway, which is all this rule was ever for, and lets
+// the copses come back between the houses where the realm actually needs them.
+function forestSeedOK(n){ if(!inB(n.tx,n.ty))return false;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){ const x=n.tx+dx,y=n.ty+dy;
+    if(inB(x,y)&&buildGrid[ti(x,y)])return false; }        // a town's doorway stays a doorway
+  for(const e of ents)if(Math.abs(e.x-wx(n.tx))<3&&Math.abs(e.z-wz(n.ty))<3)return false;   // nor under a man's feet
+  return true; }
+function updateForest(dt){
+  _forestAcc+=dt; if(_forestAcc<FOREST_TICK)return;
+  const el=_forestAcc; _forestAcc=0;
+  for(const n of woodNodes){
+    if(n.amount>0){ if(n._grow)n._grow=0; continue; }       // a standing wood is nobody's seedling
+    if(n._falling)continue;                                 // still coming down — let it finish
+    if(!n._grow){                                           // a bare stump, waiting to seed
+      if((n._bare=(n._bare||0)+el)<FOREST_SEED_WAIT)continue;
+      if(!forestSeedOK(n))continue;
+      n._bare=0; n._felled=false; n._grow=1e-4; n._vk=-1;
+      if(n.mesh)n.mesh.visible=true; }
+    n._grow=Math.min(1,n._grow+el/(FOREST_MATURE*60));
+    const k=0.16+0.84*n._grow;
+    // b170's rule: every setTreeK dirties the WHOLE shared instance buffer, so only write when the
+    // change is big enough to see.
+    if(Math.abs(k-(n._vk===undefined?-1:n._vk))>0.03){ n._vk=k; setTreeK(n,k); }
+    // Measured against FOREST_STAND, not against this node's own last yield. Written the other way
+    // first (`n.a0=n.amount`) and it compounds: 220 becomes 132, then 79, then 47, so a long game
+    // would watch its woods dwindle away by arithmetic nobody asked for. A regrown stand is worth
+    // less than virgin forest once, and stays worth that.
+    if(n._grow>=1){ n.amount=FOREST_STAND*FOREST_YIELD; n._grow=0; n._vk=1;
+      setTreeK(n,1); if(treeGrid&&inB(n.tx,n.ty))treeGrid[ti(n.tx,n.ty)]=1; } } }
 let chopStumps=null,chopStumpN=0;
 function addChopStump(x,z){ // ...leaving a stump forever — the forest remembers the axe
   if(!chopStumps){ chopStumps=new THREE.InstancedMesh(new THREE.CylinderGeometry(.2,.3,.42,7),new THREE.MeshStandardMaterial({color:0x6b4b2e,roughness:.95}),800); chopStumps.count=0; scene.add(chopStumps); }
@@ -5214,7 +5278,7 @@ function updateHonour(dt){ _honT-=dt; if(_honT>0)return; _honT=10;
     for(const p of AI_REALMS)if(p!==o){ const k=[o,p].sort().join('|');
       if(aiWars[k]&&isHostile('player',p))diplo[o].honour=clamp(diplo[o].honour+1.6,-100,100); } } }
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
-  updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt); updateRegiments(dt); updateCapture(dt);
+  updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt); updateRegiments(dt); updateCapture(dt); updateForest(dt);
   updateTreasures(dt); updateDowned(dt); updateTradeRoute(dt); updateParapets(dt);
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   rescueCaravans(dt);
@@ -8167,6 +8231,10 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     // reloaded kingdom would find its farming neighbour had quietly become a tower-builder.
     taste:Object.fromEntries(AI_REALMS.map(o=>[o,realmAI[o]&&realmAI[o].taste]).filter(p=>p[1])),
     wood:woodNodes.map(n=>Math.round(n.amount)),metal:metalNodes.map(n=>Math.round(n.amount)),goldn:goldNodes.map(n=>Math.round(n.amount)),
+    // b349: how far each young stand has come, in thousandths. New state, so it goes in the save —
+    // without it a player who quits and comes back finds every sapling on the map knocked back to
+    // a bare stump, and eleven minutes of forest with it.
+    woodG:woodNodes.map(n=>Math.round((n._grow||0)*1000)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
     blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,rk:b.rschK||0,rt:Math.round(b.rschT||0),la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
     ents:ents.map(e=>({t:e.type,o:e.owner,rg:e.reg||0,dn:e.downed?1:0,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,st:e.stance||null,fa:(e.faith===undefined?null:+e.faith.toFixed(3)),pt:e.patrol?{ax:Math.round(e.patrol.ax),az:Math.round(e.patrol.az),bx:Math.round(e.patrol.bx),bz:Math.round(e.patrol.bz),leg:e.patrol.leg}:null,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
@@ -8233,7 +8301,14 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
       g.position.set(t.x,heightAtWorld(t.x,t.z),t.z); scene.add(g);
       tradeSites.push({x:t.x,z:t.z,tx:t.tx,ty:t.ty,mesh:g,sign,owner:null}); } }
   const restoreNodes=(arr,saved)=>{(saved||[]).forEach((a,i)=>{if(arr[i]){arr[i].amount=a;if(a<=0){if(arr[i].mesh)arr[i].mesh.visible=false;else if(arr[i].tim)setTreeK(arr[i],0);}}});};
-  restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);rebuildTreeGrid();
+  restoreNodes(woodNodes,s.wood);restoreNodes(metalNodes,s.metal);restoreNodes(goldNodes,s.goldn);
+  // b349: and stand the young trees back up at the height they had reached. restoreNodes above has
+  // just scaled every empty stand to nothing, which is right for a stump and wrong for a sapling.
+  (s.woodG||[]).forEach((gv,i)=>{ const n=woodNodes[i]; if(!n||!gv||n.amount>0)return;
+    n._grow=gv/1000; n._felled=false; n._falling=false; n._bare=0;
+    const k=0.16+0.84*n._grow; n._vk=k;
+    if(n.mesh)n.mesh.visible=true; else if(n.tim)setTreeK(n,k); });
+  rebuildTreeGrid();
   (s.vil||[]).forEach((c,i)=>{if(c&&villages[i])claimVillageSilent(villages[i],c);});
   _loadThin=true;   // b144: the world is regenerated with half the forest, so a saved town may find a sapling in the hall — cleared below
   if(s.explored&&s.explored.length===explored.length)explored=Uint8Array.from(s.explored,ch=>+ch);
@@ -8348,6 +8423,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       // silently compared heights against `undefined` and reported "no land anywhere" for a full
       // round. Anything the terrain is measured against belongs in here.
       SEA,HSCALE,TILE,get waterY(){return waterY;},get elev(){return elev;},MAP_W,MAP_H,ti,inB,txFromW,tzFromW,
+      updateForest,FOREST_MATURE,FOREST_YIELD,FOREST_SEED_WAIT,get woodNodes2(){return woodNodes;},get treeGrid(){return treeGrid;},get buildGrid(){return buildGrid;},wx,wz,realmWant,
       get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,rigStaticHorse,stepStaticHorse,placeAI,get selected(){return selected;},set selected(v){selected=v;},refreshUI,selUnits,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
