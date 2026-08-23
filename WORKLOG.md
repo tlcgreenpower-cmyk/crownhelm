@@ -428,3 +428,30 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   the REAL one, and off-screen men are deliberately never animated. On these rigs frame 0 is a
   T-pose, so it looks exactly like a broken model. Cost most of an hour before it was spotted.
   Drive the mixer by hand before the shot. Now in CLAUDE.md.
+
+- **b348 THE AI COULD NOT TRAIN NINE OF ITS OWN UNIT TYPES.** Counted a hands-off game at 24
+  minutes: all three realms fielded 135 pikemen, 39 vikings, 11 archers and 4 infantry — no
+  cavalry, no guns, no siege, no King — while sitting on 400-1,600 unspent gold each. Cause: units
+  cost food, wood and GOLD (metal is for buildings and research), but every training test in
+  realmBrain asked `r.m >= COST.<unit>.m`, and no unit has an `.m`. `>= undefined` is false, so
+  knight, dragoon, samurai, cannon, grenadier, catapult, infantry, the King and every faction's
+  unique guard were unreachable — permanently, in every game. The four infantry in the census were
+  the ones each realm starts with. Same class of fault as the `b.x` trap already in CLAUDE.md: a
+  silent comparison against undefined that never throws and never logs.
+  Fixed with two helpers that read the real cost object (`canPay`/`payFor`) applied to all fifteen
+  training sites including the three that were already right, so there is only one way to do it.
+  Also widened three age gates from `===2` to `>=2` — knight, cannon and dragoon were written as
+  "exactly Age II", so reaching Age III took them away again.
+  Measured at 15 minutes, before -> after: pikemen 135->83, vikings 39->12, archers 11->4,
+  infantry 4->36, grenadiers 0->16, knights 0->3, r1 treasury 397->5 gold. Samurai appear by 22
+  minutes. Pikemen fall from 68 per cent of the host to about 54. 208 entities, zero errors.
+  Still no cannon, and that one is economics not a bug — a cannon wants 100 wood and the realms
+  run wood-poor, so it loses the roll to men who cost forty. Left alone.
+  JUDGEMENT CALL: this makes the AI materially stronger and I did not soften it to compensate.
+  The intent is plain in all fifteen lines; restoring it is a repair, not a difficulty change. If
+  it bites too hard that is now a balance decision the owner can make against an opponent that
+  works.
+
+- **CHECKED, NO FAULT FOUND: AI personalities.** Three realms in one game all rolled 'turtle',
+  which looked like a broken roll. Rolled 14 fresh games and counted: rush 15, turtle 14, boom 13
+  out of 42. The roll is fine; it was chance. No change made.
