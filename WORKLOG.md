@@ -392,3 +392,39 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   owner meant by "the only good looking one is meiya". But it is serving as the line infantry and
   the grenadier of a musket-era army, and the file is still called worker-Meiya. Not changed:
   swapping it out would overturn a preference the owner stated out loud. Flagged instead.
+
+- **b347 NEW MEN FOR THE DIFFERENT UNITS, AND MEIYA IS A WIZARD.** Owner's instruction after
+  seeing the b346 note. Two halves.
+  (1) THE HISTORY PACK WAS NEVER UNTEXTURED — it was UNPAINTED. Nine models have sat unused since
+  the start, written off by b327 for having no texture. They have no image, true, but they carry
+  named per-material colours, which is exactly how this game's own art works. The values were the
+  fault: every one reads out of the glTF near-black (Soldier Skin 0.0134, Main 0.063/0.091/0.040)
+  while Face is pure white in all nine and Skin is byte-identical across all nine — the signature
+  of a colour conversion applied once too often, which leaves white alone and crushes the rest.
+  Through b172's black-point lift that is a flat grey body under a white face: the blank white
+  doll, three separate complaints, explained. Geometry, rig and seventeen clips were always fine.
+  tools/blender/recolour_troops.py repaints all seven fighting models by material name into
+  assets/troops/. The material names lie about which part they paint, so the mapping was read off
+  debug renders with every material a different vivid hue rather than guessed — Black is the coat
+  body, Helmet is the hair, and Face is the narrow band across the EYES. That last one is what
+  gave these men faces; painting it white is what took them away.
+  Infantry is now a redcoat, grenadier a blue-coated bearskin, hoplite a steel man-at-arms with a
+  red plume, Chu-Ko-Nu a hooded crossbowman in dark green, viking a bare-armed raider, samurai an
+  indigo kimono. Twelve types sharing five models is now twelve sharing eleven.
+  (2) MEIYA TAKES THE STAFF. She is the Monk, and a chibi girl with a staff still reads as a girl
+  with a stick, so she gets a pointed indigo hat with a gold band parented to her HEAD BONE — it
+  rides the walk cycle instead of hovering beside her, the b325 lesson. Sized off the man's
+  rendered height divided by the bone's own world scale: the first try used the model-space height
+  and the hat came out buried in her hair, because a bone sits after ch.scale, so bone space is
+  world space. Her own texture already has a star-patterned cape; with the hat she reads as a
+  wizard at a glance. HOLY_TINT now keys on the MODEL, not the unit type — it paints a whole model
+  one flat colour, which would have thrown away the only full PBR texture set in the game.
+  Cheaper than what it replaced: the new soldiers are 2.5-6.3k tris against Meiya's 20k. Soak of
+  12 simulated minutes, 198 units, 94 buildings: no errors, 433 draw calls, 569k triangles, 1.76ms
+  of sim per frame. Save/load round trip: every type restored, all six wizards still wearing hats.
+
+- **THIRD TRAP DOCUMENTED.** A unit photographed away from the camera shows its BIND POSE, not its
+  animation — TFshot renders from its own camera but updateUnitLOD decides who gets skinned from
+  the REAL one, and off-screen men are deliberately never animated. On these rigs frame 0 is a
+  T-pose, so it looks exactly like a broken model. Cost most of an hour before it was spotted.
+  Drive the mixer by hand before the shot. Now in CLAUDE.md.

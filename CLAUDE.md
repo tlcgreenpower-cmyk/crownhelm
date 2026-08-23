@@ -30,6 +30,11 @@ screenshots time out. Drive and photograph it instead:
   against `b.x` silently compares `undefined` and passes every time.
 - `window.TF.info` for fps/ents/skinned/calls; `window._CHARLIB` for character templates;
   `renderer.info.render` after a TFshot for real draw calls and triangles.
+- **A unit photographed away from the camera shows its BIND POSE, not its animation.** TFshot
+  renders from its own throwaway camera, but `updateUnitLOD` decides who gets skinned using the
+  REAL one — off-screen men are deliberately never animated. So a unit posed for a photograph is
+  frozen at frame 0, which on these rigs is a T-pose, and it looks exactly like a broken model.
+  Drive it by hand before the shot: `for(let k=0;k<40;k++)e.mesh.userData.mixer.update(1/30)`.
 
 **Numbers can agree while the picture disagrees, and the picture is right.** But looking is not
 enough on its own either — when characters "look bad", SURVEY the assets (`tools/blender/survey.py`)
@@ -47,6 +52,26 @@ these generated meshes are thousands of disconnected shards and bone-heat weight
 
 b92 merged every character to ONE skinned mesh at load (colours baked to vertex colours) — keep
 new models going through `mergeSkinnedModel` / `mergeStaticModel`.
+
+### The roster, and the trap in it
+
+Three tiers: Lee's own five (LeeRider, LeePikeman, BruceBowman, Lisa, Meiya — 20k tris, real PBR
+maps), the bought packs (Barbarian/Knight/Mage/Rogue_Hooded/Privateer and the pirates — 6-15k,
+one colour atlas), and the **history pack**, which carries no image at all and paints from named
+per-material colours instead. It was written off twice as "untextured"; it is not broken, its
+colour VALUES were crushed to near-black on export while `Face` stayed pure white, which is the
+blank-white-doll look reported three times. `tools/blender/recolour_troops.py` repaints them into
+`assets/troops/` and they are now the infantry, grenadier, hoplite, Chu-Ko-Nu, viking and samurai.
+Two things to know before touching it:
+
+- **`Face` is the narrow band across the EYES, not the face.** Paint it dark or the man has none.
+- **Nothing can appear darker than `CHAR_BLACK` (0.26).** `liftCharacterTone` maps every character
+  palette through `0.26 + 0.74*x**0.78` at load, so the script authors the INVERSE of that lift
+  and its palette means "how this should look on the field". Don't chase true black.
+
+Material names lie about which part they paint (`Black` is the coat body; `Helmet` is the hair).
+The mapping is written out at the top of the recolour script — it was read off debug renders with
+every material set to a different hue, not guessed.
 
 ## Systems worth knowing before you change things
 
