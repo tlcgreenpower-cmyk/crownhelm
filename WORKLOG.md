@@ -326,3 +326,14 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   in principle chase a passing worker and leave its hoard open. Measured over six simulated
   minutes: worst drift 9 units from the hoard (from a starting 3), and zero of the eleven
   treasures ended up unguarded. The tether works; no change made.
+
+- **b344 THE TREASURE RACE IS REAL NOW.** Measured the system as shipped and its top tiers were
+  decorative: only WORKERS could shoot beasts (1 damage a shot, from the hunting code), soldiers
+  could not engage wolves at all, and ten minutes of three AI realms wandering past hoards claimed
+  exactly none. Two halves: (1) any fighting man of any realm stood near a guarded hoard now takes
+  his weapon to the wolves automatically — no order needed beyond marching him there — and the
+  pack bites back exactly as it bites a hunter; (2) an at-ease realm with six spare soldiers
+  details a party of three to the nearest unclaimed hoard (boomers keenest, realms at war don't
+  bother). Verified: four infantry stood at a hoard clear its guard unaided (110→103hp, claimed),
+  and a fresh hands-off game has the realms take 4 of 11 in ten minutes while the big distant
+  hoards mostly keep their guards — a race, not a famine.

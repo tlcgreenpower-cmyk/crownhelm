@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b343</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b344</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4773,8 +4773,44 @@ function spawnTreasures(count){
       const w={mesh:gm,kind:'wolf',meat:70,spd:2.0,hp:6+tier.n*2,hx:x,hz:z,x:gx,z:gz,tx:gx,tz:gz,wait:Math.random()*3,graze:0,guardOf:treasures.length};
       sheep.push(w); guards.push(w); }
     treasures.push({x,z,tier,guards,taken:false,mesh}); } }
+// b344: SOLDIERS CLEAR THE GUARD. Measured the treasure system as shipped and its top tiers were
+// decorative: only workers could shoot beasts at all (1 damage a shot, 1.5s cd, from the hunting
+// code), so a tier-5 hoard behind five 16hp wolves cost a worker most of a minute of being bitten
+// at 7hp a bite — and soldiers, the units you would actually send, could not engage wolves in any
+// way. Ten simulated minutes of three AI realms wandering past hoards claimed exactly none.
+// Now any fighting man of any realm stood near a guarded hoard takes his weapon to the wolves —
+// no order needed beyond marching him there — and the wolves fight him like they fight a hunter.
+let _tgT=0;
+function treasureCombat(dt){
+  _tgT-=dt; if(_tgT>0)return; const step=0.5; _tgT=step;
+  for(const t of treasures){ if(t.taken)continue;
+    const guards=t.guards.filter(g=>g.hp>0&&sheep.indexOf(g)>=0);
+    if(!guards.length)continue;
+    for(const g of guards){
+      let sold=null,bd=9;
+      for(const e of ents){ if(e.hp<=0||e.downed||e.type==='worker'||UNIT[e.type].noAtk||UNIT[e.type].siege||UNIT[e.type].dom!=='land')continue;
+        const dd=Math.hypot(e.x-g.x,e.z-g.z); if(dd<bd){bd=dd;sold=e;} }
+      if(!sold)continue;
+      g._scd=(g._scd||0)-step;
+      if(g._scd<=0){ g._scd=1.2;
+        const dmg=Math.max(2,effDmg(sold)*0.4);   // a musket ball is decisive against a wolf, not a war
+        spawnProj(sold.x,heightAtWorld(sold.x,sold.z)+1.4,sold.z,{x:g.x,z:g.z,y:heightAtWorld(g.x,g.z)+0.6},0,sold.owner,'arrow');
+        sold.dir=Math.atan2(g.z-sold.z,g.x-sold.x); sold.atk=0.2;
+        g.hp-=dmg; spawnPart(g.x,heightAtWorld(g.x,g.z)+.7,g.z,'blood');
+        if(g.hp<=0){ sheep.splice(sheep.indexOf(g),1);
+          g.mesh.rotation.z=Math.PI/2; g.mesh.position.y=heightAtWorld(g.x,g.z)+.3;
+          meatNodes.push({tx:txFromW(g.x),ty:tzFromW(g.z),amount:g.meat||70,type:'food',mesh:g.mesh});
+          if(sold.owner==='player'&&!t.guards.some(w=>w!==g&&w.hp>0&&sheep.indexOf(w)>=0))
+            flashMsg('🐺 The last guard is down — the hoard is open. Walk a man up to it'); } }
+      // and the pack bites back, exactly as it bites a hunter
+      if(bd<2.6){ g._bcd=(g._bcd||0)-step;
+        if(g._bcd<=0){ g._bcd=1.2; sold.hp-=7; sold.flinch=0.15;
+          spawnPart(sold.x,heightAtWorld(sold.x,sold.z)+1,sold.z,'blood');
+          if(sold.owner==='player'){sfxWhere(sold.x,sold.z);SFX.hit();} } }
+      else if(g.hp>0){ g.tx=sold.x; g.tz=sold.z; g.hx=g.tx; g.hz=g.tz; g.wait=2; g.spd=2.4; } } } }
 function updateTreasures(dt){
   if(!treasures.length)return;
+  treasureCombat(dt);
   for(const t of treasures){
     if(t.taken)continue;
     if(t.mesh&&t.mesh.userData.lamp)t.mesh.userData.lamp.material.emissiveIntensity=1.2+Math.sin(elapsed*2.2+t.x)*0.45;
@@ -5063,6 +5099,22 @@ function updateLords(dt){
     // LAST STAND dumps the treasury into one final muster
     if(ai.state==='last'&&res[o].g>60){ const bk=blds.find(b=>b.owner===o&&b.type==='barracks'&&b.done);
       if(bk&&bk.queue.length<3){ res[o].g-=60; bk.queue.push({type:'infantry',t:6}); } }
+    // b344: A LORD SENDS MEN FOR THE HOARDS. Measured over ten minutes: three realms with eighty
+    // soldiers between them wandered within seven units of unclaimed treasures and took none —
+    // the roaming prize had no competition at all, which makes it a gift, not a race. An at-ease
+    // realm with spare soldiers now details a party of three to the nearest unclaimed hoard.
+    // Boomers go keenest; a realm at war has better uses for its men and does not bother.
+    if(ai.state==='idle'){
+      ai.tqT=(ai.tqT===undefined?50+Math.random()*70:ai.tqT-6);
+      if(ai.tqT<=0){ ai.tqT=(ai.pers==='boom'?75:150)+Math.random()*60;
+        const home=blds.find(b=>b.owner===o&&b.type==='hall');
+        const spare=ents.filter(e=>e.owner===o&&e.type!=='worker'&&!UNIT[e.type].noAtk&&!UNIT[e.type].siege
+          &&UNIT[e.type].dom==='land'&&!e.inGar&&(!e.path||e.pi>=e.path.length));
+        if(home&&spare.length>=6){ let best=null,bd2=150;
+          for(const t of treasures){ if(t.taken)continue;
+            const dd=Math.hypot(home.cx-t.x,home.cz-t.z); if(dd<bd2){bd2=dd;best=t;} }
+          if(best){ const party=spare.sort((a,b)=>Math.hypot(a.x-best.x,a.z-best.z)-Math.hypot(b.x-best.x,b.z-best.z)).slice(0,3);
+            commandMove(party,best.x,best.z,true); } } } }
     // b336: A LORD GOVERNS. Popularity was being computed for every realm and the AI never once
     // touched its own tax dial, so the whole meter was decoration on three quarters of the map.
     // Each lord now runs it to a target that suits his temperament — a boomer keeps his people
