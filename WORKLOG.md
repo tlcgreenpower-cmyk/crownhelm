@@ -455,3 +455,33 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
 - **CHECKED, NO FAULT FOUND: AI personalities.** Three realms in one game all rolled 'turtle',
   which looked like a broken roll. Rolled 14 fresh games and counted: rush 15, turtle 14, boom 13
   out of 42. The roll is fine; it was chance. No change made.
+
+- **b349 THE WOODS COME BACK.** Timber was the one resource that never returned, on a map meant to
+  be lived on for an hour. Measured at 18 minutes: 62 of 107 stands were stumps, no realm had a
+  living tree within 40 units of its keep (nearest 62/88/79), and the realms sat on 29/14/73 wood
+  against 514/214/2,245 metal they could not spend — r2 with SIXTEEN men on a metal seam and five
+  in the woods. Not an allocation bug: realmWant asks for wood correctly, but with none in reach
+  the b183 fallback sends the man to the nearest work of any kind, and that is always metal.
+  Wood gates houses, farms, barracks, the Castle and both Ages, so the map stalls — no AI realm
+  had EVER reached Age III in any soak, meaning the whole Age III layer (unique guards, the
+  Wonder, tier-3 research) had never appeared in a played game.
+  Cleared stumps now seed and grow: 45s bare, then 11 minutes to maturity, a regrown stand worth
+  60 per cent of virgin forest, nothing sprouting on or beside built ground.
+  TWO WRONG FIRST CUTS, both worth keeping:
+  (1) letting the young stand carry timber as it grew did nothing — a sapling with three wood in
+  it is the NEAREST wood on the map, so a woodcutter took it back to zero over and over. A young
+  stand now carries no `amount` at all until mature, which also means no other system needed a new
+  rule: a node with no amount is already invisible to nearestNode, the AI and the player.
+  (2) the no-building clearance was ±2 tiles and rejected ALL 38 bare stumps — the woodcutter
+  fells the nearest timber and the town then grows over that same ground, so stumps and buildings
+  are the same ground by construction. ±1 keeps trees out of doorways and lets copses return
+  between the houses.
+  RESULT over 31 minutes hands-off — live stands 79/60/56/64/67/70 at 5/10/15/20/25/30 min: the
+  forest bottoms out at 56 and recovers, the first rise in any run. Wood goes from single digits
+  at 15 minutes to 624/534/1109 by 30. **r2 reached Age III at minute 30 — never seen before.**
+  Field carried 3 knights, a dragoon, 28 grenadiers, a samurai and an enemy King. Zero errors.
+  Growth is saved (new state, project rule): 16 saplings and total growth 6.70 identical either
+  side of a reload, every restored sapling at exactly the height its growth implies.
+  Arithmetic trap avoided: maturing to `n.a0*0.6` compounds (220→132→79→47) and would dwindle the
+  woods away over a long game. Matures against a fixed FOREST_STAND instead.
+  Cost: 0.051ms for a forced full tick, and it really ticks once every two simulated seconds.
