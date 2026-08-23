@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b342</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b343</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -6915,9 +6915,20 @@ function updateUnitLOD(){
   const selSet=selected.length?new Set(selected):null;
   for(const e of ents){
     // b331: a garrison used to be tucked away out of sight. Men posted to a parapet stay drawn —
-    // they are the whole point — but they are skipped by the LOD's imposter and fog handling,
-    // because both work off ground position and would drop them off the wall.
-    if(e._onWall){ if(!e.mesh.visible)e.mesh.visible=true; e._off=false; nFull++; continue; }
+    // they are the whole point — but they must not be swapped for a ground-level imposter, which
+    // is what the ordinary far-distance path would do to them.
+    // b343: they DO still answer to the fog. Skipping the fog test wholesale meant an enemy
+    // garrison lit up on its battlements from across an unexplored map — you could count the
+    // men in a castle you had never scouted. Fog first, then the wall exemption.
+    if(e._onWall){
+      const wallFog=e.owner!=='player'&&!tileVis(e.x,e.z);
+      const want=!wallFog;
+      if(e.mesh.visible!==want)e.mesh.visible=want;
+      if(!want)continue;
+      _frS.center.set(e.x,e.mesh.position.y+1.0,e.z); _frS.radius=2.6;   // and off-screen men are still not skinned
+      e._off=!_frustum.intersectsSphere(_frS);
+      if(!e._off)nFull++;
+      continue; }
     if(e.inGar){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // tucked away inside a ship's hold
     const inFog=e.owner!=='player'&&!tileVis(e.x,e.z);
     if(inFog){ if(e.mesh.visible)e.mesh.visible=false; continue; }   // fogged troops show NOWHERE — not even as imposters
