@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b347</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b348</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -6495,6 +6495,18 @@ const DIFF={ easiest:{drip:0.3, wave:0.4, aggro:0.3, cap:55},
              hardest:{drip:7.0, wave:2.0, aggro:2.5, cap:150} };
 const DIFF_NAME={easiest:'Easiest',easy:'Easy',normal:'Moderate',hard:'Hard',hardest:'Hardest'};
 function dif(){return DIFF[difficulty]||DIFF.normal;}
+// b348 THE REALMS COULD NOT AFFORD A HORSE, BECAUSE THEY WERE COUNTING THE WRONG PURSE.
+// Units in this game cost FOOD, WOOD and GOLD. Not one of them costs metal — metal buys buildings
+// and research. Every training test in realmBrain asked `r.m >= COST.<unit>.m`, and since no unit
+// carries an `.m`, that comparison was `>= undefined`: false, for every realm, in every game, for
+// as long as the costs have been what they are. Nine unit types were therefore unreachable —
+// knight, dragoon, samurai, cannon, grenadier, catapult, infantry, the King, and every faction's
+// unique guard. Measured on a hands-off game at twenty-four minutes: three realms, not one
+// horseman, not one gun, not one siege engine, an army 68 per cent pikemen, and between 400 and
+// 1,600 gold sitting unspent in each treasury — which is exactly the coin those units cost.
+// These two do it off the real cost object, so the next time a price changes nothing here rots.
+const canPay=(r,c)=>!!c&&r.f>=(c.f||0)&&r.w>=(c.w||0)&&r.g>=(c.g||0)&&r.m>=(c.m||0);
+const payFor=(r,c)=>{r.f-=(c.f||0);r.w-=(c.w||0);r.g-=(c.g||0);r.m-=(c.m||0);};
 function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai.warCheck-=dt;
   // the realm's economy hums along even off-screen, so rival towns visibly grow
   const D=dif(); res[o].f+=D.drip*dt; res[o].w+=D.drip*0.8*dt; res[o].m+=D.drip*0.5*dt; res[o].g+=D.drip*0.3*dt;
@@ -6691,9 +6703,9 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
       if(used+2>cap){ if(r.w>=40&&pendingBld(o,'house')<3&&placeAI(o,'house'))return; }   // no room? raise the roof first
       else { const c=COST;
         for(const b0 of barr){ if(b0.queue.length>=2)continue;
-          if(T.age>=2&&r.f>=c.knight.f&&r.m>=c.knight.m&&Math.random()<.35){r.f-=c.knight.f;r.m-=c.knight.m;b0.queue.push({type:'knight',t:c.knight.time});return;}
-          if(r.f>=c.spear.f&&r.w>=c.spear.w){r.f-=c.spear.f;r.w-=c.spear.w;b0.queue.push({type:'spear',t:c.spear.time});return;}
-          if(r.f>=c.archer.f&&r.w>=c.archer.w){r.f-=c.archer.f;r.w-=c.archer.w;b0.queue.push({type:'archer',t:c.archer.time});return;} } } } }
+          if(T.age>=2&&canPay(r,c.knight)&&Math.random()<.35){payFor(r,c.knight);b0.queue.push({type:'knight',t:c.knight.time});return;}
+          if(canPay(r,c.spear)){payFor(r,c.spear);b0.queue.push({type:'spear',t:c.spear.time});return;}
+          if(canPay(r,c.archer)){payFor(r,c.archer);b0.queue.push({type:'archer',t:c.archer.time});return;} } } } }
   // b155: a realm no longer starts another of a kind while one of that kind is still a hole in
   // the ground. Houses may have two on the go at once, being the engine of the town; everything
   // else waits. Without this a rich realm laid foundations forever, because a decision that reads
@@ -6750,19 +6762,19 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
   { const arm=blds.find(q=>q.owner===o&&q.type==='armourer'&&q.done&&!q.rschK);   // and forges the plate when it can
     if(arm&&!T.plate&&T.age>=2&&r.m>=160&&r.w>=120&&Math.random()<.3){r.m-=160;r.w-=120;arm.rschK='plate';arm.rschT=90;arm.rschTot=90;return;} }
   if(barr.length&&used+2<=cap)for(const b0 of barr){if(b0.queue.length===0){const c=COST;
-    if(T.age===2&&r.f>=c.knight.f&&r.m>=c.knight.m&&Math.random()<.4){r.f-=c.knight.f;r.m-=c.knight.m;b0.queue.push({type:'knight',t:c.knight.time});}
-    else if(T.age>=2&&r.f>=c.samurai.f&&r.m>=c.samurai.m&&r.g>=(c.samurai.g||0)&&Math.random()<.25){r.f-=c.samurai.f;r.m-=c.samurai.m;r.g-=(c.samurai.g||0);b0.queue.push({type:'samurai',t:c.samurai.time});}
-    else if(r.f>=c.viking.f&&r.w>=c.viking.w&&Math.random()<.3){r.f-=c.viking.f;r.w-=c.viking.w;b0.queue.push({type:'viking',t:c.viking.time});}else if(r.f>=c.spear.f&&r.w>=c.spear.w&&Math.random()<.6){r.f-=c.spear.f;r.w-=c.spear.w;b0.queue.push({type:'spear',t:c.spear.time});}
-    else if(r.f>=c.archer.f&&r.w>=c.archer.w){r.f-=c.archer.f;r.w-=c.archer.w;b0.queue.push({type:'archer',t:c.archer.time});}
-    if(ai.wave>=1&&countType(o,'hero')===0&&r.f>=c.hero.f&&r.w>=c.hero.w&&r.m>=c.hero.m){r.f-=c.hero.f;r.w-=c.hero.w;r.m-=c.hero.m;b0.queue.push({type:'hero',t:c.hero.time});}}}
-  const sw=blds.find(b=>b.owner===o&&b.type==='siege'&&b.done);if(sw&&sw.queue.length===0&&countType(o,'catapult')<2&&r.w>=COST.catapult.w&&r.m>=COST.catapult.m&&used+4<=cap){r.w-=COST.catapult.w;r.m-=COST.catapult.m;sw.queue.push({type:'catapult',t:COST.catapult.time});}
+    if(T.age>=2&&canPay(r,c.knight)&&Math.random()<.4){payFor(r,c.knight);b0.queue.push({type:'knight',t:c.knight.time});}
+    else if(T.age>=2&&canPay(r,c.samurai)&&Math.random()<.25){payFor(r,c.samurai);b0.queue.push({type:'samurai',t:c.samurai.time});}
+    else if(canPay(r,c.viking)&&Math.random()<.3){payFor(r,c.viking);b0.queue.push({type:'viking',t:c.viking.time});}else if(canPay(r,c.spear)&&Math.random()<.6){payFor(r,c.spear);b0.queue.push({type:'spear',t:c.spear.time});}
+    else if(canPay(r,c.archer)){payFor(r,c.archer);b0.queue.push({type:'archer',t:c.archer.time});}
+    if(ai.wave>=1&&countType(o,'hero')===0&&canPay(r,c.hero)){payFor(r,c.hero);b0.queue.push({type:'hero',t:c.hero.time});}}}
+  const sw=blds.find(b=>b.owner===o&&b.type==='siege'&&b.done);if(sw&&sw.queue.length===0&&countType(o,'catapult')<2&&canPay(r,COST.catapult)&&used+4<=cap){payFor(r,COST.catapult);sw.queue.push({type:'catapult',t:COST.catapult.time});}
   const gs=blds.find(b=>b.owner===o&&b.type==='gunshop'&&b.done);if(gs&&gs.queue.length===0&&used+2<=cap){const c=COST;
-    if(T.age===2&&countType(o,'cannon')<2&&r.w>=c.cannon.w&&r.m>=c.cannon.m&&Math.random()<.4){r.w-=c.cannon.w;r.m-=c.cannon.m;gs.queue.push({type:'cannon',t:c.cannon.time});}
-    else if(r.f>=c.grenadier.f&&r.m>=c.grenadier.m&&Math.random()<.35){r.f-=c.grenadier.f;r.m-=c.grenadier.m;gs.queue.push({type:'grenadier',t:c.grenadier.time});}
-    else if(r.f>=c.infantry.f&&r.m>=c.infantry.m){r.f-=c.infantry.f;r.m-=c.infantry.m;gs.queue.push({type:'infantry',t:c.infantry.time});}}
-  if(T.age===2&&barr.length&&barr[0].queue.length===0&&countType(o,'dragoon')<2&&r.f>=COST.dragoon.f&&r.m>=COST.dragoon.m&&Math.random()<.3&&used+3<=cap){r.f-=COST.dragoon.f;r.m-=COST.dragoon.m;barr[0].queue.push({type:'dragoon',t:COST.dragoon.time});}
+    if(T.age>=2&&countType(o,"cannon")<2&&canPay(r,c.cannon)&&Math.random()<.4){payFor(r,c.cannon);gs.queue.push({type:'cannon',t:c.cannon.time});}
+    else if(canPay(r,c.grenadier)&&Math.random()<.35){payFor(r,c.grenadier);gs.queue.push({type:'grenadier',t:c.grenadier.time});}
+    else if(canPay(r,c.infantry)){payFor(r,c.infantry);gs.queue.push({type:'infantry',t:c.infantry.time});}}
+  if(T.age>=2&&barr.length&&barr[0].queue.length===0&&countType(o,"dragoon")<2&&canPay(r,COST.dragoon)&&Math.random()<.3&&used+3<=cap){payFor(r,COST.dragoon);barr[0].queue.push({type:'dragoon',t:COST.dragoon.time});}
   const ch=blds.find(b=>b.owner===o&&b.type==='church'&&b.done);if(ch&&ch.queue.length===0&&(countType(o,'priest')+countType(o,'monk'))<2&&r.f>=90&&used+2<=cap){r.f-=90;ch.queue.push({type:'priest',t:COST.priest.time});}
-  const cas=blds.find(b=>b.owner===o&&b.type==='castle'&&b.done);if(cas&&cas.queue.length===0&&T.age>=3&&used+4<=cap){const uq=FACTION_UNIT[faction[o]],c=COST[uq];if(r.f>=c.f&&r.m>=c.m&&r.g>=(c.g||0)&&countType(o,uq)<3){r.f-=c.f;r.m-=c.m;r.g-=(c.g||0);cas.queue.push({type:uq,t:c.time});}}
+  const cas=blds.find(b=>b.owner===o&&b.type==='castle'&&b.done);if(cas&&cas.queue.length===0&&T.age>=3&&used+4<=cap){const uq=FACTION_UNIT[faction[o]],c=COST[uq];if(canPay(r,c)&&countType(o,uq)<3){payFor(r,c);cas.queue.push({type:uq,t:c.time});}}
   // march on whoever this realm is at war with (the player, or a rival realm via alliances)
   const foes=REALMS.filter(t=>isHostile(o,t)&&blds.some(b=>b.owner===t&&b.type==='hall'));
   const defending=ai.raid&&elapsed-ai.raid.t<25;   // b158: no new wave leaves while the town is burning
