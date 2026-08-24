@@ -843,3 +843,28 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   `location.reload()`**, so editing the game and reloading can leave you measuring the build you
   already replaced; load with a changed query string. That cost most of a pass earlier tonight.
   Soak: 12 simulated minutes, 208 units, 102 buildings, zero errors, 3.88ms a step.
+
+- **b364 THE RIVAL REALMS' WARS WERE DECORATIVE.** Twenty simulated minutes, three AI realms at war,
+  armies past two hundred — **one** of each other's buildings destroyed, towns growing 3 → 40-odd
+  untroubled. Cause: `aiDiplomacy` rolls a 30% chance of ending a war every 90–180s against EVERY
+  war on the books, however young, while a realm needs ~220s from a standing start to muster the
+  four men that let it attack at all. The two clocks were in the wrong order — measured on the old
+  build, the wars that ended lived **137s and 97s**, both expiring before anyone could march. A war
+  now records when it began and is left alone for its first four minutes; after that the same roll
+  applies unchanged, so wars that have run their course still end at the old rate.
+  Before/after, three 20-min games each, player uninvolved: lifetime 137/97s → **379/420/378s**;
+  buildings razed 1/1/0 → 0/1/3/4. The lifetime figure is decisive; the razing count moves the right
+  way but three games is a small sample of something noisy, so it is reported as directional.
+  Save/load round-trips the timestamp exactly, and a pre-b364 save storing `true` reads as "old
+  enough to end", so old saves behave as before. Player diplomacy untouched — suing for peace still
+  ends allied wars instantly, that path never goes through `aiDiplomacy`.
+  UI sweep 226 interactions / 0 errors; soak 15 min / 0 errors.
+
+- **AND THREE THINGS CHECKED THAT TURNED OUT FINE.** b349's forest regrowth does **not** flood a
+  town — a 19-building town run to 14 minutes never had one sapling beside a building, the
+  woodcutters clear them as fast as they seed. Battle scorch does **not** blacken the map — 26
+  minutes of four-way total war moved the ground canvas 153.3 → 152.9 mean luminance, dark pixels
+  plateauing at 0.2%, because impacts cluster on the same contested ground and saturate. And the
+  scaffolded timber structure that has looked half-built in several recent screenshots is the
+  **storehouse's finished model**, a woodcutter's hut — every building on the map read
+  `done=true prog=1 scaffold=false`. Recorded because I misread it twice.
