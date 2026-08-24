@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b352</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b353</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -563,7 +563,12 @@ const MAPS={
 };
 let curMapId=localStorage.getItem('crownhelm_map')||'heartlands'; if(!MAPS[curMapId])curMapId='heartlands';
 // custom map remembers its chosen size (b93)
-try{const _cm=JSON.parse(localStorage.getItem('crownhelm_custom_map'));if(_cm&&_cm.w>=64){MAPS.custom.w=_cm.w;MAPS.custom.h=_cm.h||Math.round(_cm.w*2/3);if(_cm.name)MAPS.custom.name=_cm.name;}}catch(e){}
+// b353: the Map Builder wrote `tidefall_custom_map` long after the game moved to `crownhelm_*`,
+// and the rename migration is one-shot — so every map anybody built since the rename is stranded
+// under the old key with the migration flag already set and no way to run again. The builder is
+// fixed at the source; this reads the old key as a fallback so those maps come back.
+const cmRead=()=>{ const v=localStorage.getItem('crownhelm_custom_map'); return v!==null?v:localStorage.getItem('tidefall_custom_map'); };
+try{const _cm=JSON.parse(cmRead());if(_cm&&_cm.w>=64){MAPS.custom.w=_cm.w;MAPS.custom.h=_cm.h||Math.round(_cm.w*2/3);if(_cm.name)MAPS.custom.name=_cm.name;}}catch(e){}
 let MAP_W,MAP_H,WORLD_W,WORLD_H,HALF_W,HALF_H,REALM_SITES;
 function areaScale(){return (MAP_W*MAP_H)/(96*64);}
 // up to 8 realms: 4 corners then 4 edge midpoints (b93)
@@ -1420,7 +1425,7 @@ function genMap(){
   if(MM.rivers>=2)for(let x=0;x<MAP_W;x++){const cy=MAP_H/2+Math.sin(x*0.15/wS)*8*hS+Math.sin(x*0.04/wS)*5*hS;   // second river, east-west
     for(let y=0;y<MAP_H;y++)if(Math.abs(y-cy)<2.0)elev[ti(x,y)]=Math.min(elev[ti(x,y)],0.32+Math.abs(y-cy)*0.15);}
   // b93: painted terrain from the Map Builder — plains flatten, hills rise, water drowns
-  const CUST=MM.custom?(()=>{try{return JSON.parse(localStorage.getItem('crownhelm_custom_map'))}catch(e){return null}})():null;
+  const CUST=MM.custom?(()=>{try{return JSON.parse(cmRead())}catch(e){return null}})():null;   // b353: same fallback
   if(CUST){ const app=(arr,fn)=>{for(const i of arr||[]){const x=i%MAP_W,y=(i-x)/MAP_W;if(inB(x,y))fn(x,y);}};
     app(CUST.lo,(x,y)=>{elev[ti(x,y)]=2.0;});
     app(CUST.hi,(x,y)=>{elev[ti(x,y)]=Math.max(elev[ti(x,y)],3.3);});
@@ -1683,6 +1688,28 @@ function stampDirt(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,T
     c2.fillStyle='rgba(150,120,80,0.24)';
     c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.18,py+Math.sin(a)*r*0.16,rr,rr*0.85,a,0,7); c2.fill(); }
   groundTex.needsUpdate=true; }
+// b353 WHERE THE GROUND ACTUALLY IS, OUTSIDE THE MAP. `heightAtWorld` reads the tile grid and
+// clamps, so for any point beyond the playable rectangle it returns the height of the map EDGE and
+// never changes again — a flat lie across the whole sixty-unit skirt. Measured on a custom map
+// whose painted land runs to the border: heightAtWorld says 11.22 at four units out and still
+// 11.22 at fifty-five, while the mesh the player sees drops 8.72, 6.23, 1.11, -7.13. An
+// EIGHTEEN-UNIT gap, and anything placed by heightAtWorld out there hangs in mid-air over the sea.
+// Photographed exactly that: a scatter of boulders floating above the water off the west coast.
+// It has always been wrong; it only became visible tonight, because b345 drowns the rim of a
+// GENERATED map so its edge sits near the waterline and the gap stays small. A hand-painted map
+// has no such rim — the builder paints land to the border — so the fault came straight out.
+// One function now, used by the mesh itself and by anything that needs to stand on it.
+const SKIRT=60;
+function terrainMeshY(vx,vz){
+  let h=heightAtWorld(clamp(vx,-HALF_W,HALF_W),clamp(vz,-HALF_H,HALF_H));
+  h+=(noise2(vx*0.3,vz*0.3)-0.5)*0.5+(noise2(vx*0.9,vz*0.9)-0.5)*0.16;   // gentle natural detail
+  const ox=Math.abs(vx)-HALF_W, oz=Math.abs(vz)-HALF_H;
+  const d=Math.hypot(ox>0?ox:0,oz>0?oz:0);
+  if(d>0){ const reach=SKIRT*(0.30+0.70*noise2(vx*0.012+41,vz*0.012+17));
+    const t=clamp(d/Math.max(1,reach),0,1);
+    h=h*(1-t)+(waterY-9)*t;                                    // well under by the outer rim
+    h+=(noise2(vx*0.05+5,vz*0.05+9)-0.5)*3.2*(1-t)*(1-t); }    // a broken edge, not a smooth ramp
+  return h; }
 function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.map&&terrainMesh.material.map.dispose();}
   const SUB=3;   // render mesh 3x finer than the game grid — smooth rolling ground
   // b174: the terrain plane used to stop dead on the map boundary, so the world was a rectangular
@@ -1690,21 +1717,12 @@ function buildTerrain(){ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.g
   // south. The mesh now runs on past the playable edge and sinks under the sea, at a distance that
   // varies with noise, so the land ends in bays and headlands instead of a ruled line. Nothing
   // about the playable area changes: elev, passability and every tile index are exactly as before.
-  const SKIRT=60;
   const TW2=WORLD_W+SKIRT*2, TH2=WORLD_H+SKIRT*2;
   const segX=Math.round(MAP_W*SUB*TW2/WORLD_W), segZ=Math.round(MAP_H*SUB*TH2/WORLD_H);
   const geo=new THREE.PlaneGeometry(TW2,TH2,segX,segZ);geo.rotateX(-Math.PI/2);
   const pos=geo.attributes.position, uvA=geo.attributes.uv;
   for(let i=0;i<pos.count;i++){const vx=pos.getX(i),vz=pos.getZ(i);
-    let h=heightAtWorld(clamp(vx,-HALF_W,HALF_W),clamp(vz,-HALF_H,HALF_H));
-    h+=(noise2(vx*0.3,vz*0.3)-0.5)*0.5+(noise2(vx*0.9,vz*0.9)-0.5)*0.16;   // gentle natural detail
-    const ox=Math.abs(vx)-HALF_W, oz=Math.abs(vz)-HALF_H;
-    const d=Math.hypot(ox>0?ox:0,oz>0?oz:0);
-    if(d>0){ const reach=SKIRT*(0.30+0.70*noise2(vx*0.012+41,vz*0.012+17));
-      const t=clamp(d/Math.max(1,reach),0,1);
-      h=h*(1-t)+(waterY-9)*t;                                    // well under by the outer rim
-      h+=(noise2(vx*0.05+5,vz*0.05+9)-0.5)*3.2*(1-t)*(1-t); }    // a broken edge, not a smooth ramp
-    pos.setY(i,h);
+    pos.setY(i,terrainMeshY(vx,vz));
     // the painted ground stays pinned to the playable rectangle; the skirt clamps to the beach
     uvA.setXY(i,(uvA.getX(i)*TW2-SKIRT)/WORLD_W,(uvA.getY(i)*TH2-SKIRT)/WORLD_H); }
   geo.computeVertexNormals();
@@ -2307,7 +2325,9 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const x=bx+jx, z=bz+jz;
     const tx=txFromW(x),tz2=tzFromW(z);
     const onSkirt=!inB(tx,tz2);
-    const y=heightAtWorld(x,z);
+    // b353: out on the skirt, heightAtWorld is the map EDGE's height and nothing else — up to
+    // eighteen units above the mesh actually under your feet. Ask the mesh.
+    const y=onSkirt?terrainMeshY(x,z):heightAtWorld(x,z);
     // skirt: anything standing clear of the water. shallows: a stack rising out of the sea, but
     // only just off the coast, so open ocean stays open ocean.
     if(onSkirt){ if(y<waterY-0.6||y>waterY+16)continue; }
@@ -8491,7 +8511,7 @@ window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;e
       // silently compared heights against `undefined` and reported "no land anywhere" for a full
       // round. Anything the terrain is measured against belongs in here.
       SEA,HSCALE,TILE,get waterY(){return waterY;},get elev(){return elev;},MAP_W,MAP_H,ti,inB,txFromW,tzFromW,
-      updateForest,FOREST_MATURE,FOREST_YIELD,FOREST_SEED_WAIT,get woodNodes2(){return woodNodes;},get treeGrid(){return treeGrid;},get buildGrid(){return buildGrid;},wx,wz,realmWant,
+      terrainMeshY,SKIRT,updateForest,FOREST_MATURE,FOREST_YIELD,FOREST_SEED_WAIT,get woodNodes2(){return woodNodes;},get treeGrid(){return treeGrid;},get buildGrid(){return buildGrid;},wx,wz,realmWant,
       get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,rigStaticHorse,stepStaticHorse,placeAI,get selected(){return selected;},set selected(v){selected=v;},refreshUI,selUnits,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
       popCap,popUsed,popQueued,countType,countBld,pendingBld,realmBrain,get paradeMode(){return paradeMode;},
