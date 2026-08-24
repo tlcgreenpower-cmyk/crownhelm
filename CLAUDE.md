@@ -39,8 +39,13 @@ screenshots time out. Drive and photograph it instead:
   `pitch:0.2, dist:4.5` for one character.
 - Buildings carry `cx`/`cz` (world) and `tx`/`ty` (tile); units carry `x`/`z`. A check written
   against `b.x` silently compares `undefined` and passes every time.
-- **The maps are not all the same size.** Heartlands is 96×64; the other four are 168×112, three
-  times the area. Anything you compare between maps has to be per-tile or it is meaningless.
+- **The maps are not all the same size, and the biggest are not in the menu.** Heartlands is 96×64;
+  the other four are 168×112, three times the area. The **Map Builder** goes further — Large
+  224×144 and Epic 256×176 (**7.33×** Heartlands, 45k tiles) with up to **8 realms** against the
+  menu's four. Anything sized against "the biggest map" must mean Epic, not Broadwood: b367 found
+  every area-scaled ceiling in the game cut to fit 168×112, so on an Epic map treasures, villages,
+  relics, herds, flocks and sheep all bind at once and the world arrives at roughly a third of its
+  intended density. Epic itself plays fine (1.2–3.0ms a step, 8 realms, save 133KB). Anything you compare between maps has to be per-tile or it is meaningless.
   `MAP_W`, `MAP_H`, `WORLD_W`, `WORLD_H` and `HALF_W/H` are GETTERS in `_dbg` for this reason
   (b360) — they used to be captured values, frozen at the moment `_dbg()` ran, so a 168×112 map
   still reported 96×64 and every measurement taken after a map change was quietly wrong. It
@@ -75,7 +80,8 @@ Two things it has caught being written wrongly, both in the sweep rather than th
 the time you look he may already be `'return'`, which means it worked).
 
 `tools/worldcensus.js` — `await census(5)` counts every world scatter by name across five real
-maps and flags any that place nothing. It exists because of b358: b353 fixed rocks floating over
+maps and flags any that place nothing. **It audits a saved custom map too (b367)** — build one in
+the Map Builder first, or the run silently covers none of the sizes above 168×112 and says so. It exists because of b358: b353 fixed rocks floating over
 the sea and in the same line silently took the sea stacks to ZERO, and nothing noticed for a build
 because **nothing counts the world's decoration**. A scatter can die and the game still runs,
 still soaks clean, still reports no errors — the world just quietly gets emptier.

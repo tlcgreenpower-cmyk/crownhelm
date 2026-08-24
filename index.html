@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b366</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b367</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -8394,8 +8394,20 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   // full area scaling the big maps put 16 posts 33 units apart against Heartlands' 43, tighter than
   // the map it was tuned on. sqrt gives 12 posts at 45, which matches. The bird flocks already make
   // the same one-dimensional distinction.
-  const _A=areaScale();
-  spawnTreasures(Math.min(34,Math.round(11*_A))); spawnTradeRoute(Math.min(14,Math.round(7*Math.sqrt(_A))));
+  // b367: THE CEILINGS WERE SIZED FOR THE MENU, NOT FOR THE MAP BUILDER. b362 scaled these with
+  // the map and then capped them at 34 and 14 — the values the formulas give on the biggest map in
+  // the SELECTOR (168x112, areaScale 3.06), so they land exactly on the rule and never bind there.
+  // The Map Builder goes to Epic, 256x176, which is areaScale 7.33, and there they bind hard:
+  // 34 hoards where the rule wants 81, and 14 posts where it wants 19. Measured on a real Epic map
+  // with eight realms — hoard density 0.75 per thousand tiles against Heartlands' 1.79, so the
+  // roaming layer arrived at 42 per cent of the density it was tuned to, which is the same fault
+  // b362 was written to cure, one map size further out. Not a performance ceiling either: that map
+  // soaks at 1.2-3.0ms a step with the caps in place, so there is nothing being protected.
+  // Derived from the largest map the builder can actually make, so a hand-edited monster is still
+  // bounded but nothing a player can build is throttled.
+  const _A=areaScale(), A_MAX=(256*176)/(96*64);
+  spawnTreasures(Math.min(Math.round(11*A_MAX),Math.round(11*_A)));
+  spawnTradeRoute(Math.min(Math.round(7*Math.sqrt(A_MAX)),Math.round(7*Math.sqrt(_A))));
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);standardView(true);
   for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal

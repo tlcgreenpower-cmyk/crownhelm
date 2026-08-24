@@ -34,8 +34,19 @@ window.census = async function(maps){
   // The world is DETERMINISTIC: calling newGame() again rebuilds the identical map, so repeating it
   // proves nothing. Real variation comes from a different map, and the honest way to get one is the
   // selector the player uses. 'custom' is skipped — it depends on whatever is in the Map Builder.
+  // b367: 'custom' used to be skipped here on the grounds that it depends on whatever is in the
+  // Map Builder. That skip is exactly why the Epic case went unseen for five builds: the builder
+  // offers Large (224x144) and Epic (256x176), both BIGGER than anything in the menu, and every
+  // area-scaled ceiling in the game was sized for the menu's biggest map. On an Epic map the
+  // roaming layer arrived at 42% of Heartlands' density and nothing was watching. A custom map is
+  // now audited whenever one exists — it is the only way to see the sizes the player can actually
+  // reach — and simply absent when it does not, which is the honest behaviour either way.
   const sel = document.getElementById('mapSel');
-  const ids = sel ? [...sel.options].map(o => o.value).filter(v => v !== 'custom') : [];
+  const hasCustom = (()=>{ try{ return !!(localStorage.getItem('crownhelm_custom_map')
+                                       || localStorage.getItem('tidefall_custom_map')); }catch(e){ return false; } })();
+  const ids = sel ? [...sel.options].map(o => o.value).filter(v => v !== 'custom' || hasCustom) : [];
+  if(!hasCustom) console.log('census: no custom map saved — the Map Builder sizes (up to Epic '
+    + '256x176, 7.3x Heartlands) are NOT covered by this run. Build one and re-run to audit them.');
   R.mapsUsed = [];
 
   for(let m = 0; m < maps; m++){
