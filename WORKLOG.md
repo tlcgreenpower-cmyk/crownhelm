@@ -742,3 +742,27 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   cap always equals summed count; it read 100% for all nineteen on the first run, which is worse
   than useless because it looks like information.
   Soak: 11 simulated minutes, 229 units, 104 buildings, 614 named chunks alive, zero errors, 3.93ms.
+
+- **b360 THE DEBUG SURFACE WAS REPORTING ONE MAP'S SIZE FOR EVERY MAP.** Took b359's census out for
+  its first real use and it immediately "found" that Heartlands — the default map, the one every
+  photograph in this project is taken on — carried a third the scenery of the other four. Grass
+  14,000 vs 42,875, stumps 18 vs 165–326, dead trees 12 vs 217, every map reporting 96×64. It read
+  as a clean density bug on the map the owner plays, and would have neatly explained why the ground
+  looked bare in b357's town shots.
+  It was my own instrument. `MAP_W`, `MAP_H`, `WORLD_W`, `WORLD_H` were exported from `_dbg` as
+  PLAIN VALUES, captured when `_dbg()` ran and never updated. Heartlands really is 96×64; the other
+  four are **168×112**, three times the area — and the debug surface flatly denied it, so the
+  land-tile count I divided by only scanned the first 96×64 tiles of a bigger map. Caught it with
+  `elev.length`, which is live: 6144 vs 18816 while `MAP_W` insisted on 96 for all five.
+  Getters now, plus HALF_W/HALF_H. Honest numbers, grass per land tile: heartlands 2.97, greatvale
+  2.70, twinrivers 2.83, ironhigh 2.62, broadwood 2.77 — the same density everywhere, as it always
+  was. **Nothing to fix in the world.**
+
+- **SECOND MEASUREMENT TRAP IN TWO PASSES.** After b358's "read one InstancedMesh and call it the
+  total", this is the second instrument that produced a confident wrong conclusion — this one
+  within minutes of building the very tool meant to prevent that. An instrument that lies is worse
+  than none, because it manufactures work. Both traps now in CLAUDE.md, along with the fact that
+  the maps are NOT all the same size, which is what made this one bite.
+  Verified after: census clean across all five maps, healthy, nothing empty. Soaked both map sizes
+  — Heartlands and the Broadwood at 168×112 — 19 simulated minutes, 163 units, 89 buildings, zero
+  errors, 5.02ms a step on the big map. The large-map path had never been soaked before.

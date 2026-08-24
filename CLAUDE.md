@@ -28,6 +28,13 @@ screenshots time out. Drive and photograph it instead:
   `pitch:0.2, dist:4.5` for one character.
 - Buildings carry `cx`/`cz` (world) and `tx`/`ty` (tile); units carry `x`/`z`. A check written
   against `b.x` silently compares `undefined` and passes every time.
+- **The maps are not all the same size.** Heartlands is 96×64; the other four are 168×112, three
+  times the area. Anything you compare between maps has to be per-tile or it is meaningless.
+  `MAP_W`, `MAP_H`, `WORLD_W`, `WORLD_H` and `HALF_W/H` are GETTERS in `_dbg` for this reason
+  (b360) — they used to be captured values, frozen at the moment `_dbg()` ran, so a 168×112 map
+  still reported 96×64 and every measurement taken after a map change was quietly wrong. It
+  produced a confident "the default map has a third the scenery of every other" that was pure
+  artefact. If you add a map-dependent value to the debug surface, make it a getter.
 - `window.TF.info` for fps/ents/skinned/calls; `window._CHARLIB` for character templates;
   `renderer.info.render` after a TFshot for real draw calls and triangles.
 - **A unit photographed away from the camera shows its BIND POSE, not its animation.** TFshot
