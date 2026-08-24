@@ -900,3 +900,46 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   7 five seconds later, **0 after thirty-five**. Note for next time: `rubblePiles`, `stampScorch`
   and the weather state are **not** on the debug surface, which is why this pass was done by reading
   the ground canvas and re-rendering with features switched off.
+
+- **b366 A CAP SET BELOW FIVE OF THE SIX VALUES IT WAS CAPPING.** Chased the thing parked in b365 —
+  during a shower `rain` read 0.62 (the showers value) while `fog` read 1.35 (the *fair* row). They
+  were not disagreeing; both were pinned. Two terms carry the weather's depth and both are clamped
+  below most of their own table. `scene.fog.density` is `min(wFog,1.35)` against fronts of
+  1.0/1.3/1.9/2.3/3.0/4.6; the aerial-perspective term
+  `min(1.15e-5, 6.5e-6+4.2e-6*wFog+1.5e-5*wMist)` comes to 1.07/1.20/1.67/1.77/2.21/4.08e-5 — so
+  **five of six fronts came out at exactly 1.15e-5**, only clear differing, by 7%. That is the fault
+  **b198** was written to cure ("the player was being told a mist had rolled in and shown nothing");
+  **b323** later saw a real white-out and capped it back to a constant.
+  **b323 capped the wrong term.** The white sheet is real and I reproduced it — but the fog DENSITY
+  makes it. At density 4.6 the distant town is a pale ghost; at the shipped 1.35 density this term
+  runs to 4.1e-5 and the same view stays perfectly legible, checked at camera distances 45/70/140.
+  The sea is protected independently by **b293**'s `min(0.34)` inside the shader, which holds at any
+  k — checked, since the owner's report behind b293 was "what happened to colour and sea".
+  Ceiling kept but lifted to 4.2e-5, above every front. Per-front k now
+  **1.09/1.21/1.66/1.78/2.16/4.03** — mist runs 3.7× a clear day where it ran 1.07×. Within a single
+  scene (only k changed): k1.15 → lum 129.3 / con 43.4; k4.10 → lum 137.7 / con 41.5.
+
+- **A MEASUREMENT I THREW AWAY.** I first compared all six fronts across 28 simulated minutes on each
+  build. **Those two runs are different games** — different towns, different scenery in frame — and
+  it showed: contrast moved 2.5 points for the CLEAR front, whose k barely changed. Run-to-run
+  variation swamped the effect. Only the single-scene comparison is quoted. Worth remembering: a
+  front-level A/B across separate `newGame()` runs is not a controlled experiment.
+
+- **DOES NOT CLOSE b198.** Overcast/showers/storm are still hard to tell apart, because cloud darkens
+  while haze lightens and they largely cancel; mean luminance is a poor instrument for haze anyway.
+  Fixed here is narrower and definite: five fronts no longer share one number, and mist behaves like
+  mist. Next person should look at cloud and sun, not these two terms.
+
+- **`window.TF.weather` has existed all along** — live front, cloud, fog, mist, rain, sun, wind,
+  seconds to next change. Missed it in b365 and rebuilt the weather state by hand off the scene
+  graph. Some of the debug surface hangs off `TF` and some off `TF._dbg()`'s `__D`, and they are
+  **not the same object**; `Object.keys(__D)` says `weather` does not exist. Now in CLAUDE.md.
+
+- **b364 CHANGED WHAT A SOAK LOOKS LIKE.** Two shorter soaks returned `healthy:false` with "army
+  never settled" — not a fault. The long run's army trace is **24 / 100 / 119 / 181 / 117 / 175 /
+  219 / 236 / 236 / 236**; the dip at minute 17 is a war taking 64 men off the board. Before b364
+  the rivals barely fought, so the count climbed monotonically and flattened early; now it takes
+  real losses and rebuilds, reaching its plateau later. The settle check reads the first sample
+  within 95% of peak, so a run cut off mid-rebuild reports "never settled" while nothing is wrong.
+  **Soak this game for thirty minutes, not fifteen, and read the trace before the verdict.**
+  b366 final: 34.2 min, 236 units, 118 buildings, zero errors, 1.13ms a step, healthy.
