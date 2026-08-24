@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b353</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b354</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -8654,11 +8654,36 @@ function addCustomMapBtn(){ const sel=document.getElementById('mapSel');
   if(curMapId==='custom')sel.value='custom'; }
 document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('crownhelm_fac')||'english');
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
-  const tx0=ph.tx+(ph.w>>1), ty0=ph.ty+ph.h+3; let col=0,row=0;
-  for(const t in UNIT){ if(UNIT[t].dom!=='land')continue;
-    const u=spawnUnit(t,'player',tx0-8+col*2,ty0+row*3); if(u){u.dir=Math.PI;u.disp=Math.PI;}
-    col++; if(col>8){col=0;row++;} }
-  camTarget.set(ph.cx,0,ph.cz+18*MAN_SCALE); camDist=16*MAN_SCALE;   // b229: hold the men at the same size on parade
+  // b354 THE BACK RANK WAS STANDING IN THE SEA. The parade began three tiles below the Keep and
+  // marched its ranks south with nothing checking the map went that far. On the Heartlands the
+  // Keep stands nine tiles from the southern shore, so the fourth rank spawned at z=130 on a map
+  // that ends at 128 — measured four men off the map entirely and five standing on water, four of
+  // those on skirt ground six to eight units UNDER the sea. The drowned rank was Hoplite,
+  // Privateer, Viking and Samurai: four of the six models b347 had just rebuilt, on the one screen
+  // in the game whose entire job is "see every soldier up close".
+  // Work out the block the parade actually needs, then put it somewhere it fits and is dry.
+  const kinds=Object.keys(UNIT).filter(t=>UNIT[t].dom==='land');
+  const COLS=9, CW=2, RH=3, rows=Math.ceil(kinds.length/COLS), halfW=((COLS-1)*CW)>>1;
+  // Dry is not enough: a rank on the tideline and a rank on the grass is a scruffy parade, and a
+  // block laid across a slope has its back row standing over the front row's heads. Wants proper
+  // inland ground (1.6 is the floor the world's own scatter uses for real terrain) and near-level.
+  const fits=(cx,cy)=>{ let lo=9,hi=-9;
+    for(let r=0;r<rows;r++)for(let c=0;c<COLS;c++){
+      const x=cx-halfW+c*CW, y=cy+r*RH;
+      if(x<1||y<1||x>MAP_W-2||y>MAP_H-2)return false;
+      const e=elev[ti(x,y)]; if(e<1.6)return false;
+      if(e<lo)lo=e; if(e>hi)hi=e; }
+    return hi-lo<=0.9; };
+  let bx=ph.tx+(ph.w>>1), by=ph.ty+ph.h+3;
+  if(!fits(bx,by)){ let best=null,bd=1e9;                // nearest ground to the Keep that holds them all
+    for(let y=1;y<MAP_H-1;y++)for(let x=1;x<MAP_W-1;x++){ if(!fits(x,y))continue;
+      const d=Math.hypot(x-bx,y-by); if(d<bd){bd=d;best=[x,y];} }
+    if(best){bx=best[0];by=best[1];} }
+  let col=0,row=0;
+  for(const t of kinds){
+    const u=spawnUnit(t,'player',bx-halfW+col*CW,by+row*RH); if(u){u.dir=Math.PI;u.disp=Math.PI;}
+    col++; if(col>=COLS){col=0;row++;} }
+  camTarget.set(wx(bx),0,wz(by)+(rows-1)*RH*TILE/2); camDist=16*MAN_SCALE;   // b229: hold the men at the same size on parade
   flashMsg('🎖 The regiment on parade — wheel to zoom, Q/E to walk the line. Esc pauses; reload the page to leave.'); };
 function start(fac){faction.player=fac||'english';
   const others=Object.keys(FACTIONS).filter(f=>f!==faction.player);
