@@ -40,10 +40,16 @@ screenshots time out. Drive and photograph it instead:
 minutes exercises `realmBrain` and nothing the PLAYER does — which is the half the owner actually
 operates, and where b351's ReferenceError hid for twenty-five builds. `tools/uisweep.js` pastes
 into the console and clicks every command button, stance, panel, diplomacy action and menu item,
-then round-trips all four win modes through save/load. ~230 interactions, and it reports anything
-that throws. Run it before calling a UI change done. It does NOT cover the Map Builder, Parade
-mode, or real pointer work on the 3D view (drag-select, right-click orders, formation drag-aim) —
-a clean sweep means every button is wired to something that runs, not that it does the right thing.
+round-trips all four win modes through save/load, and (b355) drives REAL POINTER ORDERS on the 3D
+view — projecting a world point back to client coordinates and firing genuine MouseEvents, so
+select, move, gather, attack, box-select, build placement and the rally flag all go through the
+same `localXY` → `raycastGround` → `commandMove` path a hand does. Each asserts the order actually
+landed. ~225 interactions. Run it before calling a UI change done. Still NOT covered: the Map
+Builder, Parade mode, wall dragging, camera orbit/pan.
+
+Two things it has caught being written wrongly, both in the sweep rather than the game: hardcoding
+`r1/r2/r3` (a three-realm game has no r3) and asserting `cmd==='gather'` after a gather order (by
+the time you look he may already be `'return'`, which means it worked).
 
 Two containers, and this catches people out: a soldier's commands live in `#formBar` and its
 `#cmds` is empty. A worker is the other way round. Neither is a bug.
