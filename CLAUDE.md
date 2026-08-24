@@ -7,9 +7,20 @@ Keep building — this is the owner's fun project; bold ideas welcome, tide stay
 
 ## Practicals (Lee's Windows PC)
 
-No Python and no Node. Serve with `tools/serve-8137.ps1` (PowerShell HttpListener, no-cache
-headers, `.glb` MIME). `index.html` is a deploy MIRROR of `Crownhelm3D.html` — copy before every
-commit. Push to origin main works from this machine.
+**Node and Python both exist on this machine** — `node` v24.19.0 with npm 11.17, and `python`
+3.13.15 (`py` works too; `python3` hits the Windows Store alias and fails). This file said "No
+Python and no Node" for a long time and it is simply out of date, which cost real time: the game is
+one 780KB HTML file and `node --check` on an extracted script, or on anything in `tools/`, catches
+a syntax slip in a second instead of a browser reload and a blank screen. b363 checked and corrected
+it. The PowerShell servers still work and there is no reason to replace them.
+
+Serve with `tools/serve-8137.ps1` (PowerShell HttpListener, no-cache headers, `.glb` MIME).
+`index.html` is a deploy MIRROR of `Crownhelm3D.html` — copy before every commit. Push to origin
+main works from this machine.
+
+**The browser caches the module script through `location.reload()`.** After editing the game, load
+it with a changed query string (`Crownhelm3D.html?bust=1`) or you will spend a while measuring the
+build you already replaced.
 
 ## Testing without a visible browser
 
