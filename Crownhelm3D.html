@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b358</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b359</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1938,6 +1938,12 @@ function chunkInstancedMesh(mesh){
 function chunkGroupInPlace(group){
   for(const child of [...group.children]){ if(!child.isInstancedMesh)continue;
     const {meshes}=chunkInstancedMesh(child);
+    // b359: carry the name onto the pieces. b281 splits every scatter into a grid of smaller
+    // meshes for culling, and the pieces were anonymous — so after this ran there was no way left
+    // to ask "how many sea stacks are on this map", which is exactly the question b358 needed and
+    // could not answer. Chasing "the" instanced mesh and reading its count gave 1 when the true
+    // answer was 65, because that was one chunk of twenty-two. Named pieces are summable.
+    for(const m of meshes)m.name=child.name;
     group.remove(child); for(const m of meshes)group.add(m); } }
 function buildDecor(){ if(decorGroup)scene.remove(decorGroup);decorGroup=new THREE.Group();scene.add(decorGroup);
   rebuildTreeGrid();
@@ -2279,7 +2285,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     v3.set(x,heightAtWorld(x,z)-0.02,z); s3.set(gs*1.15,gs*(0.80+hashN(i,59)*0.45),gs*1.15);
     m4.compose(v3,q0,s3); grass.setMatrixAt(gi,m4);
     col.setHSL(0.25+hashN(i,9)*0.06,0.44,0.46+hashN(9,i)*0.14,THREE.SRGBColorSpace); grass.setColorAt(gi,col); gi++; }
-  grass.count=gi; ambientGroup.add(grass);
+  grass.count=gi; grass.name='scatter:grass'; ambientGroup.add(grass);
   const flowers=new THREE.InstancedMesh(new THREE.SphereGeometry(.055,5,4),new THREE.MeshStandardMaterial({roughness:.8}),FCAP); let fi=0;
   const fcols=[0xcfc9a4,0xd6c17a,0xc79aa2,0xa899bd];   // b271: all within ~0.15 luminance of the grass
   for(let i=0;i<24000*A&&fi<FCAP;i++){ const _hx=hashN(i*3.1,11);
@@ -2287,14 +2293,14 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.7||e>2.9)continue;
     m4.makeTranslation(x,heightAtWorld(x,z)+.07,z); flowers.setMatrixAt(fi,m4);
     col.setHex(fcols[i%4]); flowers.setColorAt(fi,col); fi++; }
-  flowers.count=fi; ambientGroup.add(flowers);
+  flowers.count=fi; flowers.name='scatter:flowers'; ambientGroup.add(flowers);
   const bushes=new THREE.InstancedMesh(new THREE.SphereGeometry(.55,6,5),new THREE.MeshStandardMaterial({roughness:1}),BCAP); let bi=0;
   for(let i=0;i<12000*A&&bi<BCAP;i++){ const _hx=hashN(i*2.7,17);
     const x=(_hx-0.5)*WORLD_W, z=(hashN(_hx*547.1+19,i*3.7)-0.5)*WORLD_H;
     const tx=txFromW(x),tz2=tzFromW(z); if(!inB(tx,tz2))continue; const e=elev[ti(tx,tz2)]; if(e<1.6||e>3.0)continue;
     const s=.6+hashN(i,23)*0.8; v3.set(x,heightAtWorld(x,z)+.3*s,z); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     bushes.setMatrixAt(bi,m4); col.setHSL(0.28+hashN(23,i)*0.05,0.48,0.27+hashN(i,29)*0.09,THREE.SRGBColorSpace); bushes.setColorAt(bi,col); bi++; }
-  bushes.count=bi; bushes.castShadow=true; ambientGroup.add(bushes);   // b203: big enough to ground
+  bushes.count=bi; bushes.name='scatter:bushes'; bushes.castShadow=true; ambientGroup.add(bushes);   // b203: big enough to ground
   // b103 AoE2 ground pass — shoreline reeds, pebbles, stumps and fallen logs
   const eul=new THREE.Euler();
   const RCAP=Math.round(2200*A);
@@ -2304,7 +2310,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const s=.7+hashN(i,71)*.7; v3.set(x,heightAtWorld(x,z)+.5*s,z);
     q0.setFromEuler(eul.set((hashN(i,101)-.5)*.22,hashN(103,i)*3,(hashN(i,107)-.5)*.22)); s3.set(1,s,1); m4.compose(v3,q0,s3);
     reeds.setMatrixAt(ri,m4); col.setHSL(0.2+hashN(73,i)*0.07,0.5,0.21+hashN(i,79)*0.10,THREE.SRGBColorSpace); reeds.setColorAt(ri,col); ri++; }
-  reeds.count=ri; ambientGroup.add(reeds);
+  reeds.count=ri; reeds.name='scatter:reeds'; ambientGroup.add(reeds);
   const PCAP2=Math.round(900*A);
   const peb=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.16,0),new THREE.MeshStandardMaterial({roughness:.95}),PCAP2); let pi2=0;
   for(let i=0;i<9000*A&&pi2<PCAP2;i++){ const x=(hashN(i*5.1,109)-0.5)*WORLD_W, z=(hashN(113,i*3.3)-0.5)*WORLD_H;
@@ -2312,7 +2318,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const s=.5+hashN(i,127)*1.0; v3.set(x,heightAtWorld(x,z)+.08*s,z);
     q0.setFromEuler(eul.set(hashN(i,131)*3,hashN(137,i)*3,0)); s3.set(s,s*.7,s); m4.compose(v3,q0,s3);
     peb.setMatrixAt(pi2,m4); col.setHSL(0.09,0.06,0.30+hashN(i,139)*0.18,THREE.SRGBColorSpace); peb.setColorAt(pi2,col); pi2++; }
-  peb.count=pi2; ambientGroup.add(peb);
+  peb.count=pi2; peb.name='scatter:pebbles'; ambientGroup.add(peb);
   // ---- b264 THE HEADLANDS: crags on the skirt and stacks in the shallows -------------------
   const CCAP=Math.round(420*A);
   const crags=new THREE.InstancedMesh(new THREE.OctahedronGeometry(1,0),
@@ -2365,7 +2371,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     if(onSkirt&&v3.y+s3.y<waterY+0.5)continue;
     m4.compose(v3,q0,s3); crags.setMatrixAt(ci,m4);
     col.setHSL(0.62,0.055,0.44+hashN(i,223)*0.18,THREE.SRGBColorSpace); crags.setColorAt(ci,col); ci++; }
-  crags.count=ci; crags.castShadow=true; crags.receiveShadow=true; ambientGroup.add(crags);
+  crags.count=ci; crags.name='scatter:seaStacks'; crags.castShadow=true; crags.receiveShadow=true; ambientGroup.add(crags);
   // b199 THE STRAND. Photographed at the water's edge the beach was a flat empty tan stripe between
   // a land thick with tufts, bushes, stumps, mushrooms and logs and a sea with foam on it. Not an
   // oversight in placement — an oversight in RANGE. The sea sits at 0.55 and the b103 shore pass
@@ -2387,7 +2393,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const s=.5+hashN(i,317)*1.1; v3.set(x,heightAtWorld(x,z)+.05*s,z);
     q0.setFromEuler(eul.set(hashN(i,331)*3,hashN(337,i)*3,0)); s3.set(s*1.3,s*.55,s*1.1); m4.compose(v3,q0,s3);
     shingle.setMatrixAt(shi,m4); col.setHSL(0.09,0.09,0.40+hashN(i,347)*0.22,THREE.SRGBColorSpace); shingle.setColorAt(shi,col); shi++; }
-  shingle.count=shi; ambientGroup.add(shingle);
+  shingle.count=shi; shingle.name='scatter:shingle'; ambientGroup.add(shingle);
   // a few boulders sat in the sand, and bleached driftwood above the water
   const BRCAP=Math.round(260*A);
   const boulder=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.5,0),new THREE.MeshStandardMaterial({roughness:.95,flatShading:true}),BRCAP); let bri=0;
@@ -2409,6 +2415,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
       v3.set(x,y+.05*s,z); q0.setFromEuler(eul.set(0,hashN(423,i)*3,0)); s3.set(s*1.5,s*.3,s*1.1); m4.compose(v3,q0,s3);
       wrack.setMatrixAt(wri,m4); col.setHSL(0.12+hashN(i,431)*0.05,0.36,0.15+hashN(433,i)*0.08,THREE.SRGBColorSpace); wrack.setColorAt(wri,col); wri++; } }
   boulder.count=bri; drift.count=dwi; wrack.count=wri;
+  boulder.name='scatter:boulders'; drift.name='scatter:driftwood'; wrack.name='scatter:wrack';
   boulder.castShadow=true; drift.castShadow=true;   // b203: a boulder on open sand with no shadow floats
   ambientGroup.add(boulder); ambientGroup.add(drift); ambientGroup.add(wrack);
   const SCAP2=Math.round(520*A);
@@ -2421,7 +2428,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     else if(li<Math.round(240*A)){ v3.set(x,heightAtWorld(x,z)+.16,z);
       q0.setFromEuler(eul.set(0,hashN(i,149)*3,Math.PI/2)); s3.set(1,1,1); m4.compose(v3,q0,s3);
       logs.setMatrixAt(li,m4); li++; } }
-  stumps.count=si; logs.count=li; stumps.castShadow=true; logs.castShadow=true;
+  stumps.count=si; logs.count=li; stumps.name='scatter:stumps'; logs.name='scatter:logs'; stumps.castShadow=true; logs.castShadow=true;
   ambientGroup.add(stumps); ambientGroup.add(logs);
   // b130 forest variety: mushrooms under the eaves, saplings at the edges, the odd dead tree
   const MCAP2=Math.round(600*A);
@@ -2435,7 +2442,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     q0.identity(); v3.set(x,y+.14*s,z); s3.set(s,s*.75,s); m4.compose(v3,q0,s3); mCap.setMatrixAt(mi2,m4);
     col.setHex(i%3?0xc23c2a:0xd9a13a); mCap.setColorAt(mi2,col);
     v3.set(x,y+.07*s,z); s3.setScalar(s); m4.compose(v3,q0,s3); mStem.setMatrixAt(mi2,m4); mi2++; }
-  mCap.count=mi2; mStem.count=mi2; ambientGroup.add(mCap); ambientGroup.add(mStem);
+  mCap.count=mi2; mStem.count=mi2; mCap.name='scatter:mushrooms'; mStem.name='scatter:mushroomStems'; ambientGroup.add(mCap); ambientGroup.add(mStem);
   const SPCAP=Math.round(420*A);
   const sapl=new THREE.InstancedMesh(new THREE.ConeGeometry(.34,.9,5),new THREE.MeshStandardMaterial({roughness:.9,flatShading:true}),SPCAP);
   let sp2=0;
@@ -2445,7 +2452,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const s=.7+hashN(i,239)*.7, y=heightAtWorld(x,z);
     v3.set(x,y+.45*s,z); q0.setFromEuler(eul.set(0,hashN(i,241)*3,(hashN(243,i)-.5)*.15)); s3.setScalar(s); m4.compose(v3,q0,s3);
     sapl.setMatrixAt(sp2,m4); col.setHSL(0.27+hashN(i,251)*0.05,0.6,0.28,THREE.SRGBColorSpace); sapl.setColorAt(sp2,col); sp2++; }
-  sapl.count=sp2; sapl.castShadow=true; ambientGroup.add(sapl);
+  sapl.count=sp2; sapl.name='scatter:saplings'; sapl.castShadow=true; ambientGroup.add(sapl);
   const DCAP=Math.round(110*A);
   const dead=new THREE.InstancedMesh(new THREE.CylinderGeometry(.12,.2,2.6,5),new THREE.MeshStandardMaterial({color:0x5d5248,roughness:1,flatShading:true}),DCAP);
   const deadBr=new THREE.InstancedMesh(new THREE.CylinderGeometry(.05,.07,1.1,4),new THREE.MeshStandardMaterial({color:0x554b42,roughness:1}),DCAP);
@@ -2458,7 +2465,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     dead.setMatrixAt(di2,m4);
     v3.set(x+.35,y+1.9,z); q0.setFromEuler(eul.set(0,hashN(i,281)*3,1.05)); m4.compose(v3,q0,s3);
     deadBr.setMatrixAt(di2,m4); di2++; }
-  dead.count=di2; deadBr.count=di2; dead.castShadow=true; ambientGroup.add(dead); ambientGroup.add(deadBr);
+  dead.count=di2; deadBr.count=di2; dead.name='scatter:deadTrees'; deadBr.name='scatter:deadBranches'; dead.castShadow=true; ambientGroup.add(dead); ambientGroup.add(deadBr);
   // b133 living water edges: foam along the shore, lilies in the coves, fish-splash spots
   const foamGeo=new THREE.PlaneGeometry(1.7,.4); foamGeo.rotateX(-Math.PI/2);
   const FOCAP=Math.round(1400*A), LYCAP=Math.round(400*A);
@@ -2476,7 +2483,7 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     if(ly<LYCAP&&landN>=2&&h9>0.72){ v3.set(x,waterY+0.05,z); q0.setFromEuler(eul.set(0,h9*6,0));
       s3.setScalar(.6+hashN(ty2*3,tx2)*0.8); m4.compose(v3,q0,s3); lily.setMatrixAt(ly,m4); ly++; }
     if((tx2+ty2)%7===0)_fishSpots.push([x,z]); }
-  foam.count=fo; lily.count=ly; ambientGroup.add(foam); ambientGroup.add(lily);
+  foam.count=fo; lily.count=ly; foam.name='scatter:foam'; lily.name='scatter:lilies'; ambientGroup.add(foam); ambientGroup.add(lily);
   chunkGroupInPlace(ambientGroup);   // b281: split every category above into a culling-friendly grid
   buildLeaves();
   if(birdGroup)scene.remove(birdGroup); birdGroup=new THREE.Group(); scene.add(birdGroup); birds=[];
