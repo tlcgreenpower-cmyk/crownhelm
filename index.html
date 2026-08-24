@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b367</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b368</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2711,7 +2711,14 @@ function newLeaf(i){ const n=woodNodes.length?woodNodes[(i*37+((Math.random()*wo
   const x=n?wx(n.tx)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_W, z=n?wz(n.ty)+(Math.random()-.5)*6:(Math.random()-.5)*WORLD_H;
   return {x,y:heightAtWorld(x,z)+3+Math.random()*3.5,z,t:0,life:5+Math.random()*6,ph:Math.random()*6,sp:1.4+Math.random()*1.4}; }
 function buildLeaves(){ if(leafMesh){scene.remove(leafMesh);leafMesh=null;} leaves=[];
-  const N=Math.min(120,Math.round(60*areaScale()));
+  // b368: the one ceiling of the five b367 left alone that costs NOTHING to lift. Every leaf lives
+  // in a single InstancedMesh, so the whole drift is one draw call whether it carries 60 of them or
+  // 440, and a leaf is two triangles. Measured the rest before touching this: the sheep are already
+  // 3,821 separate meshes at their cap of 16 flocks, the largest single contributor to the scene,
+  // and lifting them to the 59 the rule wants would put roughly fourteen thousand meshes on an Epic
+  // map — so those stay, and so do villages and relics, which are gameplay rather than scenery.
+  // This one binds on the ORDINARY maps too, not just the builder's: 168x112 wants 184 and got 120.
+  const N=Math.min(Math.round(60*((256*176)/(96*64))),Math.round(60*areaScale()));
   if(!N)return;
   leafMesh=new THREE.InstancedMesh(new THREE.PlaneGeometry(.24,.17),new THREE.MeshBasicMaterial({side:THREE.DoubleSide,transparent:true,opacity:.85}),N);
   const lc=new THREE.Color();
