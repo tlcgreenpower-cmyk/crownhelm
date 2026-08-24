@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b359</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b360</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -8539,12 +8539,17 @@ window.TFshot=function(opt){ opt=opt||{};
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},WORLD_W,WORLD_H,citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
+  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},get WORLD_W(){return WORLD_W;},get WORLD_H(){return WORLD_H;},get HALF_W(){return HALF_W;},get HALF_H(){return HALF_H;},citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       // b345: the shoreline work needed the waterline and could not get at it — TFshot measurements
       // silently compared heights against `undefined` and reported "no land anywhere" for a full
       // round. Anything the terrain is measured against belongs in here.
-      SEA,HSCALE,TILE,get waterY(){return waterY;},get elev(){return elev;},MAP_W,MAP_H,ti,inB,txFromW,tzFromW,
+      // b360: these MUST be getters. As plain values they were captured when _dbg() ran and never
+      // changed again, so every measurement taken after a map change silently used the old map's
+      // size — a 168x112 map still reporting 96x64. It produced a confident "the default map is
+      // three times sparser than every other" that was pure artefact, and it would have gone on
+      // doing that to anyone who measured anything about the world.
+      SEA,HSCALE,TILE,get waterY(){return waterY;},get elev(){return elev;},get MAP_W(){return MAP_W;},get MAP_H(){return MAP_H;},ti,inB,txFromW,tzFromW,
       terrainMeshY,SKIRT,updateForest,FOREST_MATURE,FOREST_YIELD,FOREST_SEED_WAIT,get woodNodes2(){return woodNodes;},get treeGrid(){return treeGrid;},get buildGrid(){return buildGrid;},wx,wz,realmWant,
       get mood(){return mood;},get honour(){return honour;},moodFactors,moodTarget,TAX_STEPS,LORD_STATE,updatePopularity,territoryAt,inOwnLand,borderSources,updateAttrition,bldExposure,BORDER_R,get regiments(){return regiments;},regOf,regBonus,updateRegiments,updateCapture,classOf,get treasures(){return treasures;},postToParapet,updateParapets,PARAPET_Y,rigStaticHorse,stepStaticHorse,placeAI,get selected(){return selected;},set selected(v){selected=v;},refreshUI,selUnits,get tradeSites(){return tradeSites;},spawnTreasures,spawnTradeRoute,updateTreasures,updateDowned,updateTradeRoute,goDown,tradePostsOf,tradeSiteAt,treasureAt,get battleOrder(){return battleOrder;},set battleOrder(v){battleOrder=v;},BATTLE_CLASS,REG_MIN,
       resize,syncStageSize,
