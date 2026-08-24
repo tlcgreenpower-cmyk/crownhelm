@@ -485,3 +485,30 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   Arithmetic trap avoided: maturing to `n.a0*0.6` compounds (220→132→79→47) and would dwindle the
   woods away over a long game. Matures against a fixed FOREST_STAND instead.
   Cost: 0.051ms for a forced full tick, and it really ticks once every two simulated seconds.
+
+- **b350 THE WONDER COUNTDOWN ONLY SPOKE TO ITS OWNER.** b348/b349 made Age III reachable for an
+  AI realm for the first time, so this pass checked what that newly-reachable content does. The
+  content itself is fine — handed a realm Age III, a Castle and money it raised a Wonder, trained
+  three Cuirassiers, fielded cannon and knights and ran its research. The fault is what happens to
+  the PLAYER: the five-minute Wonder victory clock had its warnings inside `if(b.owner==='player')`,
+  so a rival's Wonder gave one line at completion and then five minutes of silence before the game
+  ended. Logged every message shown: at 34 seconds from losing the realm, the last thing the player
+  had been told was a weather report. Now warns at 4/3/2/1 minutes and 20 seconds — verified all
+  five fired in order and the game ended on schedule.
+  Also reveals the ground the Wonder stands on (7 tiles, so the realm around it stays dark — a
+  signpost, not free reconnaissance), because "deny them" is not an instruction you can follow
+  against something standing in unscouted fog. And gives it a pulsing minimap ring in the owner's
+  colour; ordinary building squares are four pixels among forty and that is not how you show a
+  countdown to losing. Photographed the minimap to confirm.
+  TWO MORE FOUND BY DOING IT:
+  (1) `wonderStart` was NEVER SAVED. The victory check skips any Wonder without one, so a save and
+  reload silently switched the Wonder win condition off for the rest of the game — for the player
+  and the realms alike. Measured 168 seconds left before a reload, "NO COUNTDOWN" after. Stored
+  relative to `elapsed` now; re-measured 168 before, 168 after, still ticking. The exact failure
+  CLAUDE.md warns about, and it needed testing rather than assuming.
+  (2) the wolf warning fired on EVERY BITE — a pack on one worker put the identical line up
+  fifteen times in twenty seconds, and the message bar holds one line, so a mauling buried
+  everything else. It buried the Wonder countdown in the very run testing the Wonder countdown.
+  One per twenty seconds now: same run shows three wolf messages instead of twenty-two.
+  Plus a `possess` helper — half the realms are named in the plural, so it was "Blue Coats's".
+  Soak: 13 simulated minutes, 154 entities, 106 buildings, zero errors, 9.24ms a step.

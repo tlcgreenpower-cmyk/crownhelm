@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b349</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b350</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -626,6 +626,9 @@ function isHostile(a,b){ if(a===b)return false;
   return !!aiWars[warKey(a,b)]; }
 const isFriend=o=>diplo[o]&&diplo[o].stance!=='war'&&diplo[o].score>=60;
 function realmName(o){return o==='player'?'You':FACTIONS[faction[o]].name;}
+// b350: half these realms are named in the plural — Blue Coats, Highlanders — so a bare "'s"
+// gives you "French Blue Coats's Wonder".
+const possess=s=>s+(/s$/i.test(s)?"'":"'s");
 const UNIT={
   worker:{hp:45,speed:7.65,range:2.4,dmg:3,cd:.8,r:.9,vis:8,dom:'land',color:0xd7dee2,name:'Worker'},   // b288: 15% slower, owner's call
   tradecart:{hp:110,speed:9,range:0,dmg:0,cd:1,r:1.1,vis:7,dom:'land',color:0xc9a44a,name:'Trade Cart',noAtk:true,noConv:true},
@@ -2053,6 +2056,7 @@ function setTreeK(n,k){ if(!n.tim)return; _tq2.setFromEuler(_te.set(0,n.ry,n.rz)
   for(const pt of n.tim){_tm4b.multiplyMatrices(_tm4a,pt.l);pt.im.setMatrixAt(pt.i,_tm4b);pt.im.instanceMatrix.needsUpdate=true;} }
 // b110: TIMBER! — felled trees topple about their base, crash, then fade into the ground
 let fallingTrees=[];
+let _wolfMsgT=-999;   // b350: last time the player was told wolves are on a worker — see updateSheep
 function fellTree(n){ if(!n.tim||n._falling)return; n._falling=true;
   fallingTrees.push({n,t:0,ry:Math.random()*Math.PI*2,boom:false}); }
 function updateFallingTrees(dt){ if(!fallingTrees.length)return;
@@ -2798,7 +2802,12 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
     if(prey){ wolfHunting=true; s.tx=prey.x; s.tz=prey.z; s.hx=s.tx; s.hz=s.tz; s.wait=99; s.spd=4.2;
       const dw=Math.hypot(prey.x-s.x,prey.z-s.z);
       if(dw<2.2&&s.gcd<=0){ s.gcd=1.2; prey.hp-=7; prey.flinch=0.15; spawnPart(prey.x,heightAtWorld(prey.x,prey.z)+1,prey.z,'blood');
-        if(prey.owner==='player'){sfxWhere(prey.x,prey.z);SFX.hit();flashMsg('🐺 Wolves! A worker is under attack — send soldiers or run him home');} } }
+        // b350: the warning used to go up on EVERY bite. A pack on one worker put the identical
+        // line into the message bar fifteen times in twenty seconds — counted it — and that bar
+        // holds one line at a time, so a mauling drowned out everything else the game had to say.
+        // It buried a rival's Wonder countdown in the very run that was testing the countdown.
+        if(prey.owner==='player'){sfxWhere(prey.x,prey.z);SFX.hit();
+          if(elapsed-_wolfMsgT>20){_wolfMsgT=elapsed;flashMsg('🐺 Wolves! A worker is under attack — send soldiers or run him home');} } } }
     else s.spd=2.0; }
   const d=Math.hypot(s.tx-s.x,s.tz-s.z);
   if(!wolfHunting&&d<0.5){ s.graze=Math.max(0,s.graze-dt);
@@ -5850,7 +5859,16 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
       b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;bldStamp++;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
       if(b.type==='wonder'){ b.wonderStart=elapsed;
-        flashMsg((b.owner==='player'?'🏛️ Your Wonder stands complete — hold it ':'🏛️ '+realmName(b.owner)+' raises a Wonder — deny them ')+Math.floor(WONDER_SURVIVE/60)+' minutes and '+(b.owner==='player'?'the realm is yours':'they win the realm outright')+'!'); }}}
+        flashMsg((b.owner==='player'?'🏛️ Your Wonder stands complete — hold it ':'🏛️ '+realmName(b.owner)+' raises a Wonder — deny them ')+Math.floor(WONDER_SURVIVE/60)+' minutes and '+(b.owner==='player'?'the realm is yours':'they win the realm outright')+'!');
+        // b350: and if it is a RIVAL'S, the country gets to know where it is. The message above
+        // says "deny them", which is not an instruction the player can follow if the thing is
+        // standing in fog they have never scouted — and a fifteen-unit monument with four corner
+        // towers is not a secret anybody could keep. Reveals the ground it stands on, nothing
+        // more: the realm around it stays as dark as it was, so this is a signpost, not free
+        // reconnaissance.
+        if(b.owner!=='player'&&explored){ const R=7,cx0=b.tx+(b.w>>1),cy0=b.ty+(b.h>>1);
+          for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){ if(dx*dx+dy*dy>R*R)continue;
+            const x=cx0+dx,y=cy0+dy; if(inB(x,y))explored[ti(x,y)]=1; } } }}}
       else if(arrived){ if(stalled(e,Math.hypot(e.x-b.cx,e.z-b.cz))){clearStall(e);e.cmd='idle';e.build=null;e.noWork=elapsed+8;}   // can't reach the site — stop treading water
         else orderPath(e,b.tx+(b.w>>1),b.ty+(b.h>>1),b.id); } break;}
     case 'gar':{const b=e.garB;if(!b||b._gone||!b.done){e.cmd='idle';e.garB=null;break;}
@@ -8078,6 +8096,21 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
     mctx.fillStyle='#ffc94e'; mctx.beginPath(); mctx.arc(mx,my,2.1,0,7); mctx.fill(); }
   for(const v of villages){ if(!explored[ti(v.tx,v.ty)])continue;
     mctx.fillStyle=v.claimed?ownerCss(v.claimed):'#f0f0e0'; mctx.beginPath();mctx.arc((v.tx+.5)*sx,(v.ty+.5)*sy,2.4,0,7);mctx.fill(); }
+  // b350: a standing Wonder is a clock running on the whole game, so it is marked as one — a ring
+  // that pulses once a second, in the owner's colour, over everything else on the map. Ordinary
+  // building squares are drawn above; at the size a Wonder occupies on this minimap that is four
+  // pixels of somebody's realm colour among forty, which is not how you show a countdown to
+  // losing. Only marked once the ground is explored — and the moment it completes, that ground
+  // always is (see the reveal where wonderStart is set).
+  for(const b of blds){ if(b.type!=='wonder'||!b.done)continue;
+    const btx=clamp(b.tx+(b.w>>1),0,MAP_W-1), bty=clamp(b.ty+(b.h>>1),0,MAP_H-1);
+    if(b.owner!=='player'&&!explored[ti(btx,bty)])continue;
+    const mx=(btx+.5)*sx, my=(bty+.5)*sy, pulse=0.55+0.45*Math.sin(elapsed*3.6);
+    mctx.save();
+    mctx.strokeStyle=ownerCss(b.owner); mctx.lineWidth=2;
+    mctx.beginPath(); mctx.arc(mx,my,4.5+pulse*2.4,0,7); mctx.stroke();
+    mctx.fillStyle='#f4e7c0'; mctx.beginPath(); mctx.arc(mx,my,2.6,0,7); mctx.fill();
+    mctx.restore(); }
   if(atkPing.t<3){ const px=(atkPing.x/TILE+MAP_W/2)*sx, py=(atkPing.z/TILE+MAP_H/2)*sy;
     mctx.strokeStyle='rgba(255,70,50,'+(1-atkPing.t/3)+')'; mctx.lineWidth=2;
     mctx.beginPath(); mctx.arc(px,py,3+(atkPing.t%1)*9,0,7); mctx.stroke(); mctx.lineWidth=1; }
@@ -8126,7 +8159,18 @@ function checkWin(){if(gameOver)return;const ph=blds.some(b=>b.owner==='player'&
       endGame(b.owner==='player',msg); return; }
     if(b.owner==='player'){
       if(left<=60&&!b._warn60){b._warn60=1;flashMsg('🏛️ Your Wonder stands undisturbed — '+Math.ceil(left/60)+' minute'+(Math.ceil(left/60)===1?'':'s')+' left');}
-      if(left<=10&&!b._warn10){b._warn10=1;flashMsg('🏛️ '+Math.ceil(left)+' seconds — hold the Wonder!');} } }
+      if(left<=10&&!b._warn10){b._warn10=1;flashMsg('🏛️ '+Math.ceil(left)+' seconds — hold the Wonder!');} }
+    // b350 THE SAME CLOCK, READ FROM THE OTHER SIDE OF IT. This countdown only ever spoke to the
+    // Wonder's OWNER, so a rival's Wonder gave the player one line at the moment it was finished
+    // and then five minutes of silence before the game simply ended. Watched it happen: at
+    // thirty-four seconds from losing outright, the last thing the player had been told was a
+    // weather report. Nobody had ever seen it because until tonight no AI realm could reach
+    // Age III at all — b348 and b349 made this reachable, so it has to be answered.
+    else { const mm=Math.ceil(left/60);
+      if(mm<=4&&b._rivWarn!==mm){ b._rivWarn=mm; SFX.wave();
+        flashMsg('🏛️ '+possess(realmName(b.owner))+' Wonder — '+mm+' minute'+(mm===1?'':'s')+' left. Pull it down or lose the realm'); }
+      if(left<=20&&!b._rivWarn20){ b._rivWarn20=1; SFX.wave();
+        flashMsg('🏛️ '+Math.ceil(left)+' seconds — the Wonder of '+realmName(b.owner)+' is about to take the realm!'); } } }
   // b311: Regicide — a King (hero unit) that's died once and never comes back ends that realm's
   // game on the spot, Conquest/Wonder rules aside entirely. _regHad tracks "this realm has fielded
   // a King at some point" so a realm that never trains one isn't auto-defeated by having none.
@@ -8236,7 +8280,12 @@ function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key
     // a bare stump, and eleven minutes of forest with it.
     woodG:woodNodes.map(n=>Math.round((n._grow||0)*1000)),
     vil:villages.map(v=>v.claimed),explored:Array.from(explored).join(''),
-    blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,rk:b.rschK||0,rt:Math.round(b.rschT||0),la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally})),
+    // b350: ws is the moment a Wonder was finished. It was NOT saved, so a reload left the
+    // building standing with wonderStart undefined — and the victory check skips any Wonder
+    // without one. Save, reload, and the Wonder win condition was quietly switched off for the
+    // rest of the game, for the player and the realms alike. Stored relative to `elapsed` so it
+    // survives however the clock is restored.
+    blds:blds.map(b=>({t:b.type,x:b.tx,y:b.ty,o:b.owner,hp:Math.round(b.hp),d:b.done,p:b.progress,up:b.up?1:0,u2:b.up2?1:0,rk:b.rschK||0,rt:Math.round(b.rschT||0),la:b.la,lx:b.lx,lz:b.lz,q:b.queue.map(q=>({type:q.type,t:q.t})),r:b.rally,ws:b.wonderStart===undefined?null:Math.round(elapsed-b.wonderStart)})),
     ents:ents.map(e=>({t:e.type,o:e.owner,rg:e.reg||0,dn:e.downed?1:0,x:Math.round(e.x*10)/10,z:Math.round(e.z*10)/10,hp:Math.round(e.hp),mh:e.maxHp,c:Math.round(e.carry),ct:e.carryType,xp:Math.round(e.xp||0),rk:e.rank||0,st:e.stance||null,fa:(e.faith===undefined?null:+e.faith.toFixed(3)),pt:e.patrol?{ax:Math.round(e.patrol.ax),az:Math.round(e.patrol.az),bx:Math.round(e.patrol.bx),bz:Math.round(e.patrol.bz),leg:e.patrol.leg}:null,j:(e.cmd==='gather'||e.cmd==='return')?(e.gather?e.gather.type:e.carryType):(e.cmd==='tend'?'tend':null)})),
     mkt:{...mkt},
     // b335: everything b326-b330 added, so a saved kingdom comes back as the kingdom you saved.
@@ -8318,6 +8367,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
     b.progress=sb.p;if(sb.up){b.up=true;if(sb.t==='wall'||sb.t==='gate')b.maxHp*=1.5;}if(sb.u2)b.up2=true;if(sb.rk){b.rschK=sb.rk;b.rschT=sb.rt||10;}if(sb.la!==undefined&&sb.la!==null){b.la=sb.la;b.lx=sb.lx;b.lz=sb.lz;b._baseY=heightAtWorld(b.lx,b.lz);b.mesh.position.set(b.lx,b._baseY,b.lz);orientWall(b);}
     if(!sb.d){b.mesh.scale.y=1;b.mesh.position.y=b._baseY-bldHeight(sb.t)*(1-Math.pow(Math.min(1,sb.p),0.8));}   // b149: half-built walls sit at half height
     b.queue=(sb.q||[]).map(q=>({type:q.type,t:q.t})); b.rally=sb.r||null;
+    if(sb.ws!==undefined&&sb.ws!==null)b.wonderStart=elapsed-sb.ws;   // b350: and the Wonder's clock keeps running
     if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }
   for(const se of s.ents){const e=spawnUnit(se.t,se.o,0,0);e.x=se.x;e.z=se.z;if(se.mh)e.maxHp=se.mh;e.hp=se.hp;e.carry=se.c||0;e.carryType=se.ct||null;e.xp=se.xp||0;e.rank=se.rk||0;if(e.rank)addRankPips(e);placeMesh(e);
     if(se.j==='tend'){const f=blds.filter(q=>q.owner===e.owner&&q.done&&q.type==='farm').sort((q,r)=>Math.hypot(e.x-q.cx,e.z-q.cz)-Math.hypot(e.x-r.cx,e.z-r.cz))[0];
