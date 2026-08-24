@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b368</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b369</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -8784,13 +8784,25 @@ document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('hear
   // in the game whose entire job is "see every soldier up close".
   // Work out the block the parade actually needs, then put it somewhere it fits and is dry.
   const kinds=Object.keys(UNIT).filter(t=>UNIT[t].dom==='land');
-  const COLS=9, CW=2, RH=3, rows=Math.ceil(kinds.length/COLS), halfW=((COLS-1)*CW)>>1;
+  // b369: THE PARADE WAS NOT IN RANKS. CW and RH are TILE counts and spawnUnit takes tiles, so
+  // CW=2 stood the men EIGHT world units apart and RH=3 put twelve between the ranks. Photographed
+  // it and the regiment reads as men scattered loose over a hillside, which on the one screen whose
+  // whole job is "see every soldier up close" is the wrong picture entirely — and the block came out
+  // 64x36 world units when the camera opens on it at camDist 12.
+  // Spacing taken from the game rather than guessed: marched sixteen infantry and measured where
+  // they settled, and the game's own formed-up line is 1.99-2.00 world units between neighbours,
+  // dead consistent. The widest land unit is the cannon at r=1.7, so a side-by-side pair needs 3.4.
+  // 4 world units - one tile - is therefore the tightest clean rank that cannot overlap even the
+  // heaviest gun, and it is exactly twice the battle line, which is about right for a parade: room
+  // to see each man without the line breaking up. Ranks get 6, a little more air front to back.
+  // fits() now rounds to the nearest tile, since terrain is per-tile and the placements are not.
+  const COLS=9, CW=1, RH=1.5, rows=Math.ceil(kinds.length/COLS), halfW=((COLS-1)*CW)/2;
   // Dry is not enough: a rank on the tideline and a rank on the grass is a scruffy parade, and a
   // block laid across a slope has its back row standing over the front row's heads. Wants proper
   // inland ground (1.6 is the floor the world's own scatter uses for real terrain) and near-level.
   const fits=(cx,cy)=>{ let lo=9,hi=-9;
     for(let r=0;r<rows;r++)for(let c=0;c<COLS;c++){
-      const x=cx-halfW+c*CW, y=cy+r*RH;
+      const x=Math.round(cx-halfW+c*CW), y=Math.round(cy+r*RH);
       if(x<1||y<1||x>MAP_W-2||y>MAP_H-2)return false;
       const e=elev[ti(x,y)]; if(e<1.6)return false;
       if(e<lo)lo=e; if(e>hi)hi=e; }

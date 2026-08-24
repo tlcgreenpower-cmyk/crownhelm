@@ -80,8 +80,16 @@ round-trips all four win modes through save/load, and (b355) drives REAL POINTER
 view — projecting a world point back to client coordinates and firing genuine MouseEvents, so
 select, move, gather, attack, box-select, build placement and the rally flag all go through the
 same `localXY` → `raycastGround` → `commandMove` path a hand does. Each asserts the order actually
-landed. ~225 interactions. Run it before calling a UI change done. Still NOT covered: the Map
-Builder, Parade mode, wall dragging, camera orbit/pan.
+landed. ~238 interactions. Run it before calling a UI change done. Still NOT covered: wall dragging
+and camera orbit/pan. The **Map Builder** round-trip was verified by hand in b367 (it is sound, and
+its Epic size is 7.33× Heartlands — see above); **Parade mode** in b369.
+
+**Parade mode places its ranks in TILES, not world units** (b369) — `spawnUnit` takes tile
+coordinates and `TILE` is 4, so a spacing that reads like "2" on the page is 8 units on the ground.
+The game's own formed-up line is **2.0 world units** between neighbours (measured by marching a
+company and seeing where it settles), and the widest land unit is the cannon at r=1.7, so 4 units is
+the tightest rank that cannot overlap. Anything laying men out by hand should be checked against
+those two numbers rather than eyeballed.
 
 Two things it has caught being written wrongly, both in the sweep rather than the game: hardcoding
 `r1/r2/r3` (a three-realm game has no r3) and asserting `cmd==='gather'` after a gather order (by
