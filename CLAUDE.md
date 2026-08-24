@@ -51,6 +51,18 @@ Two things it has caught being written wrongly, both in the sweep rather than th
 `r1/r2/r3` (a three-realm game has no r3) and asserting `cmd==='gather'` after a gather order (by
 the time you look he may already be `'return'`, which means it worked).
 
+`tools/soak.js` is the other half — `await soak()` runs a long hands-off game and reports whether
+entity counts, scene nodes, scene geometry, save size and step time all settle. b356 measured 21.5
+minutes: army plateaus at 346, scene nodes and geometry stop growing and tick down again, save
+holds at 74KB, step time flat around 2ms, zero errors.
+
+**`renderer.info.memory` is not a leak detector here.** It counts what has been UPLOADED to the
+GPU, so it only ever rises, and it jumps every time you call **TFshot** — a screenshot renders
+parts of the world the play camera never touched. Sampling it alongside screenshots shows a
+convincing steady "leak" that is entirely your own measuring; it cost most of a pass before the
+penny dropped. The honest figure is the count of distinct geometries reachable from the scene
+graph, which falls again when things are disposed. `soak.js` reports both and takes no screenshots.
+
 Two containers, and this catches people out: a soldier's commands live in `#formBar` and its
 `#cmds` is empty. A worker is the other way round. Neither is a bug.
 
