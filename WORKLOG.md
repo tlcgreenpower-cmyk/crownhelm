@@ -787,3 +787,29 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   treasure 6.41 vs 6.40 — rounding). Broadwood comes down to 2.80 / 3.20 / 3.66, all at or below
   the Keep. Floors stop anything vanishing. b350's Wonder ring scales with them.
   Soak: Heartlands to 11 min then Twin Rivers at 168×112 to 16, zero errors, 3.85ms a step.
+
+- **b362 THE ROAMING LAYER NEVER GREW WITH THE MAP.** Same class as b361's minimap markers but in
+  the simulation, and worse because it is not decoration — it is the whole reason to leave home.
+  Every other world feature already scales: villages min(16,7*A), relics min(7,3+2*A), all nineteen
+  scatters, clouds, birds, butterflies, sheep. The roaming layer was `spawnTreasures(11);
+  spawnTradeRoute(7);` — flat, however big the country.
+  Heartlands: 11 hoards, **111.9 per million sq units**, 52 between neighbours. Broadwood (3.06×
+  the area): the SAME 11, **36.5 per million**, 95 apart. A third the density on four of five maps.
+  Treasures now scale with AREA (they fill one); the trade road with the SQUARE ROOT of area (a road
+  is a line). Measured both ways — full area scaling put 16 posts 33 apart on big maps against
+  Heartlands' 43, tighter than the map it was tuned on; sqrt gives 12 at 43–44, matching exactly.
+  Bird flocks already make the same 1-D distinction. After: density 111.9/112.9/112.9, trade spacing
+  43/43/44. Heartlands untouched at 11 and 7.
+
+- **AND THAT UNCOVERED THE REAL FIND.** With the road properly populated the big map STILL finished
+  seven minutes with zero posts claimed. The AI only reaches a signpost within **190 units** of its
+  hall, and 190 was measured on a 384×256 world. Counted on the Broadwood at 672×448: only **6 of
+  12** posts lay within 190 of ANY keep; the other six sat 210–301 out where no realm would ever go.
+  Half the trade road was "a prize with nobody standing in the way of it" — word for word the fault
+  b336 was written to cure, back the moment the map outgrew the constant. Reach now scales with
+  sqrt(area): 190 on Heartlands unchanged, 333 on big maps, 12 of 12 in contention.
+  Played out, not assumed: Broadwood at 7.5 min now has 6 of 12 held and split three ways (r1 2,
+  r2 3, r3 1) where the same run before had none.
+  Verified: save/reload with 34 hoards and 12 posts round-trips exactly — positions, tiers,
+  ownership. Soaks: Broadwood 7.5 min / 184 units / 5.32ms; Heartlands 12.2 min / 184 units /
+  3.19ms; zero errors on either.
