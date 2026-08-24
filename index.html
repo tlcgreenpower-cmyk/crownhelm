@@ -122,7 +122,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b372</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b373</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -5529,7 +5529,28 @@ function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is s
   // hundred men made that two hundred men times two hundred comparisons, thirty times a second,
   // just to decide whether to draw a bar. One Set, built once here, answers it in one step.
   _selSet=selected.length?new Set(selected):null;
-  for(const e of ents)updateUnit(e,dt);
+  // b373: A LEVEL OF DETAIL FOR THE SIMULATION, NOT ONLY FOR THE PICTURE.
+  // The rendering has had one since b144 - men far off are swapped for an instanced rank and are
+  // not skinned at all - but every man's ORDERS were still re-examined thirty times a second no
+  // matter where he was or what he was doing. That was affordable when a late game carried about
+  // three hundred and forty men. Since b364 the realms actually fight and it carries five to seven
+  // hundred, and the profiler puts this loop at the top of the step cost, close to linear in men:
+  // 3.19ms a step at 196 units, 6.19ms at 351.
+  // Counted what those men are actually doing at 254 units: 132 idle, 175 further than 150 units
+  // from the camera, and 140 of them idle AND far AND with nothing to fight and nowhere to walk.
+  // More than half the army, each one re-deciding nothing, thirty times a second.
+  // Such a man now thinks every third step on the accumulated time instead of every step. dt is
+  // carried and handed over whole, so every `Math.random()<dt*k` rate in the command logic keeps
+  // exactly its old expected frequency - he decides just as often per SECOND, in one go rather
+  // than three. Anyone fighting, walking, garrisoned, selected, or near enough to watch is
+  // untouched and runs every step exactly as before.
+  for(const e of ents){
+    if(e.inGar||e.target||e.cmd!=='idle'||(e.path&&e.pi<e.path.length)||(_selSet&&_selSet.has(e.id))){
+      e._thinkAcc=0; updateUnit(e,dt); continue; }
+    const dx=e.x-camTarget.x, dz=e.z-camTarget.z;
+    if(dx*dx+dz*dz < 110*110){ e._thinkAcc=0; updateUnit(e,dt); continue; }
+    e._thinkAcc=(e._thinkAcc||0)+dt;
+    if(((_stepN+e.id)%3)===0){ const acc=e._thinkAcc; e._thinkAcc=0; updateUnit(e,acc); } }
   _t=_pt('units',_t);
   sepFlip=!sepFlip; if(sepFlip)separateUnits();
   _t=_pt('separate',_t);
