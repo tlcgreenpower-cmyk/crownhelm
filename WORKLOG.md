@@ -570,3 +570,33 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   `_regHad` is not in the save, which looked like the same hole b350 found in the Wonder's clock —
   but it self-heals on the first tick after a load, since any realm that still has a King re-marks
   itself. Left alone. All four win modes survive save/reload with the mode intact.
+
+- **b353 THE MAP BUILDER HAS NEVER WORKED SINCE THE RENAME.** Went after the surfaces b352's sweep
+  skips. MapBuilder.html writes `tidefall_custom_map` / `tidefall_map` / `tidefall_players`; the
+  game reads `crownhelm_*`. Zero overlap. Save a map and the game never sees it; press PLAY TEST
+  and it sets two keys nothing reads, then drops you into a generated map. A feature advertised on
+  the main menu that cannot deliver a playable map. The game's rename migration DOES copy
+  `tidefall_*` across but it is one-shot — it ran once, set `crownhelm_migrated`, and returns early
+  forever, while the builder carried on writing where the migration would never look again.
+  Builder writes `crownhelm_*` now; the game reads the old key as a fallback when the new one is
+  absent, and the builder does the same for its editor state, so stranded maps and half-finished
+  designs come back. Verified the whole round trip: 284 painted hills all at elev ≥3.3, 455 painted
+  water tiles all below sea level, 4,000 sampled plains all land, resources exactly as saved
+  (1,276 forest / 26 iron / 16 gold), and the map plays — 32 buildings, 42 units, zero errors.
+
+- **AND THE FIRST CUSTOM MAP EXPOSED A SECOND FAULT.** Photographed it: boulders hanging in mid-air
+  over the sea. `heightAtWorld` clamps to the tile grid, so beyond the playable rectangle it
+  returns the map EDGE's height and never changes. Measured west of the border — heightAtWorld says
+  11.22 at 4, 10, 20, 35 and 55 units out, while the mesh drops 8.72 / 6.23 / 1.11 / −7.13. An
+  18-unit lie, and the b264 skirt crags are placed with it. Always wrong; only visible now because
+  b345 drowns a GENERATED map's rim so its edge sits near the waterline and the gap stays small —
+  a painted map has no rim and the fault came straight out. The skirt formula lived inline in
+  `buildTerrain` so nothing else could ask where the ground was; it is `terrainMeshY(x,z)` now,
+  used by the mesh and the crags. Checked the extraction is exact before trusting it: 4,000 sample
+  points, 1,908 outside the rectangle, worst difference **0** — terrain byte-identical, only the
+  rocks moved. Photographed after: they stand on the shore.
+
+- Also rebranded the builder, which still said TIDEFALL in its title, masthead, back button and its
+  "not a Tidefall map" error. Naming only — no tide mechanics remain in it. The one surviving
+  mention is a code comment recording where a function was ported from, which is true and stays.
+  Soak after: 7 simulated minutes on a generated map, 58 buildings, 76 units, zero errors.

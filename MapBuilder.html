@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tidefall — Map Builder</title>
+<title>Crownhelm — Map Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -55,7 +55,7 @@
     <div style="display:flex;align-items:center;gap:12px;padding-right:18px;flex:none">
       <div style="width:34px;height:34px;transform:rotate(45deg);background:linear-gradient(140deg,#F0DCA4,#B08A2E 55%,#7A5C1B);border:1px solid #6B5320;box-shadow:0 2px 10px rgba(200,162,74,.35),inset 0 1px 0 rgba(255,255,255,.4)"></div>
       <div style="line-height:1">
-        <div style="font-family:'Spectral',serif;font-size:19px;font-weight:700;letter-spacing:.12em;color:#EBD9A6">TIDEFALL</div>
+        <div style="font-family:'Spectral',serif;font-size:19px;font-weight:700;letter-spacing:.12em;color:#EBD9A6">CROWNHELM</div>
         <div style="font-size:10.5px;letter-spacing:.34em;color:#7E97AD;margin-top:5px">MAP BUILDER</div>
       </div>
     </div>
@@ -235,7 +235,7 @@
 
   <!-- ACTION BAR -->
   <div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(180deg,#1B2A3B,#152130);border-top:1px solid #35546F;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 -10px 26px rgba(0,0,0,.5)">
-    <button class="abtn" id="btnBack" style="border-color:transparent;background:none;box-shadow:none;color:#9FB6CA">← BACK TO TIDEFALL</button>
+    <button class="abtn" id="btnBack" style="border-color:transparent;background:none;box-shadow:none;color:#9FB6CA">← BACK TO CROWNHELM</button>
     <div style="flex:1"></div>
     <button class="abtn" id="btnLoad">LOAD</button>
     <button class="abtn" id="btnSave">SAVE</button>
@@ -451,12 +451,15 @@ function toGame(){ const out={w:W,h:H,name:document.getElementById('mapName').va
 function builderState(){ return {v:1,w:W,h:H,sizeId,realms,seed,gf,gw,gm,gr,mirror,name:document.getElementById('mapName').value,
   tiles:btoa(String.fromCharCode.apply(null,Array.from(tiles)))}; }
 function saveAll(quiet){ try{
-    localStorage.setItem('tidefall_builder',JSON.stringify(builderState()));
-    localStorage.setItem('tidefall_custom_map',JSON.stringify(toGame()));
+    localStorage.setItem('crownhelm_builder',JSON.stringify(builderState()));
+    localStorage.setItem('crownhelm_custom_map',JSON.stringify(toGame()));
     const d=new Date(); document.getElementById('autosaveAt').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
     if(!quiet)toast('💾 Saved — pick "'+(document.getElementById('mapName').value||'My Map')+'" on the start screen');
   }catch(e){ toast('Save failed: '+e.message); } }
-function restore(){ try{ const s=JSON.parse(localStorage.getItem('tidefall_builder')); if(!s)return false;
+// b353: reads the current key, falls back to the pre-rename one, so a design left half-finished
+// under the old name still opens.
+const lsGet=k=>{ const v=localStorage.getItem('crownhelm_'+k); return v!==null?v:localStorage.getItem('tidefall_'+k); };
+function restore(){ try{ const s=JSON.parse(lsGet('builder')); if(!s)return false;
     const sz=SIZES.find(z=>z.id===s.sizeId)||SIZES[0]; sizeId=sz.id; W=s.w||sz.w; H=s.h||sz.h;
     realms=s.realms||4; seed=s.seed||seed; gf=s.gf??gf; gw=s.gw??gw; gm=s.gm??gm; gr=s.gr??gr; mirror=s.mirror||'off';
     document.getElementById('mapName').value=s.name||'My Map';
@@ -469,9 +472,9 @@ function exportFile(){ const name=(document.getElementById('mapName').value||'my
   URL.revokeObjectURL(a.href); toast('📜 Exported '+a.download); }
 document.getElementById('fileIn').addEventListener('change',ev=>{ const f=ev.target.files[0]; if(!f)return;
   const rd=new FileReader(); rd.onload=()=>{ try{
-      localStorage.setItem('tidefall_builder',rd.result); if(!restore())throw new Error('bad file');
+      localStorage.setItem('crownhelm_builder',rd.result); if(!restore())throw new Error('bad file');
       syncAll(); rebuildCache(); fit(); toast('📜 Map loaded — '+(document.getElementById('mapName').value||'My Map'));
-    }catch(e){ toast('That file is not a Tidefall map'); } };
+    }catch(e){ toast('That file is not a Crownhelm map'); } };
   rd.readAsText(f); ev.target.value=''; });
 // ---------------- ui wiring ----------------
 function pickTool(k){ tool=k;
@@ -515,7 +518,7 @@ document.getElementById('btnSave').onclick=()=>saveAll(false);
 document.getElementById('btnExport').onclick=exportFile;
 document.getElementById('btnLoad').onclick=()=>document.getElementById('fileIn').click();
 document.getElementById('btnPlay').onclick=()=>{ saveAll(true);
-  localStorage.setItem('tidefall_map','custom'); localStorage.setItem('tidefall_players',String(realms));
+  localStorage.setItem('crownhelm_map','custom'); localStorage.setItem('crownhelm_players',String(realms));
   location.href='index.html'; };
 // size cards
 function buildSizeCards(){ const host=document.getElementById('sizeCards'); host.innerHTML='';
@@ -582,7 +585,7 @@ function status(){ const sz=SIZES.find(z=>z.id===sizeId);
     'ZOOM '+Math.round(view.z*100)+'%'+sep()+(hx<0?'— , —':String(hx).padStart(3,'0')+' , '+String(hy).padStart(3,'0'))+sep()+
     'BRUSH '+tool.toUpperCase()+' ·'+brush+' '+(round?'○':'□')+sep()+realms+' REALMS'+sep()+
     'HISTORY '+undoStack.length+'/'+(undoStack.length+redoStack.length)+
-    '<span style="flex:1"></span><span>'+bytes+' KB</span>'+sep()+'<span style="color:#7BA05B">TIDEFALL</span>'; }
+    '<span style="flex:1"></span><span>'+bytes+' KB</span>'+sep()+'<span style="color:#7BA05B">CROWNHELM</span>'; }
 function sep(){ return '<span style="color:#35546F;padding:0 12px">│</span>'; }
 document.getElementById('status').style.display='flex';
 document.getElementById('mapName').addEventListener('input',status);
@@ -602,7 +605,7 @@ function syncAll(){ pickTool(tool); setBrush(brush);
   buildSizeCards(); buildRealmChips(); status(); }
 requestAnimationFrame(()=>{ // canvas may be null on first mount — boot on the first frame
   if(!restore()){ // no saved builder state: try importing the old in-game builder map
-    try{ const old=JSON.parse(localStorage.getItem('tidefall_custom_map'));
+    try{ const old=JSON.parse(lsGet('custom_map'));
       if(old&&old.w){ W=old.w; H=old.h||Math.round(old.w*2/3);
         const near=SIZES.find(z=>z.w===W); sizeId=near?near.id:'small';
         tiles=new Uint8Array(W*H);
