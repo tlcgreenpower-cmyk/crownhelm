@@ -766,3 +766,24 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   Verified after: census clean across all five maps, healthy, nothing empty. Soaked both map sizes
   — Heartlands and the Broadwood at 168×112 — 19 simulated minutes, 163 units, 89 buildings, zero
   errors, 5.02ms a step on the big map. The large-map path had never been soaked before.
+
+- **b361 ON THE BIG MAPS THE LOOT WAS DRAWN BIGGER THAN YOUR CASTLE.** b360 revealed the maps are
+  not all one size — Heartlands is 96×64, the other four are 168×112, three times the area and four
+  of the five menu choices — and every photograph, soak and measurement this project has ever taken
+  was on Heartlands. So this pass went to the big maps.
+  MOSTLY IN GOOD ORDER, worth stating: realms land correctly in the corners of the 672×448 world
+  (keeps 340–642 apart vs 148–296); pathfinding holds — over a measured minute 36 of 40 moving
+  units moved and the four that didn't were three woodcutters at a tree plus one infantryman in a
+  crowd; wars cross the map — declared war on all three and r2 marched 31 men and its King 340
+  units to the player's gate and pulled the Keep down; and it stays healthy — 21 simulated minutes
+  on the Broadwood, entities 24→287, nodes 8,418→21,195, save 37→89KB, step 0.89→2.19ms, zero
+  errors, no drift. That path had never been soaked.
+  THE MINIMAP IS THE EXCEPTION. Every marker is a FIXED pixel radius tuned on Heartlands (tile =
+  2.08 minimap px). On a 168×112 map a tile is 1.19px and the markers don't care. Measured on the
+  Broadwood: player's Keep **3.57px**, village dot **4.80**, trade post **5.00**, treasure
+  **6.40** — loot and scenery drawn nearly twice the size of your own castle, sixteen villages
+  shouting over the terrain. Photographed: a scatter of discs with the country barely visible.
+  Markers now scale with tile size, anchored so HEARTLANDS IS UNCHANGED (village 4.81 vs 4.80,
+  treasure 6.41 vs 6.40 — rounding). Broadwood comes down to 2.80 / 3.20 / 3.66, all at or below
+  the Keep. Floors stop anything vanishing. b350's Wonder ring scales with them.
+  Soak: Heartlands to 11 min then Twin Rivers at 168×112 to 16, zero errors, 3.85ms a step.

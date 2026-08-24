@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b360</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b361</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -8127,6 +8127,13 @@ function drawMiniTerrain(){miniTerr.width=mini.width;miniTerr.height=mini.height
   sc.putImageData(miniSrcID,0,0);
   c.imageSmoothingEnabled=true;c.drawImage(miniSrc,0,0,mini.width,mini.height);}
 function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;}const w=mini.width,h=mini.height,sx=w/MAP_W,sy=h/MAP_H;mctx.clearRect(0,0,w,h);
+  // b361 THE NEUTRAL MARKERS WERE BIGGER THAN YOUR CASTLE. Every mark below was a fixed pixel
+  // radius, tuned on Heartlands where a tile is 2.08 minimap pixels. The other four maps are
+  // 168x112, so a tile is 1.19px, and measured there: the player's Keep drew 3.57px across while a
+  // village dot drew 4.80 and a treasure 6.40 — the loot and the scenery louder than the town.
+  // MK scales every marker with the tile size, anchored so Heartlands is UNCHANGED, with floors so
+  // nothing vanishes on a big map.
+  const MK=sx/2.08, mk=(base,floor)=>Math.max(floor,base*MK);
   if(performance.now()-miniTerrAt>900){miniTerrAt=performance.now();drawMiniTerrain();}
   mctx.drawImage(miniTerr,0,0);
   // b328: TERRITORY, at a glance. Each realm's claim washed over the minimap in its own colour —
@@ -8154,8 +8161,8 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
         if(i)mctx.lineTo(mx,my); else mctx.moveTo(mx,my); });
       mctx.stroke(); mctx.restore(); }
     for(const s of seen){ const mx=(s.x/TILE+MAP_W/2)*sx, my=(s.z/TILE+MAP_H/2)*sy;
-      mctx.fillStyle='#2a2418'; mctx.fillRect(mx-2.5,my-2.5,5,5);
-      mctx.fillStyle=s.owner?ownerCss(s.owner):'#d8c48a'; mctx.fillRect(mx-1.5,my-1.5,3,3); } }
+      { const o=mk(2.5,1.6); mctx.fillStyle='#2a2418'; mctx.fillRect(mx-o,my-o,o*2,o*2); }
+      { const o=mk(1.5,1.0); mctx.fillStyle=s.owner?ownerCss(s.owner):'#d8c48a'; mctx.fillRect(mx-o,my-o,o*2,o*2); } } }
   // b338: a treasure you have FOUND stays findable. Eleven hoards on a map this size are easy to
   // stumble on once and never see again, which turns the best reason to go roaming into a thing
   // that happens by accident. Only ones you have actually explored to are marked, so the map
@@ -8164,10 +8171,10 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
     const tx=clamp(txFromW(t.x),0,MAP_W-1), ty=clamp(tzFromW(t.z),0,MAP_H-1);
     if(!explored[ti(tx,ty)])continue;
     const mx=(t.x/TILE+MAP_W/2)*sx, my=(t.z/TILE+MAP_H/2)*sy;
-    mctx.fillStyle='#3a2c10'; mctx.beginPath(); mctx.arc(mx,my,3.2,0,7); mctx.fill();
-    mctx.fillStyle='#ffc94e'; mctx.beginPath(); mctx.arc(mx,my,2.1,0,7); mctx.fill(); }
+    mctx.fillStyle='#3a2c10'; mctx.beginPath(); mctx.arc(mx,my,mk(3.2,1.8),0,7); mctx.fill();
+    mctx.fillStyle='#ffc94e'; mctx.beginPath(); mctx.arc(mx,my,mk(2.1,1.2),0,7); mctx.fill(); }
   for(const v of villages){ if(!explored[ti(v.tx,v.ty)])continue;
-    mctx.fillStyle=v.claimed?ownerCss(v.claimed):'#f0f0e0'; mctx.beginPath();mctx.arc((v.tx+.5)*sx,(v.ty+.5)*sy,2.4,0,7);mctx.fill(); }
+    mctx.fillStyle=v.claimed?ownerCss(v.claimed):'#f0f0e0'; mctx.beginPath();mctx.arc((v.tx+.5)*sx,(v.ty+.5)*sy,mk(2.4,1.4),0,7);mctx.fill(); }
   // b350: a standing Wonder is a clock running on the whole game, so it is marked as one — a ring
   // that pulses once a second, in the owner's colour, over everything else on the map. Ordinary
   // building squares are drawn above; at the size a Wonder occupies on this minimap that is four
@@ -8180,8 +8187,8 @@ function drawMini(){if(!elev){mctx.clearRect(0,0,mini.width,mini.height);return;
     const mx=(btx+.5)*sx, my=(bty+.5)*sy, pulse=0.55+0.45*Math.sin(elapsed*3.6);
     mctx.save();
     mctx.strokeStyle=ownerCss(b.owner); mctx.lineWidth=2;
-    mctx.beginPath(); mctx.arc(mx,my,4.5+pulse*2.4,0,7); mctx.stroke();
-    mctx.fillStyle='#f4e7c0'; mctx.beginPath(); mctx.arc(mx,my,2.6,0,7); mctx.fill();
+    mctx.beginPath(); mctx.arc(mx,my,mk(4.5+pulse*2.4,2.6),0,7); mctx.stroke();
+    mctx.fillStyle='#f4e7c0'; mctx.beginPath(); mctx.arc(mx,my,mk(2.6,1.5),0,7); mctx.fill();
     mctx.restore(); }
   if(atkPing.t<3){ const px=(atkPing.x/TILE+MAP_W/2)*sx, py=(atkPing.z/TILE+MAP_H/2)*sy;
     mctx.strokeStyle='rgba(255,70,50,'+(1-atkPing.t/3)+')'; mctx.lineWidth=2;
