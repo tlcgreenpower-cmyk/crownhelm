@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b350</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b351</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -6558,6 +6558,24 @@ let _fogA=null,_fogB=null;
 
 // ==================================================== REALM AI + DIPLOMACY
 function realmWant(o){if(res[o].g<130&&goldNodes.some(n=>n.amount>0)&&Math.random()<0.3)return 'gold';return res[o].w<=res[o].m*1.15?'wood':'metal';}
+// b351 A FUNCTION THAT WAS NEVER WRITTEN. b326 gave every lord a RECOVERY state whose whole
+// character is that he sells what he can and sues for peace while he rebuilds — and the line that
+// sues for peace calls makePeace(), which existed nowhere in the file. So the moment a battered
+// lord at war with the player rolled his 22 per cent, `update()` threw a ReferenceError and the
+// ENTIRE remainder of that simulation step was abandoned: combat, movement, building, resources,
+// the win check, all of it, silently, on a repeating roll. Nothing surfaces it in play — the
+// browser logs it and the game carries on looking fine — which is why it has sat there since b326.
+// Caught it by watching the console during a staged battle.
+// The other half of RECOVERY (selling wood for gold) was already implemented, so this is the
+// spending half: he buys his way out of the war, and the tribute goes to the player he is buying
+// off. Allied wars end with it, the same as when the player pays for peace himself.
+function makePeace(o,byAI){ if(!diplo[o]||diplo[o].stance!=='war')return false;
+  const fee=Math.max(0,Math.min(res[o].g,120)); res[o].g-=fee; if(byAI)res.player.g+=fee;
+  diplo[o].stance='neutral'; diplo[o].score=Math.max(diplo[o].score,5);
+  for(const k of Object.keys(aiWars))if(k.includes(o))delete aiWars[k];
+  nudgeHonour(o,6,'sued for peace');
+  SFX.cmd(); flashMsg('🕊 '+realmName(o)+' sues for peace'+(fee>0?' and sends '+Math.round(fee)+' gold in tribute':'')+' — the war is over');
+  renderDiplo(); updateHUD(); return true; }
 function declareWar(o,by){ if(!diplo[o])return; if(diplo[o].stance!=='war'){ diplo[o].stance='war'; diplo[o].score=Math.min(diplo[o].score,-20);
   SFX.wave(); flashMsg((by==='player'?'You declare war on ':'War! ')+realmName(o)+(by==='player'?'!':' turns against you!'));
   // your friends take up arms against your enemy

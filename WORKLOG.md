@@ -512,3 +512,33 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   One per twenty seconds now: same run shows three wolf messages instead of twenty-two.
   Plus a `possess` helper — half the realms are named in the plural, so it was "Blue Coats's".
   Soak: 13 simulated minutes, 154 entities, 106 buildings, zero errors, 9.24ms a step.
+
+- **b351 A CRASH THAT HAS BEEN SILENTLY EATING FRAMES SINCE b326.** Staged a battle to look at
+  combat and the console threw `ReferenceError: makePeace is not defined` from `updateLords`,
+  called from `update()`. b326 gave lords a RECOVERY state that "sells goods and sues for peace";
+  the selling was implemented, the suing calls `makePeace()`, and that function exists NOWHERE in
+  the file. Because the call sits inside `update()`, every time a battered lord at war with the
+  player rolled his 22 per cent the whole remainder of that simulation step was abandoned —
+  combat, movement, building, resources, the win check. Repeating roll, common game state, and
+  nothing surfaces it: the browser logs it and the game carries on looking fine. Written now as
+  the spending half of the state the comment already describes — he pays up to 120 gold, the
+  tribute goes to the player, allied wars end with it, honour rises for asking, and the player is
+  told. Verified: war → neutral, message fired, tribute moved, no errors.
+  SWEPT FOR MORE: pulled every BARE call site out of the script (not `x.method(`, which is 800
+  false positives) and diffed against everything the file defines. 92 survivors, all explainable —
+  GLSL builtins in shader strings, THREE addons from dynamic imports, object-literal shorthand
+  methods, and the TF._dbg getters. No second one.
+
+- **CHECKED, NO FAULT FOUND — three, recorded so the next pass doesn't re-open them.**
+  (1) Health bars looked like huge floating slabs in a battle photo. Measured: a pikeman spans
+  10.63–12.83 and his bar sits at 12.73, on his head. What looked like float was the pikes of the
+  rank behind him.
+  (2) An enemy town looked to be on top of the player's keep in one shot. The four keeps are
+  148–296 units apart on a 384×256 map. Camera angle, not map generation.
+  (3) A duel of identical armies came out 12–0 to the player with `tech.player.weapon` reading 1
+  against the AI's 0. Traced to a save I had loaded earlier in the same page session — a fresh
+  game holds at 0 for ten minutes while the AI legitimately researches. My own residue. The rest
+  of the asymmetry is terrain: the two sides stood on ground 4.95 and 7.70 high, and elevation is
+  meant to matter.
+  Soak: 9 simulated minutes with two wars running throughout, 292 entities, 129 buildings, zero
+  errors, 6.44ms a step.
