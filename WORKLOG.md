@@ -957,6 +957,9 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   step, save 133KB, zero errors (`newGame` takes 8.2s, slow but once). But every area-scaled ceiling
   was cut to fit the menu's biggest map, and on Epic they **all bind at once** — treasures 81 wanted
   / 34 given, villages 51/16, relics 18/7, herds 22/8, flocks 59/16, sheep 440/120, posts 19/14.
+  **[CORRECTED in b368 — two of those rows were mislabelled.** The `min(120, 60*A)` I called "sheep"
+  is the falling **leaves**, and the `min(16, 8*A)` I called "bird flocks" is the **sheep flocks**.
+  The true reading is leaves 440/120 and sheep flocks 59/16. Read the corrected table in b368.**]**
   Hoard density 0.75 per 1000 tiles against Heartlands' 1.79. That is b362's fault one size further
   out, and **34 and 14 are my own numbers from b362** — the values the formulas give at 168×112.
   **Fixed the two I own**, ceilings now derived from the builder's largest size rather than written
@@ -983,3 +986,32 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   wars bite, which is b364 working. **One honest number: a step costs 8.4ms on Epic with eight
   realms against ~1.4ms on Heartlands, roughly six times.** Still inside a 60fps budget for the
   simulation, but that is the figure to watch if anyone raises the five ceilings I left alone.
+
+- **b368 ONE OF THE FIVE COST NOTHING, AND TWO OF MY LABELS WERE WRONG.** b367 left five ceilings
+  alone saying I had not measured what they cost to **render**. Measured them.
+  **First, the correction.** Two rows in b367's table were mislabelled: `min(120, 60*A)` at line 2714
+  is the falling **leaves**, not sheep, and `min(16, 8*A)` at 2804 is the **sheep flocks**, not bird
+  flocks. That matters because it inverts the conclusion — the row I described as the most expensive
+  is the cheapest thing in the game.
+  **Leaves are one `InstancedMesh`** — the whole drift is a single draw call whether it carries 60 or
+  440, and a leaf is two triangles. **Sheep are already 3,821 separate meshes** at their cap of 16
+  flocks, the largest single contributor to the scene's 11,994 plain meshes; the 59 flocks the rule
+  wants would put roughly fourteen thousand meshes on an Epic map.
+  So: leaf ceiling lifted, everything else stays, now for a **measured** reason rather than an
+  unmeasured one. It bound on the ordinary maps too — 168×112 wanted 184 and got 120.
+
+    | map | areaScale | leaves | draw calls | triangles |
+    |---|---|---|---|---|
+    | Heartlands | 1.00 | 60 (unchanged) | 385 | 575,317 |
+    | Great Vale | 3.06 | 120 → **184** | 562 | 853,945 |
+    | Epic custom | 7.33 | 120 → **440** | 502 | 1,792,949 |
+
+  Epic's b367 baseline at the same camera was **519 calls / 1,794,559 triangles**; after, **502 /
+  1,792,949**. +320 leaves cost **zero** draw calls and a triangle delta inside run-to-run noise.
+  **Render TIME is not measurable here** — the browser pane does not composite, so a far TFshot took
+  441ms, which describes the harness and not the game. Draw calls and triangle counts are exact and
+  machine-independent, so those are what this build is argued on.
+  UI sweep 238 / 0 errors. Soak 33 min on Heartlands: peak 509 units, 200 buildings, save 107KB,
+  2.83ms a step, zero errors, healthy — army trace
+  48/107/159/208/235/295/350/402/450/489/**509**/489/432/310/291/277/323, a war taking it from 509
+  to 277 and climbing again by the end. b364 doing its job on the shipped map.

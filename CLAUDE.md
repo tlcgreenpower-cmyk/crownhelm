@@ -44,8 +44,16 @@ screenshots time out. Drive and photograph it instead:
   224×144 and Epic 256×176 (**7.33×** Heartlands, 45k tiles) with up to **8 realms** against the
   menu's four. Anything sized against "the biggest map" must mean Epic, not Broadwood: b367 found
   every area-scaled ceiling in the game cut to fit 168×112, so on an Epic map treasures, villages,
-  relics, herds, flocks and sheep all bind at once and the world arrives at roughly a third of its
-  intended density. Epic itself plays fine (1.2–3.0ms a step, 8 realms, save 133KB). Anything you compare between maps has to be per-tile or it is meaningless.
+  relics, herds, sheep and leaves all bind at once and the world arrives at roughly a third of its
+  intended density. Epic itself plays fine (1.2–3.0ms a step, 8 realms, save 133KB).
+  **Before lifting one of those ceilings, check how the thing is DRAWN** (b368). The falling leaves
+  are a single `InstancedMesh` — one draw call at 60 or at 440 — so that ceiling was free to lift.
+  The sheep are 3,821 separate meshes at their cap and would be ~14,000 at the count the rule wants,
+  so theirs stays. Two of these were mislabelled in b367's own table: `min(120,60*A)` is leaves, not
+  sheep; `min(16,8*A)` is sheep flocks, not birds.
+  **Render TIME cannot be measured in this harness** — the pane does not composite, and a far TFshot
+  clocked 441ms, which is the harness, not the game. Argue render cost from
+  `renderer.info.render.calls` and `.triangles`, which are exact and machine-independent. Anything you compare between maps has to be per-tile or it is meaningless.
   `MAP_W`, `MAP_H`, `WORLD_W`, `WORLD_H` and `HALF_W/H` are GETTERS in `_dbg` for this reason
   (b360) — they used to be captured values, frozen at the moment `_dbg()` ran, so a 168×112 map
   still reported 96×64 and every measurement taken after a map change was quietly wrong. It
