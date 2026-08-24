@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b370</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b371</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4578,6 +4578,10 @@ function giveBanner(e){ if(e.mesh.userData.banner)return; const f=FACTIONS[facti
   e.mesh.add(grp);e.mesh.userData.banner=fl; }
 function ml0Count(l){return l.length;}
 function commandMove(list,x,z,amove,fdir){
+  // b371: any order from the player's own hand lifts a stand-down flag. Without this, a peasant
+  // told to wait beside a full field (noWork set far out) would take the next job you gave him and
+  // then never look for work again once he finished it, because the flag outlived the order.
+  for(const u of list) if(u.noWork) u.noWork=0;
   // b329: MEN IN A TRENCH DO NOT MARCH. Clearing their path each tick was not enough — the march
   // logic simply re-pathed them a frame later, and re-issuing the order quietly re-formed them
   // into a fresh regiment with no works at all, so digging in had no teeth whatsoever. The order
@@ -4622,7 +4626,7 @@ function commandMove(list,x,z,amove,fdir){
       else { e.slot=null; if(!orderPath(e,gx,gy,0))e.slot=null; return; } }
     e.slot={x:sx,z:sz,dir:slots[i][2]};   // his exact place in the line — he dresses on it once he arrives
     if(!orderPath(e,stx,sty,0)&&!orderPath(e,gx,gy,0))e.slot=null;});if(list.length&&list[0].owner==='player')spawnMoveMark(x,z,amove?0xff7a6a:0x8fe6a8);SFX.cmd();}
-function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=list.length+6;const workers0=list.filter(e=>e.type==='worker');
+function commandTarget(list,x,z){for(const u of list){u.pfCool=0;u.noWork=0;}astarBudget+=list.length+6;const workers0=list.filter(e=>e.type==='worker');
   if(workers0.length){ let bs=null,bd0=3.5;
     for(const s of sheep){const d=Math.hypot(x-s.x,z-s.z);if(d<bd0){bd0=d;bs=s;}}
     if(bs){ workers0.forEach(w=>{w.cmd='hunt';w.hunt=bs;w.gather=null;w.build=null;w.target=null;w.tendB=null;orderPath(w,txFromW(bs.x),tzFromW(bs.z),0);});
@@ -4637,9 +4641,42 @@ function commandTarget(list,x,z){for(const u of list)u.pfCool=0;astarBudget+=lis
   // right-click your own farm = workers tend the rows (+50% harvest each, max 2)
   if(workers0.length){ const ftx=txFromW(x),fty=tzFromW(z),fid=inB(ftx,fty)?buildGrid[ti(ftx,fty)]:0;
     const fb=blds.find(q=>q.id===fid&&q.owner==='player'&&q.done&&q.type==='farm');
-    if(fb){ const free=ents.some(u=>u.cmd==='tend'&&u.tendB===fb)?[]:[workers0[0]];   // one farmhand per farm
-      free.forEach(w=>{w.cmd='tend';w.tendB=fb;w.gather=null;w.build=null;w.target=null;tendSpot(w,fb);});
-      flashMsg(free.length?'\u{1F468}\u200D\u{1F33E} A farmhand takes the field \u2014 the farm will feed you now':'\u{1F468}\u200D\u{1F33E} That farm already has its farmhand');SFX.cmd();return; } }
+    if(fb){
+      // b371 (owner: "while selecting multiple peasants and clicking one farm they need to spread
+      // out amongst farms and farm it, if too many they just stand there and wait for command").
+      // It used to hand the field to workers0[0] and give the REST no order whatever - so the other
+      // nine kept doing whatever they were already at, which reads exactly as "they walk off and do
+      // something else". And if the clicked farm already had its hand, nobody was sent anywhere at
+      // all. Now the click means "you men, go and farm": each takes the nearest field still wanting
+      // a hand, starting with the one actually clicked, and whoever is surplus stands where he is
+      // and waits for an order rather than wandering back to the woods.
+      const tended=new Set(tendedFarms());
+      const fields=blds.filter(q=>q.owner==='player'&&q.done&&q.type==='farm'&&!tended.has(q.id));
+      fields.sort((a,b)=>(a===fb?-1:b===fb?1:0)||
+        (Math.hypot(a.cx-fb.cx,a.cz-fb.cz)-Math.hypot(b.cx-fb.cx,b.cz-fb.cz)));
+      let took=0, spare=0;
+      for(const w of workers0){
+        let bi=-1,bd=1e9;
+        for(let i=0;i<fields.length;i++){ const q=fields[i];
+          const d=Math.hypot(w.x-q.cx,w.z-q.cz); if(d<bd){bd=d;bi=i;} }
+        if(bi<0){ // no field left wanting a hand — he stands and WAITS, as asked.
+          // Setting cmd='idle' alone was not enough and I only found that by holding the test for
+          // thirty seconds: the idle-peasant logic re-rolls about twice a second and sends anybody
+          // standing about back to the woods, so five of seven surplus men had drifted off to
+          // gather by the time anyone looked. noWork is the game's own "stand down" flag - it is
+          // what a man gets when he cannot reach his job - and it gates exactly that re-roll.
+          // Set far out, so he waits for an order rather than a timer. Safe to leave open-ended
+          // because the 💤 idle counter and its button read cmd only and ignore noWork, so he is
+          // still counted, still findable and still one click from another job.
+          w.cmd='idle'; w.path=null; w.gather=null; w.build=null; w.target=null; w.tendB=null;
+          w.noWork=elapsed+1e9; spare++; continue; }
+        const q=fields.splice(bi,1)[0];
+        w.cmd='tend'; w.tendB=q; w.gather=null; w.build=null; w.target=null; w.noWork=0; tendSpot(w,q); took++; }
+      spawnMoveMark(fb.cx,fb.cz,0x8fe6a8);
+      flashMsg(took?('\u{1F468}\u200D\u{1F33E} '+took+(took===1?' farmhand takes the field':' farmhands spread across the fields')
+                    +(spare?' \u2014 '+spare+' waiting for orders':''))
+                  :'\u{1F468}\u200D\u{1F33E} Every field already has its farmhand');
+      SFX.cmd();return; } }
   const eu=entAt(x,z,'player');if(eu){
     const mk=UNIT[eu.type].noConv?[]:list.filter(e=>UNIT[e.type].conv);
     for(const e of mk)convertOrder(e,eu);
@@ -4895,6 +4932,21 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 // same scarcity pull the gatherers weigh their work by, and a farmhand is only worth having while
 // food is at least as scarce as timber. Below 400 they work the fields regardless: hungry comes
 // first.
+// b371: WHO IS TENDING WHAT, WORKED OUT ONCE A STEP.
+// "Is anybody already on this farm?" was asked as ents.some(...) from inside a blds.find(...),
+// per worker, about twice a second each. That is a sweep of every entity for every candidate farm
+// for every idle peasant - and the profiler put the per-unit loop at the top of the step cost, so
+// it matters more now than it did: since b364 the realms actually fight, and a late game carries
+// five to seven hundred men where it used to carry about three hundred and forty. Measured on the
+// way in: 3.19ms a step at 196 units, 6.19ms at 351.
+// The answer only changes when somebody starts or stops tending, so it is built once per step and
+// reused. _stepN already ticks once per update, which is exactly the right lifetime.
+let _tendSet=null,_tendStamp=-1;
+function tendedFarms(){ if(_tendStamp===_stepN&&_tendSet)return _tendSet;
+  _tendStamp=_stepN; _tendSet=new Set();
+  for(const u of ents) if(u.cmd==='tend'&&u.tendB) _tendSet.add(u.tendB.id);
+  return _tendSet; }
+function farmNeedsHand(b){ return b&&b.done&&b.type==='farm'&&!tendedFarms().has(b.id); }
 function wantsFarmhand(o){ const r=res[o]; if(!r)return true;
   if(r.f<400)return true;                     // hungry comes first
   // A floor of two hands in the fields regardless was tried and measured WORSE: it brought the food
@@ -5860,7 +5912,8 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
         e.cmd='move';orderPath(e,clamp(txFromW(e.post.x),0,MAP_W-1),clamp(tzFromW(e.post.z),0,MAP_H-1),0);break;}
       if(!e.inGar&&!e.path&&Math.random()<dt*0.045&&e.mesh.userData.cheerA)playOnce(e,Math.random()<0.6?'cheerA':'attackA');   // b134: idle folk stretch, wave, drill
       if(e.type==='worker'&&Math.random()<dt*2&&!(e.noWork&&elapsed<e.noWork)){const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}
-        else{const f=(Math.random()<0.5&&wantsFarmhand(e.owner))?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!ents.some(u=>u.cmd==='tend'&&u.tendB===q)):null;
+        else{const _td=tendedFarms();
+          const f=(Math.random()<0.5&&wantsFarmhand(e.owner))?blds.find(q=>q.owner===e.owner&&q.done&&q.type==='farm'&&Math.hypot(e.x-q.cx,e.z-q.cz)<26&&!_td.has(q.id)):null;
           if(f){e.cmd='tend';e.tendB=f;tendSpot(e,f);}
           else{ let best=null,bd=48*2.8;   // b93: idle peasants find their own work — b166: weighed by what the realm is short of
             for(const arr of[woodNodes,metalNodes,goldNodes,meatNodes])for(const n of arr)if(n.amount>0){if(n._skip&&elapsed<n._skip)continue;if(n.type==='wood'&&!chopReachable(n))continue;
@@ -5968,7 +6021,16 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
         else orderPath(e,dp.tx+(dp.w>>1),dp.ty+dp.h,dp.id); } break;}
     case 'build':{const b=e.build;if(!b||b._gone||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;bldStamp++;b.hp=b.maxHp;b.mesh.scale.y=b._vary||1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;bldStamp++;b.hp=b.maxHp;b.mesh.scale.y=b._vary||1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;
+        // b371 (owner: "when peasants build a farm they need to stay and farm it not walk off and
+        // do something else"). He was right and the order of these two lines was the whole reason:
+        // the man who finished a building went straight to nextBuildSite, so a peasant who had just
+        // raised a farm walked off to the next foundation, and the farm he had built stood empty
+        // until some other idle peasant happened to roll the 50% chance of looking for one. The man
+        // who built the farm now works it, if it wants a hand and nobody else has it. Anything else
+        // he built, he goes on to the next site exactly as before.
+        if(b.type==='farm'&&farmNeedsHand(b)){e.cmd='tend';e.tendB=b;tendSpot(e,b);}
+        else{const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
       if(b.type==='wonder'){ b.wonderStart=elapsed;
         flashMsg((b.owner==='player'?'🏛️ Your Wonder stands complete — hold it ':'🏛️ '+realmName(b.owner)+' raises a Wonder — deny them ')+Math.floor(WONDER_SURVIVE/60)+' minutes and '+(b.owner==='player'?'the realm is yours':'they win the realm outright')+'!');
         // b350: and if it is a RIVAL'S, the country gets to know where it is. The message above
@@ -6051,7 +6113,9 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
       break;}
     case 'inside':break;   // safe behind the walls — the building does the fighting
     case 'tend':{const b=e.tendB;if(!b||b._gone||!b.done){e.cmd='idle';e.tendB=null;e._onDeck=false;e._tendTo=null;break;}
-      if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;e._onDeck=false;break;}   // one farmhand per farm — extras step off
+      // one farmhand per farm — extras step off. Still a scan, but only for men actually tending,
+      // which is a handful, not every idle peasant in the realm.
+      if(ents.some(u=>u!==e&&u.cmd==='tend'&&u.tendB===b&&u.id<e.id)){e.cmd='idle';e.tendB=null;e._onDeck=false;break;}
       // and a man already in the field walks off it once the granary is full, or the realm would
       // simply keep the hands it had before the surplus built up
       if(!wantsFarmhand(e.owner)){e.cmd='idle';e.tendB=null;e._onDeck=false;break;}
