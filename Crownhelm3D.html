@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b364</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b365</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -5536,11 +5536,23 @@ function rebuildRoads(owner){
     stampPath(b.cx,b.cz,bq.cx,bq.cz,depth<=1?1.9:depth===2?1.45:depth===3?1.15:0.95,depth<=2?1:0); laid++; }
   return laid; }
 // ---- b109 battle grime: the land remembers — scorched earth and rubble where buildings fell ----
+// b365: BURNT EARTH, NOT A HOLE IN THE WORLD. The colours here were near-black — a ring of
+// (30,26,22) laid six times over, with a (22,19,16) core at half alpha. Six coats at 0.28 saturate,
+// so a razed building left a flat disc at RGB(25,23,19): nine per cent brightness, dark enough that
+// it renders as a void with grass tufts standing in it rather than as scorched ground. Photographed
+// it centred on the darkest pixel of the ground canvas and that is exactly what it looks like.
+// The game already has a considered answer to "how dark may a thing be" — CHAR_BLACK, 0.26, the
+// floor every character palette is lifted to, because nothing on this field reads well below it.
+// Ground had no such floor. It does now: the same shapes, in a dark earth-brown that lands near
+// that 0.26 once the coats stack, so a burnt patch reads as burnt and keeps some grain instead of
+// going flat. This matters more after b364 than it did before — wars now actually pull buildings
+// down, so these marks are no longer a rarity.
+const SCORCH_RING='rgba(74,62,50,0.22)', SCORCH_CORE='rgba(64,54,44,0.42)';
 function stampScorch(cx,cz,tiles){ if(!groundCtx)return; const TW=groundCv.width,TH=groundCv.height;
   const px=(cx/WORLD_W+0.5)*TW, py=(cz/WORLD_H+0.5)*TH, r=Math.max(2.5,tiles*TILE/WORLD_W*TW*0.6);
   const c2=groundCtx;
   for(let i=0;i<6;i++){ const a=i/6*Math.PI*2+cx*0.7, rr=r*(0.5+((Math.abs(cx*13+cz*7)+i*31)%13)/13*0.6);
-    c2.fillStyle=i?'rgba(30,26,22,0.28)':'rgba(22,19,16,0.5)';
+    c2.fillStyle=i?SCORCH_RING:SCORCH_CORE;
     c2.beginPath(); c2.ellipse(px+Math.cos(a)*r*0.3,py+Math.sin(a)*r*0.25,rr,rr*0.75,a,0,7); c2.fill(); }
   groundTex.needsUpdate=true; }
 let rubblePiles=[];
