@@ -694,3 +694,28 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   way. The variation does not move buildings.
   Soak: 11 simulated minutes, 249 units, 115 buildings of which 68 went up DURING play and carry
   the variation through the build animation, zero errors, 4.20ms a step.
+
+- **b358 b353 QUIETLY EMPTIED THE HEADLANDS.** Kept photographing the coast and kept noticing
+  nothing stood off it. b264 built "crags on the skirt and stacks in the shallows"; the shallows
+  half survived, the skirt half — the rocks beyond the map edge that make a coastline read as one —
+  did not. Instrumented the real placement loop instead of guessing. Identical on 3 maps of 3:
+  7000 candidates, 2974 land on the skirt, **0 passed the height band**, 16 pass after the fix.
+  Zero. And I caused it in b353 last night: that build made `y` on the skirt the height of the mesh
+  actually there rather than the map edge's height (fixing rocks hanging 18 units in the air), and
+  silently invalidated the band written against the old value — `y > waterY+16` was a formality
+  when `y` was a flat edge height and became a wall once it fell to waterY−9. A fix and a
+  regression in one line, and nothing caught it because nothing counts rocks.
+
+- **THE FIRST FIX WAS STILL WRONG.** Widening the band restored 16 stacks; checked them before
+  believing it and all 16 were COMPLETELY UNDER WATER. The band only knows the depth of the sea
+  floor, not the size of the rock standing on it. The size is known further down the loop, so the
+  real question is asked there — does the top clear the tide? Rocks that would not show are not
+  placed. After, on 3 maps of 3: 53 crags, 4 on the skirt, **zero floating**, drowned down 16 → 4
+  (and those 4 are the pre-existing inside-map branch, where the loop's boundary test and my
+  audit's disagree by a tile). Photographed: a stack now stands out of the shallows onto the sand.
+  Soak: 11 simulated minutes, 234 units, 110 buildings, zero errors, 4.25ms a step.
+
+- **MEASUREMENT LESSON, cost most of the pass.** I counted crags by finding "the" octahedron
+  InstancedMesh via `scene.traverse` and reading its `count`. There are TWENTY-TWO of them and the
+  one traverse lands on last is meaningless — that is where the "exactly 1 crag on every map"
+  figure came from, and it was nonsense. Sum across all of them, or better, tally inside the loop.

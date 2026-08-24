@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b357</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b358</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2330,7 +2330,15 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     const y=onSkirt?terrainMeshY(x,z):heightAtWorld(x,z);
     // skirt: anything standing clear of the water. shallows: a stack rising out of the sea, but
     // only just off the coast, so open ocean stays open ocean.
-    if(onSkirt){ if(y<waterY-0.6||y>waterY+16)continue; }
+    // b358: this band was written when `y` out here was the map EDGE's height — a flat number that
+    // sat well inside "up to sixteen above the waterline", so effectively the whole skirt passed.
+    // b353 made `y` honest (it now falls away to waterY-9 as the skirt sinks), which fixed rocks
+    // hanging in the air and, unnoticed, rejected almost every candidate at the same stroke:
+    // counted afterwards, exactly ONE crag on the whole map, on five maps out of five. b264's
+    // headlands were gone. The band means what it should have meant all along — a stack stands
+    // where the sea floor is shallow enough for it to break the surface, or just above the tide
+    // on the low shore — measured against the ground that is actually there.
+    if(onSkirt){ if(y<waterY-4.5||y>waterY+5)continue; }
     else { if(y>=waterY-0.15)continue;                                  // inside the map: genuinely submerged ground only
            // b345: SHALLOWS MEANS SHALLOW. This branch only tested that the ground was under water
            // at all, so stacks were seeded in the middle of lakes as well as at the coast — and
@@ -2350,6 +2358,11 @@ function buildAmbient(){ if(ambientGroup)scene.remove(ambientGroup); ambientGrou
     // meant to only just break the surface.
     v3.set(x,y+s*0.30,z);
     s3.set(s*(0.7+hashN(i,197)*0.7),s*(0.9+hashN(199,i)*1.5),s*(0.7+hashN(i,211)*0.7));
+    // b358: and out on the skirt it has to actually SHOW. The band above only knows the depth of
+    // the sea floor, not how big the rock standing on it is — measured with the band alone, all
+    // sixteen restored stacks were completely under water, which is a rock nobody will ever see.
+    // The size is known by here, so ask the real question: does the top of it clear the tide?
+    if(onSkirt&&v3.y+s3.y<waterY+0.5)continue;
     m4.compose(v3,q0,s3); crags.setMatrixAt(ci,m4);
     col.setHSL(0.62,0.055,0.44+hashN(i,223)*0.18,THREE.SRGBColorSpace); crags.setColorAt(ci,col); ci++; }
   crags.count=ci; crags.castShadow=true; crags.receiveShadow=true; ambientGroup.add(crags);
