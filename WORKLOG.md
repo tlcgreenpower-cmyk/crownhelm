@@ -1165,3 +1165,26 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   and those are exactly the ones it must not touch. **The remaining cost is in men who are doing
   things, and making them think less often would change how the game plays, not how fast it runs.**
   Soak 21.8 min, zero errors, army 48→366 with a war taking it to 301 — b364 behaviour intact.
+
+- **b374 PICK A MAP BY LOOKING AT IT.** Owner: *"when choosing a map we need to see the map and its
+  size and how many players it is for."* It was a dropdown of names — none of the three on screen,
+  and two of them **not recorded anywhere in the game**: size only appeared inside the option text,
+  and how many realms a map suits was never stored at all.
+  **The picture is the real map** — `setMap(id)` then `genMap()` fills the same `elev` array the game
+  plays on, so the coastline on the card is the one you land on. One generation per map, cached, and
+  the current map restored afterwards. `genMap` fills the resource lists too, so woodland darkens the
+  ground, ore and gold get a speck each, and every realm's start is a dot (green = you).
+  **Player count is derived, not invented.** `realmSitesFor` gives eight fixed starts whatever the
+  size, so nothing says "this suits four". `BORDER_R.hall` does: a Keep claims 46 units, so two Keeps
+  closer than **92** overlap from the first second. Largest count keeping every pair ≥92 apart →
+  **96×64 holds 6** (at 8, two pairs sit 68 apart), everything larger holds 8.
+  **The colour ramp took two goes and the second was measured.** Flat bands → every map the same
+  green rectangle. Relief over `(e-0.85)/3.2` → every map uniformly *brown*, worse. So I measured:
+  land runs ~1.5 (p05) to 3.5 (max), median 2.6 — that ramp put the median tile 55% of the way to
+  "high ground". Only the top decile should grey out. Now they look like themselves.
+  Woodland reads as texture not a solid mass — at 132px across a 168-tile map that is honestly what
+  a few hundred stands look like. **Truthful beats flattering.**
+  The old `mapSel` stays in the page, hidden, still the single source of truth — cards set it and
+  dispatch its change event, so the start summary, saved preference and test harness all keep
+  working. Verified: clicking Twin Rivers sets select + highlight + stored preference and builds a
+  168×112 world.
