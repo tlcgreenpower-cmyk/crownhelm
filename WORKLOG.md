@@ -1137,3 +1137,31 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   b370, a function's closing brace here. Both times it surfaced as **`Unexpected end of input` at the
   LAST line of the file**, nowhere near the edit. `node --check` on the extracted module finds it in
   a second; a browser reload just shows a blank screen.
+
+- **b373 A LEVEL OF DETAIL FOR THE SIMULATION.** First build aimed at the owner's lag, and the cause
+  is mine: **b364** made the rivals actually fight, so a late game carries 500–700 men where it
+  carried ~340. Nothing got slower per man — there are twice as many, and the per-unit loop is top of
+  the step cost, near-linear (3.19ms at 196 units, 6.19ms at 351).
+  **Counted rather than assumed** at 254 units: 132 idle, 175 beyond 150 units from camera, **140
+  idle AND far AND with nothing to fight and nowhere to walk** — over half the army re-deciding
+  nothing 30× a second. Rendering has had an LOD since b144; orders never did. Such a man now thinks
+  **every third step on the accumulated dt**, so every `Math.random()<dt*k` keeps its old expected
+  rate — he decides as often per *second*, in one go. Fighting, walking, garrisoned, selected or
+  near the camera: untouched.
+  **Measured properly, which took three goes.** First attempt: two fresh games, worthless (entity
+  counts differed by 90). Second: same save but 3 samples, and the spread (4.74/4.12/3.68) exceeded
+  the difference. Quoted run: one 20-min game saved to its own slot, that identical save loaded into
+  both builds, 120 steps + 3 profiles discarded for the JIT, then 7 profiles of 200 steps.
+
+    | | b372 | b373 |
+    |---|---|---|
+    | step | 4.274 ms ± 0.156 | **3.917 ± 0.342** |
+    | per-unit loop | 2.664 ms ± 0.153 | **2.024 ± 0.223** |
+
+  **~22–24% off the unit loop, 6–8% off the step.** And why it isn't more is the interesting part:
+  59% of men qualify and run at ⅓ rate, so the arithmetic says ~40% — but **the men this skips were
+  already the cheapest**. An idle man far from camera does no mesh work (gated on visibility long
+  ago), no animation, no pathing, no combat. The expensive ones are gathering, building and fighting,
+  and those are exactly the ones it must not touch. **The remaining cost is in men who are doing
+  things, and making them think less often would change how the game plays, not how fast it runs.**
+  Soak 21.8 min, zero errors, army 48→366 with a war taking it to 301 — b364 behaviour intact.
