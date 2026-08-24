@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b356</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b357</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4099,6 +4099,9 @@ function farmSurfaceY(b,x,z){
     if(y>=g-0.05&&y<=g+2.2)return y; }
   return g; }
 const NO_JITTER=new Set(['wall','gate','bridge','dock','farm','tower']);
+// b357: square-footprint types numerous enough to read as a repeat. A quarter turn on a square
+// plot lands on the same tiles, so this is free of placement risk.
+const VARY_FACING=new Set(['house','mill','bakery','storehouse','market','garden','statue','watch','tradepost']);
 function addBuilding(type,tx,ty,owner,done){const b=BLD[type];bldStamp++;
   const bl={id:idc++,type,tx,ty,w:b.w,h:b.h,owner,hp:done?b.hp:1,maxHp:b.hp,done:!!done,progress:done?1:0,cd:0,rally:null,queue:[],smoke:0};
   if(type==='farm')bl.crop=FARM_CROPS[farmCropIndex(farmSeed(tx,ty))].n;
@@ -4124,6 +4127,17 @@ function addBuilding(type,tx,ty,owner,done){const b=BLD[type];bldStamp++;
   // which is enough to break the ruled rows and not enough to hang a wall over its own plot.
   // Walls, gates and bridges keep their bearing — those are surveyed lines and must meet.
   if(!NO_JITTER.has(type))bl.mesh.rotation.y=(hashN(tx*2.7+11,ty*1.9+5)-0.5)*0.42;
+  // b357 A STREET OF IDENTICAL HOUSES. b190's twelve degrees breaks the ruled rows but it does not
+  // stop every roof pointing the same way — photographed a built town and six houses in a row were
+  // byte-for-byte the same object at the same angle, which is the flat repeat the eye reads as a
+  // stamp. These types all have a SQUARE footprint, so a quarter turn occupies exactly the same
+  // tiles and cannot hang over its own plot; a little scale on top and a row of houses becomes a
+  // village. Seeded from the tile like b190, so a saved town comes back as it stood.
+  // Excluded on purpose: the Keep and the Castle (one or two per realm, so no repetition to break,
+  // and their doors face the road), and everything already in NO_JITTER.
+  if(VARY_FACING.has(type)){
+    bl.mesh.rotation.y+=Math.floor(hashN(tx*1.3+29,ty*3.1+7)*4)*(Math.PI/2);
+    const s=0.95+hashN(tx*4.1+3,ty*2.3+19)*0.10; bl.mesh.scale.setScalar(s); bl._vary=s; }
   // b209: SIT IT ON THE HILL, NOT OVER IT. A building takes its height from the ONE point at the
   // centre of its plot, so on any slope the downhill side hangs in the air. Measured from the bottom
   // of the solid geometry to the lowest ground under the footprint: 73 of 126 buildings stood more
@@ -5604,7 +5618,7 @@ function updateBuilding(b,dt){if(!b.done){b._crew=b._crewNow||0;b._crewNow=0;
   // it RISES out of the ground now instead of stretching up like rubber: full-size masonry all
   // the way, hauled up course by course, with the ground hiding whatever has not come up yet.
   const H=bldHeight(b.type), p=Math.min(1,b.progress), rise=Math.pow(p,0.8);
-  b.mesh.scale.y=1; b.mesh.position.y=b._baseY-H*(1-rise);
+  b.mesh.scale.y=b._vary||1; b.mesh.position.y=b._baseY-H*(1-rise);   // b357: keep this building's own size
   if(b.scaffold){ const sc=b.scaffold.userData;
     if(sc.pile)sc.pile.scale.set(1,Math.max(0.05,1-p*0.95),1);      // the timber goes down as the walls go up
     if(sc.stones)sc.stones.scale.setScalar(Math.max(0.06,1-p*0.9)); }
@@ -5877,7 +5891,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
         else orderPath(e,dp.tx+(dp.w>>1),dp.ty+dp.h,dp.id); } break;}
     case 'build':{const b=e.build;if(!b||b._gone||b.done){e.cmd='idle';e.build=null;e.path=null;break;}if(Math.hypot(e.x-b.cx,e.z-b.cz)<Math.max(b.w,b.h)*TILE*0.5+TILE*1.6){e.path=null;b._crewNow=(b._crewNow||0)+1;const _cr=Math.max(1,b._crew||1);b.progress+=dt*(_cr+2)/(3*_cr)/(BUILD_T[b.type]||30);
       e.workT=(e.workT||0)-dt; if(e.workT<=0){e.workT=1.3+(e.id%4)*0.15;playOnce(e,'attackA');}   /* b93: hammering swings on site */
-      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;bldStamp++;b.hp=b.maxHp;b.mesh.scale.y=1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
+      b.hp=Math.max(b.hp,Math.min(b.maxHp,b.maxHp*b.progress+1));if(Math.random()<dt*4)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+2,b.cz,'chip');if(Math.random()<dt*1.6)spawnPart(b.cx+(Math.random()-.5)*b.w*TILE,heightAtWorld(b.cx,b.cz)+1.2,b.cz,'smoke');if(b.progress>=1){b.progress=1;b.done=true;bldStamp++;b.hp=b.maxHp;b.mesh.scale.y=b._vary||1;b.mesh.position.y=(b._baseY!==undefined?b._baseY:b.mesh.position.y);removeBuildUI(b);e.cmd='idle';e.build=null;const nb=nextBuildSite(e);if(nb){e.cmd='build';e.build=nb;orderPath(e,nb.tx+(nb.w>>1),nb.ty+nb.h,nb.id);}if(b.owner==='player'){sfxWhere(b.cx,b.cz);SFX.build();}if(b.type==='house'||b.type==='garden')spawnCitizen(b);if(b.type==='bridge')rebuildBridges();if(!b._roadDone){b._roadDone=1;stampTownPath(b);}
       if(b.type==='wonder'){ b.wonderStart=elapsed;
         flashMsg((b.owner==='player'?'🏛️ Your Wonder stands complete — hold it ':'🏛️ '+realmName(b.owner)+' raises a Wonder — deny them ')+Math.floor(WONDER_SURVIVE/60)+' minutes and '+(b.owner==='player'?'the realm is yours':'they win the realm outright')+'!');
         // b350: and if it is a RIVAL'S, the country gets to know where it is. The message above
@@ -8403,7 +8417,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
   for(const sb of s.blds){const b=addBuilding(sb.t,sb.x,sb.y,sb.o,sb.d);
     b.hp=s.hpv>=2?sb.hp:Math.round(sb.hp*(BLD[sb.t].hp/(HP_LEGACY[sb.t]||BLD[sb.t].hp)));   // pre-b95 saves used the old HP scale
     b.progress=sb.p;if(sb.up){b.up=true;if(sb.t==='wall'||sb.t==='gate')b.maxHp*=1.5;}if(sb.u2)b.up2=true;if(sb.rk){b.rschK=sb.rk;b.rschT=sb.rt||10;}if(sb.la!==undefined&&sb.la!==null){b.la=sb.la;b.lx=sb.lx;b.lz=sb.lz;b._baseY=heightAtWorld(b.lx,b.lz);b.mesh.position.set(b.lx,b._baseY,b.lz);orientWall(b);}
-    if(!sb.d){b.mesh.scale.y=1;b.mesh.position.y=b._baseY-bldHeight(sb.t)*(1-Math.pow(Math.min(1,sb.p),0.8));}   // b149: half-built walls sit at half height
+    if(!sb.d){b.mesh.scale.y=b._vary||1;b.mesh.position.y=b._baseY-bldHeight(sb.t)*(1-Math.pow(Math.min(1,sb.p),0.8));}   // b149: half-built walls sit at half height
     b.queue=(sb.q||[]).map(q=>({type:q.type,t:q.t})); b.rally=sb.r||null;
     if(sb.ws!==undefined&&sb.ws!==null)b.wonderStart=elapsed-sb.ws;   // b350: and the Wonder's clock keeps running
     if(sb.d&&(sb.t==='house'||sb.t==='garden')&&sb.o==='player')spawnCitizen(b); }

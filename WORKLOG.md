@@ -668,3 +668,29 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
 
 - No defect found this pass — it ships the harness and a clean 21.5-minute result, and the commit
   says so plainly.
+
+- **b357 A STREET OF IDENTICAL HOUSES.** Every soak leaves the PLAYER with bare ground — the AI
+  builds, the player doesn't — so in all the photography across these builds nobody had ever looked
+  at a BUILT player town, which is the view the owner spends his whole game inside. Built one
+  properly: 25 buildings laid out the way a person lays one out, a garrison, a population.
+  The housing quarter is six byte-identical objects at the same angle in lockstep. Houses are the
+  most numerous building in any settlement (18–45 in a grown game), so that repeat dominates the
+  look of every town on the map. b190's twelve degrees breaks the ruled rows but cannot stop every
+  roof pointing the same way — twelve degrees is not a different building, it is the same building
+  slightly crooked.
+  Square-footprint types (house, mill, bakery, storehouse, market, garden, statue, watch,
+  tradepost) now take a quarter turn plus a size between 0.95 and 1.05, seeded from the tile like
+  b190 — so a saved town returns exactly as it stood with no new save field. Verified: 25 varied
+  buildings, every rotation and scale identical across save/reload. Excluded on purpose: Keep and
+  Castle (one or two per realm, doors face the road) and everything in NO_JITTER.
+
+- **TWO THINGS CHECKED RATHER THAN ASSUMED.**
+  (1) Tinting was the obvious third variation and is NOT safe: 292 distinct materials across 58
+  buildings but EIGHTEEN are shared, one by 36 buildings at once. Tinting in place recolours whole
+  groups; cloning to avoid it would undo the b92 merge that keeps draw calls down. Left alone.
+  (2) Scaling could sink a building into a hill, which b209 exists to prevent. Measured with b209's
+  own metric on the same buildings with variation off and on: mean change **0.016** units, worst
+  **0.07**. The deep gaps in town (to −6.58 on a scarp) are b209's slope handling, identical either
+  way. The variation does not move buildings.
+  Soak: 11 simulated minutes, 249 units, 115 buildings of which 68 went up DURING play and carry
+  the variation through the build animation, zero errors, 4.20ms a step.
