@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b361</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b362</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -6902,7 +6902,12 @@ function realmBrain(o,dt){ const ai=realmAI[o]; ai.t+=dt; ai.attackTimer-=dt; ai
         if(!inOwnLand(o,st.x,st.z))continue;                       // their own borders bind them too
         const d2=Math.hypot(home.cx-st.x,home.cz-st.z);
         if(d2<bd){bd=d2;best=st;} }
-      if(best&&bd<190&&canPlace(best.tx-1,best.ty-1,2,2)){
+      // b362: 190 was measured on a 384x256 world and is a much shorter reach on a 672x448 one.
+      // Counted on the Broadwood: only 6 of the 12 signposts lay within 190 of ANY keep, the other
+      // six sitting 210 to 301 out where no realm would ever go for them — half the trade road a
+      // prize with nobody contesting it, which is the exact fault b336 was written to cure.
+      // Distance scales with the square root of area, the same reasoning the road's own length uses.
+      if(best&&bd<190*Math.sqrt(areaScale())&&canPlace(best.tx-1,best.ty-1,2,2)){
         r.w-=80; r.g-=40; addBuilding('tradepost',best.tx-1,best.ty-1,o,false); return; } } }
   // A Fort: a turtle plants them to thicken its own ground, everyone else to lean on a neighbour.
   if(T.age>=2&&countBld(o,'fort')<(ai.pers==='turtle'?3:1)&&!pend('fort')&&r.w>=120&&r.m>=70&&Math.random()<0.12){
@@ -8339,7 +8344,21 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
     if(winMode==='regicide')spawnUnit('hero',o,hx,hy+4); }   // b311: every realm needs a King on the board from turn one, or Regicide has nothing to actually win by
   // b330: the roaming layer — loot with something sitting on it, and a trade road across the map.
   // Both go down AFTER the keeps, because both are placed relative to where the keeps ended up.
-  spawnTreasures(11); spawnTradeRoute(7);
+  // b361 found the minimap markers were a Heartlands constant nobody had revisited; these were the
+  // same thing in the simulation. Every other feature of the world already scales with the map —
+  // villages min(16,7*A), relics min(7,3+2*A), clouds, birds, butterflies, sheep flocks, and all
+  // nineteen ground scatters — but the roaming layer was a flat 11 and 7 however big the country
+  // got. Measured: Heartlands carries 111.9 hoards per million square units with 52 between
+  // neighbours; the Broadwood, three times the area, carried the SAME ELEVEN at 36.5 per million
+  // and 95 units apart. A third the density, on four of the five maps, of the one system whose
+  // entire purpose is to give you a reason to leave home.
+  // Treasures fill an AREA, so they scale with it. The trade road is a LINE across the map and its
+  // length grows with the square root, so scaling it by area packs the posts too close: measured at
+  // full area scaling the big maps put 16 posts 33 units apart against Heartlands' 43, tighter than
+  // the map it was tuned on. sqrt gives 12 posts at 45, which matches. The bird flocks already make
+  // the same one-dimensional distinction.
+  const _A=areaScale();
+  spawnTreasures(Math.min(34,Math.round(11*_A))); spawnTradeRoute(Math.min(14,Math.round(7*Math.sqrt(_A))));
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');camTarget.set(ph.cx,0,ph.cz);standardView(true);
   for(let i=0;i<3;i++)spawnCitizen(ph);   // townsfolk mill about the Keep from the start
   // opening reveal
