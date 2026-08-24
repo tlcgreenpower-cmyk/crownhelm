@@ -1216,3 +1216,22 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   usually not where TFshot is aimed. Men in your shot but outside the *real* view stay in bind pose,
   and you photograph T-poses and conclude the rig is broken. Read the yaw back off the camera and
   pass it to the shot. Now in CLAUDE.md.
+
+- **b376 THE TOWN TELLS YOU IT IS EMPTYING.** The owner watched 4 of 8 peasants vanish and reported
+  workers disappearing. Not a bug: popularity starts near 31, people leave below 40, and farms
+  without houses keep you there — so one walks out every ~75s, and b326 gives him no blood, no
+  corpse and no entry in your losses, deliberately. **The game did say so** — in `flashMsg`, which
+  holds one line and is overwritten by the next event; and the meter reddened with a tooltip saying
+  "your people are walking out", to anyone who thought to hover a 74px bar mid-game. **The
+  information existed and was unreachable.** Now: a running count kept across saves; the top bar
+  says it without hovering ("⚠ leaving · 3 gone · 🏠 Crowded — not enough beds") only while below
+  the threshold; and the flash quotes the single worst factor from the breakdown the tooltip already
+  builds, so it reads as an instruction rather than a mood. Verified by driving it: 44 → nothing,
+  held at 22 → warning + 3 gone, back to 72 → clears. Tally survives save/load.
+
+- **AND WHY IT SLIPPED THROUGH TWICE.** I wrote the warning, tested it, and it did not appear —
+  twice — and the code was correct both times. **`updateHUD` runs only from the rAF loop, which
+  never fires in this harness** because the pane does not composite. So the entire top bar has been
+  untestable headlessly; anything written into it could be checked by reading the source and no
+  other way. That is exactly how a warning that never appeared gets called done. `updateHUD` is on
+  the debug surface now — the one part of the UI the sweep could never reach.

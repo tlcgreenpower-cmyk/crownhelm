@@ -112,6 +112,7 @@
         <span style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#9fc0d2;opacity:.8;"></span>
       </span>
       <span id="moodN">50</span>
+      <span id="moodWarn" style="display:none;color:#ff9b86;font-size:11px;font-weight:600;white-space:nowrap;"></span>
     </div>
     <div class="topDiv"></div>
     <span id="age">Age of Refuge</span>
@@ -133,7 +134,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b375</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b376</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2026,7 +2027,7 @@ function addVillage(v){ const g=new THREE.Group();const cx0=wx(v.tx),cz0=wz(v.ty
   spawnCitizen({cx:cx0,cz:cz0,owner:'village'});spawnCitizen({cx:cx0,cz:cz0,owner:'village'});
   return g;}
 function tileVis(x,z){const tx=txFromW(x),ty=tzFromW(z);return inB(tx,ty)&&visNow[ti(tx,ty)]===1;}
-let vilT=0,atkPing={t:99,x:0,z:0},statKills=0,freePlay=false,paradeMode=false;
+let vilT=0,atkPing={t:99,x:0,z:0},statKills=0,statLeft=0,freePlay=false,paradeMode=false;   // b376: statLeft = peasants who walked out
 function pingAttack(x,z){ if(atkPing.t>8){ atkPing={t:0,x,z}; SFX.wave(); flashMsg('⚔ Under attack! — press SPACE to look'); } }
 function updateVillages(dt){ vilT-=dt; if(vilT>0)return; vilT=0.5;
   for(const v of villages){ if(v.claimed)continue;
@@ -5409,7 +5410,19 @@ function updatePopularity(dt){
       if(M.leave>=1){ M.leave-=1;
         const go=ents.filter(e=>e.owner===o&&e.type==='worker');
         if(go.length>3){ const q=go[Math.floor(Math.random()*go.length)];
-          if(o==='player')flashMsg('🚶 A peasant has had enough of your rule and left your lands');
+          // b376: THE OWNER WATCHED HALF HIS WORKFORCE VANISH AND THOUGHT IT WAS A BUG.
+          // It was this. Popularity starts near 31, below the 40 where people begin to leave, and
+          // building farms without houses keeps it there - so a peasant walks out about every
+          // seventy-five seconds, silently, and b326 deliberately gives him no blood, no corpse and
+          // no entry in your losses. The one line of warning went into flashMsg, which holds ONE
+          // message at a time and is overwritten by the next thing that happens, so in a busy
+          // opening it is gone before it is read. Two changes: keep a running COUNT so the top bar
+          // can say it without being hovered, and name the worst cause in the message so it is an
+          // instruction rather than a lament.
+          if(o==='player'){ statLeft++;
+            const F=(M.log||[]).filter(f=>f.v<0).sort((a,b)=>a.v-b.v)[0];
+            flashMsg('\u{1F6B6} A peasant has had enough and left'+(F?' \u2014 '+F.ic+' '+F.k:'')
+              +' \u00b7 '+statLeft+' gone so far'); }
           q._emigrated=true; q.hp=0; } } } } }
 // ==================================================== b326 THE LORDS (Stronghold #2 & #3)
 // A realm's state is the thing you can SEE from outside — is it quiet, is it digging in, is it
@@ -8149,6 +8162,14 @@ function updateHUD(){$('food').textContent=Math.floor(res.player.f);$('wood').te
     mb.style.background = p>=52?'#6fd48a' : p>=40?'#e0c46a' : '#e07a6a';
     const mi=document.getElementById('moodIc'); if(mi)mi.textContent = p>=75?'😍':p>=52?'🙂':p>=40?'😐':p>=25?'☹️':'😡';
     const mn=document.getElementById('moodN'); if(mn)mn.textContent=Math.round(p);
+    // b376: the tooltip already said "your people are walking out" — but only to somebody who
+    // thought to hover a 74-pixel bar mid-game, which is nobody. Say it on the bar itself, with the
+    // count and the worst cause, so the answer to "where did my workers go" is on screen while it
+    // is happening rather than in a flash that has already been overwritten.
+    { const mw=document.getElementById('moodWarn');
+      if(mw){ if(p<40){ const F2=(mood.player.log||[]).filter(f=>f.v<0).sort((a,b)=>a.v-b.v)[0];
+          mw.style.display=''; mw.textContent='\u26a0 leaving'+(statLeft?' \u00b7 '+statLeft+' gone':'')+(F2?' \u00b7 '+F2.ic+' '+F2.k:''); }
+        else if(mw.style.display!=='none'){ mw.style.display='none'; } } }
     const box=document.getElementById('moodBox');
     if(box){ const F=mood.player.log||[];
       box.title='POPULARITY '+Math.round(p)+'/100 — '+(p>=52?'peasants are arriving of their own accord':p>=40?'nobody is coming and nobody is leaving':'your people are walking out')
@@ -8554,7 +8575,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   ents=[];blds=[];parts=[];projs=[];citizens=[];idc=1;selected=[];selBuilding=null;placing=null;groups={};if(demoMode)setDemo(false);updateGhost();
   for(const r of rubblePiles)scene.remove(r.g); rubblePiles=[]; fallingTrees=[];
   if(chopStumps){scene.remove(chopStumps);chopStumps=null;chopStumpN=0;}
-  initRealms();elapsed=0;gameOver=false;statKills=0;freePlay=false;
+  initRealms();elapsed=0;gameOver=false;statKills=0;statLeft=0;freePlay=false;
   genMap();buildTerrain();buildWater();buildDecor();buildAmbient();buildSheep();spawnClouds();spawnSunShafts();
   // b165: clear the ground a realm is founded on. Trees are scattered before the keeps are placed,
   // so a starting town could be built around standing timber that blocks its own doorway — and with
@@ -8605,7 +8626,7 @@ function newGame(){ refitShadows();for(const e of ents)scene.remove(e.mesh);for(
   running=true;refreshUI();}
 // ==================================================== SAVE / LOAD
 function saveGame(quiet,key,name){ if(!running||gameOver||paradeMode)return; key=key||'crownhelm_save';
-  const s={v:1,hpv:2,players:REALMS.length,kills:statKills,map:curMapId,dif:difficulty,meta:{when:Date.now(),name:name||undefined,fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
+  const s={v:1,hpv:2,players:REALMS.length,kills:statKills,left:statLeft,map:curMapId,dif:difficulty,meta:{when:Date.now(),name:name||undefined,fac:faction.player,age:tech.player.age,pop:popUsed('player'),t:Math.round(elapsed)},elapsed,faction:{...faction},res:JSON.parse(JSON.stringify(res)),tech:JSON.parse(JSON.stringify(tech)),
     diplo:JSON.parse(JSON.stringify(diplo)),aiWars:{...aiWars},
     // b189: a realm's taste in building goes in the save. newGame re-rolls it, so without this a
     // reloaded kingdom would find its farming neighbour had quietly become a tower-builder.
@@ -8655,7 +8676,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
   for(const t of treasures)if(t.mesh)scene.remove(t.mesh); treasures=[];
   for(const s of tradeSites)if(s.mesh)scene.remove(s.mesh); tradeSites=[];
   for(const b of blds)scene.remove(b.mesh); blds=[]; buildGrid.fill(0);
-  res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed; statKills=s.kills||0;
+  res=s.res; tech=s.tech; diplo=s.diplo; aiWars=s.aiWars||{}; elapsed=s.elapsed; statKills=s.kills||0; statLeft=s.left||0;
   mkt={w:1,f:1,m:1}; if(s.mkt)for(const k in mkt)if(typeof s.mkt[k]==='number')mkt[k]=s.mkt[k];   // pre-b221 saves start at par
   if(s.taste)for(const o in s.taste)if(realmAI[o]&&s.taste[o])realmAI[o].taste=s.taste[o];   // b189: they keep their character
   // b335: and everything the last four builds added. Old saves have none of these fields, so each
@@ -8803,7 +8824,12 @@ window.TFshot=function(opt){ opt=opt||{};
 window.TF={get info(){let sk=0,ms=0;scene.traverse(o=>{if(o.isSkinnedMesh)sk++;else if(o.isMesh)ms++;});
   return {fps:lastFps,ents:ents.length,citizens:citizens.length,blds:blds.length,skinned:sk,meshes:ms,
     calls:renderer.info.render.calls,tris:renderer.info.render.triangles,qual:QUAL};},
-  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,saveGame,loadGame,get groundCv(){return groundCv;},get WORLD_W(){return WORLD_W;},get WORLD_H(){return WORLD_H;},get HALF_W(){return HALF_W;},get HALF_H(){return HALF_H;},citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
+  _dbg(){window.__D={THREE,scene,renderer,camera,terrainColor,noise2,heightAtWorld,addBuilding,removeBuilding,spawnUnit,makeUnitMesh,rschCost,rschTime,get tech(){return tech;},get res(){return res;},update,updateUnitLOD,updateRain,updateDayNight,updateAmbience,scanAmbience,audDist,commandMove,
+      // b376: the whole top bar was untestable headlessly. updateHUD runs only from the rAF loop,
+      // which never fires in this harness (the pane does not composite), so anything written into
+      // it could not be checked at all — which is exactly how a warning that never appeared got as
+      // far as being called done. Exported so a test can tick it by hand.
+      updateHUD,refreshUI,saveGame,loadGame,get groundCv(){return groundCv;},get WORLD_W(){return WORLD_W;},get WORLD_H(){return WORLD_H;},get HALF_W(){return HALF_W;},get HALF_H(){return HALF_H;},citizens,rebuildRoads,carts,roadEdges,spawnCitizen,makeCart,get explored(){return explored;},
       get diplo(){return diplo;},get realmAI(){return realmAI;},get aiWars(){return aiWars;},get elapsed(){return elapsed;},
       // b345: the shoreline work needed the waterline and could not get at it — TFshot measurements
       // silently compared heights against `undefined` and reported "no land anywhere" for a full
