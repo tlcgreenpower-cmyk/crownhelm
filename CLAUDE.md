@@ -51,6 +51,17 @@ Two things it has caught being written wrongly, both in the sweep rather than th
 `r1/r2/r3` (a three-realm game has no r3) and asserting `cmd==='gather'` after a gather order (by
 the time you look he may already be `'return'`, which means it worked).
 
+`tools/worldcensus.js` — `await census(5)` counts every world scatter by name across five real
+maps and flags any that place nothing. It exists because of b358: b353 fixed rocks floating over
+the sea and in the same line silently took the sea stacks to ZERO, and nothing noticed for a build
+because **nothing counts the world's decoration**. A scatter can die and the game still runs,
+still soaks clean, still reports no errors — the world just quietly gets emptier.
+
+Two things make counting them possible, and both are easy to undo by accident: each scatter sets
+`mesh.name='scatter:<thing>'`, and `chunkGroupInPlace` copies that name onto every piece when it
+splits a scatter into a culling grid. **Never read one InstancedMesh's `count`** — a scatter is
+tens of chunks, and reading one gave "1 sea stack" when the true figure was 65. Sum by name.
+
 `tools/soak.js` is the other half — `await soak()` runs a long hands-off game and reports whether
 entity counts, scene nodes, scene geometry, save size and step time all settle. b356 measured 21.5
 minutes: army plateaus at 346, scene nodes and geometry stop growing and tick down again, save

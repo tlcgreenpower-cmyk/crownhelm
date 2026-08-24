@@ -719,3 +719,26 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   InstancedMesh via `scene.traverse` and reading its `count`. There are TWENTY-TWO of them and the
   one traverse lands on last is meaningless — that is where the "exactly 1 crag on every map"
   figure came from, and it was nonsense. Sum across all of them, or better, tally inside the loop.
+
+- **b359 SOMETHING TO COUNT THE WORLD WITH.** b358 was a scatter that had fallen to zero and stayed
+  there for a build, found only because I kept photographing the same coast and kept feeling
+  something was missing. Not a way to find things. The world is nineteen separate scatters, each a
+  pile of conditions on elevation, water depth, border distance and a hash roll, and NOTHING counted
+  them — one can die and the game still runs, soaks clean and reports no errors.
+  Two changes make them countable: every scatter now sets `mesh.name='scatter:<thing>'` (19 of
+  them), and **`chunkGroupInPlace` copies that name onto every piece** when b281 splits a scatter
+  into a culling grid. That second part is the one that mattered — the pieces were anonymous, which
+  is exactly why b358 went badly: I read "the" instanced mesh's count and got 1 when the true
+  figure was 65 across twenty-two chunks.
+  `tools/worldcensus.js` — `await census(5)` walks the REAL map selector (Heartlands, Greatvale,
+  Twinrivers, Ironhigh, Broadwood), because the world is deterministic and calling newGame() again
+  just rebuilds the identical map, so repeating it proves nothing. Counts every scatter on each and
+  flags anything empty.
+  RESULT, five maps, healthy: seaStacks 53/50/59/48/62, deadTrees 12/108/106/53/217, stumps
+  18/165/162/78/326, mushrooms 54/495/482/236/987, grass 14000/42875×4. Nothing empty anywhere, and
+  the seaStacks 53 matches b358's independent measurement exactly — the cross-check that the census
+  reads the right thing.
+  Left out on purpose: percentage of cap. The chunker sizes each piece to its contents so summed
+  cap always equals summed count; it read 100% for all nineteen on the first run, which is worse
+  than useless because it looks like information.
+  Soak: 11 simulated minutes, 229 units, 104 buildings, 614 named chunks alive, zero errors, 3.93ms.
