@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b363</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b364</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -624,8 +624,14 @@ function setRealmCount(n){ playerCount=Math.max(2,Math.min(8,n));
   AI_REALMS.forEach((o,i)=>{ if(!faction[o])faction[o]=DEFAULT_AI_FACS[i]; }); }
 setRealmCount(playerCount);
 let diplo={};        // per AI realm: {score, stance:'neutral'|'ally'|'war'}
-let aiWars={};       // wars between AI realms (allies joining your fights): key "r1|r2" -> true
+let aiWars={};       // wars between AI realms: key "r1|r2" -> the `elapsed` at which it began
 const warKey=(a,b)=>[a,b].sort().join('|');
+// b364: a war now remembers WHEN it started, because how long it has run is the whole question —
+// see aiDiplomacy. The value is still always truthy, so every `if(aiWars[k])` test is unaffected,
+// and a save written before this build stores `true`, which reads back as "old enough to end".
+const WAR_MIN=240;                                   // seconds a war must run before it may lapse
+const warAge=k=>{const v=aiWars[k]; return typeof v==='number'?Math.max(0,elapsed-v):1e9;};
+const warBegin=k=>{ if(!aiWars[k])aiWars[k]=elapsed||1e-3; };   // never falsy, even on frame one
 function isHostile(a,b){ if(a===b)return false;
   if(a==='player'||b==='player'){const r=a==='player'?b:a;return diplo[r]&&diplo[r].stance==='war';}
   return !!aiWars[warKey(a,b)]; }
@@ -6633,7 +6639,7 @@ function makePeace(o,byAI){ if(!diplo[o]||diplo[o].stance!=='war')return false;
 function declareWar(o,by){ if(!diplo[o])return; if(diplo[o].stance!=='war'){ diplo[o].stance='war'; diplo[o].score=Math.min(diplo[o].score,-20);
   SFX.wave(); flashMsg((by==='player'?'You declare war on ':'War! ')+realmName(o)+(by==='player'?'!':' turns against you!'));
   // your friends take up arms against your enemy
-  for(const f of AI_REALMS)if(f!==o&&isFriend(f)&&!aiWars[warKey(f,o)]){ aiWars[warKey(f,o)]=true;
+  for(const f of AI_REALMS)if(f!==o&&isFriend(f)&&!aiWars[warKey(f,o)]){ warBegin(warKey(f,o));
     setTimeout(()=>flashMsg('🤝 '+realmName(f)+' joins your war against '+realmName(o)+'!'),1800); }
   refreshUI(); } }
 let difficulty=localStorage.getItem('crownhelm_diff')||'normal';
@@ -6971,8 +6977,17 @@ function realmKnown(o){ const h=blds.find(b=>b.owner===o&&b.type==='hall');
 function aiDiplomacy(o,ai){
   const mine=blds.find(b=>b.owner===o&&b.type==='hall'); if(!mine)return;
   const atWar=AI_REALMS.filter(t=>t!==o&&aiWars[warKey(o,t)]);
-  // an old war runs its course
-  if(atWar.length&&Math.random()<0.3){ const t=atWar[(Math.random()*atWar.length)|0];
+  // b364: AN OLD WAR RUNS ITS COURSE — BUT A NEW ONE HAS TO BE GIVEN THE CHANCE TO BE A WAR.
+  // This roll used to be taken against EVERY war on the books, however young, and it is taken
+  // every 90-180 seconds. So a war declared in the opening minutes, when a realm owns two
+  // soldiers against a muster floor of four, stood a fair chance of being called off before
+  // anybody could march. Measured: three realms at war continuously for twenty simulated minutes
+  // with armies reaching two hundred destroyed exactly ONE of each other's buildings, because the
+  // wars kept lapsing in their first three minutes and re-forming later. A realm now reaches its
+  // first host at about 220 seconds, so a war is left alone for its first WAR_MIN and only then
+  // may it lapse. Wars that have run their course still end at the same rate as before.
+  const ripe=atWar.filter(t=>warAge(warKey(o,t))>=WAR_MIN);
+  if(ripe.length&&Math.random()<0.3){ const t=ripe[(Math.random()*ripe.length)|0];
     delete aiWars[warKey(o,t)];
     if(realmKnown(o)&&realmKnown(t))flashMsg('\u{1F54A} '+realmName(o)+' and '+realmName(t)+' have made peace');
     return; }
@@ -6985,7 +7000,7 @@ function aiDiplomacy(o,ai){
   if(!near)return;
   const closeness=clamp(1-(nd-60)/260,0.25,1);             // neighbours quarrel; distant realms rarely bother
   if(Math.random()<0.16*closeness*(ai.aggro/55)*dif().aggro){
-    aiWars[warKey(o,near)]=true; realmAI[o].attackTimer=Math.min(realmAI[o].attackTimer,10);
+    warBegin(warKey(o,near)); realmAI[o].attackTimer=Math.min(realmAI[o].attackTimer,10);
     if(realmAI[near])realmAI[near].attackTimer=Math.min(realmAI[near].attackTimer,25);
     if(realmKnown(o)||realmKnown(near))flashMsg('⚔ '+realmName(o)+' declare war on '+realmName(near)+'!'); } }
 // b213: and it presses the TOWN. This drew uniformly from everything the victim owned, so a host

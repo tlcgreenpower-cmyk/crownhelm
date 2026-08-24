@@ -150,6 +150,12 @@ Twelve borrowed mechanics went in over b326–b330 and they touch a lot:
   saved and restored explicitly.
 - **Downed commanders** — heroes go to `downed` instead of dying; only the capture timer finishes
   them. The death filter in `update` must keep letting them through.
+- **AI-vs-AI wars** (`aiWars`, `warKey`, `aiDiplomacy`) — the value stored against a war key is the
+  `elapsed` it was DECLARED at, not `true` (b364), because `aiDiplomacy` rolls to end every war on
+  the books every 90–180s and a realm needs ~220s to muster its first host. Without a minimum age
+  the rivals declared war, stood still, and made peace before anyone marched — twenty minutes of
+  three-way war used to destroy ONE building. It is still always truthy, so `if(aiWars[k])` is
+  unaffected; a pre-b364 save holds `true`, which `warAge` reads as "old enough to end".
 
 **Anything new that holds state must go in `saveGame`/`loadGame`.** Four of these were silently
 lost on reload until they were tested; test the round trip, do not assume it.
