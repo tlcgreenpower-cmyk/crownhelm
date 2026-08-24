@@ -133,7 +133,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b374</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b375</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -5914,7 +5914,18 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
     if(_vis){ e.mesh.scale.y=1-Math.sin(kf*Math.PI)*0.14; if(e.flinch<=0)e.mesh.scale.y=1; } }
   if(_vis){ const ud=e.mesh.userData;
     if(ud.gun){ const gt=(e.cmd==='gather'&&e.gather)?e.gather.type:null;
-      const wantG=e.cmd==='hunt', wantA=gt==='wood', wantP=gt==='metal'||gt==='gold';
+      // b375 (owner: "the workers look weird when using there axes still"). The axe itself is fine:
+      // measured it, and it is parented to the FistR bone 0.189 units out, which is exactly the
+      // grip b325 designed and photographed. What looked wrong is WHEN it is drawn. wantA was true
+      // for the whole gather order, so a peasant marched the length of the map with a felling axe
+      // already out, hanging from a swinging fist at his side - and at that angle the haft crosses
+      // his body and reads as an axe stuck THROUGH him rather than carried.
+      // The game already made this exact call for the load he carries: b291 put the timber on his
+      // back only once the job is done and he is walking home, "not mid-swing, still three-quarters
+      // through the tree". Same rule for the tool, the other way about - it comes out when he
+      // reaches the work, and he walks with his hands free.
+      const atWork=!(e.path&&e.pi<e.path.length);
+      const wantG=e.cmd==='hunt', wantA=gt==='wood'&&atWork, wantP=(gt==='metal'||gt==='gold')&&atWork;
       if(ud.gun.visible!==wantG)ud.gun.visible=wantG;
       if(ud.axe&&ud.axe.visible!==wantA)ud.axe.visible=wantA;
       if(ud.pick&&ud.pick.visible!==wantP)ud.pick.visible=wantP;

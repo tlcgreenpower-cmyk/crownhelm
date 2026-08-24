@@ -66,6 +66,12 @@ screenshots time out. Drive and photograph it instead:
   same object** — `weather` is on `TF`, so listing `Object.keys(__D)` says it does not exist. Check
   both before concluding a thing cannot be measured (b366 nearly re-derived the weather state by
   hand for want of looking one level up).
+- **`setCam` takes (x,z,dist,pitch) and NO yaw** (b375). The real camera — the one `updateUnitLOD`
+  reads to decide who gets skinned — therefore keeps whatever yaw it had, which is usually not the
+  yaw you pass to TFshot. Every man in your shot but outside the REAL camera's view is left in bind
+  pose, so you photograph a field of T-poses and conclude the rig is broken. Read the yaw back off
+  the camera and pass THAT to the shot:
+  `const yaw=Math.atan2(camera.position.x-camTarget.x, camera.position.z-camTarget.z)`.
 - **A unit photographed away from the camera shows its BIND POSE, not its animation.** TFshot
   renders from its own throwaway camera, but `updateUnitLOD` decides who gets skinned using the
   REAL one — off-screen men are deliberately never animated. So a unit posed for a photograph is
@@ -128,6 +134,14 @@ graph, which falls again when things are disposed. `soak.js` reports both and ta
 
 Two containers, and this catches people out: a soldier's commands live in `#formBar` and its
 `#cmds` is empty. A worker is the other way round. Neither is a bug.
+
+**The worker's held tool is NOT the blade on his shoulder** (b375). The worker model has tools,
+pouches and a belt knife modelled into the mesh. Hide every `userData.axe`/`pick` in the scene and
+re-shoot before blaming the attached prop — that control settles in one render what three passes of
+tweaking will not. The attached axe itself is sound: on the `FistR` bone 0.189 out (the designed 0.20
+× the rig's 0.947), and of nine grip rotations tried the shipped one puts the blade tip furthest from
+the chest. What is still wrong is that the model already carries tools and the attached haft is long
+at this scale, so it reads as a second, floating one — an **asset** calibration, not a code one.
 
 **Numbers can agree while the picture disagrees, and the picture is right.** But looking is not
 enough on its own either — when characters "look bad", SURVEY the assets (`tools/blender/survey.py`)

@@ -1188,3 +1188,31 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   dispatch its change event, so the start summary, saved preference and test harness all keep
   working. Verified: clicking Twin Rivers sets select + highlight + stored preference and builds a
   168×112 world.
+
+- **b375 THE PEASANTS PUT THE AXE AWAY TO WALK — AND AN HONEST ACCOUNT OF THE REST.** The word to
+  take seriously in *"the workers look weird when using there axes **still**"* is "still" — third
+  pass, so I went looking for what is true rather than tweaking until a screenshot improved.
+  **Fixed:** `wantA` was `gt==='wood'` — true for the whole gather *order*, so a peasant marched the
+  length of the map with a felling axe out, hanging from a swinging fist, haft crossing his body.
+  The tool now appears when he reaches the work. The game had already made this call for the carried
+  load in **b291** ("not mid-swing, still three-quarters through the tree"); this is that rule
+  reversed. Verified: three peasants with a tool out, none walking.
+  **Checked and innocent — measured, not eyeballed:** the axe IS on `FistR` 0.189 out (the designed
+  0.20 × the rig's 0.947); the bone's +Y (-0.86,-0.33,-0.39) matches elbow→hand (-0.87,-0.34,-0.39),
+  so it slides past the knuckles as intended; and of **nine grip rotations tried**, the shipped one
+  puts the blade tip **furthest** from the chest (1.331 vs 1.014 next best).
+  **A false lead killed for good:** the dark blade over the shoulder is not the axe. Hid every axe
+  and pick in the game and re-shot — still there. It is **modelled into the worker mesh** with the
+  pouches and belt tools. I had been reading part of the character as a misplaced prop.
+  **Still wrong, not pretended otherwise:** with the axe drawn there is a second tool projecting
+  horizontally at chest height. Correctly parented, correctly rotated, and still reads as detached
+  because the haft is long at this scale and its near end hides behind the tunic. The model already
+  carries tools; two on one small frame is most of what "weird" is pointing at. That is an **asset
+  calibration** — b325's grip scale was set against a different rig — and CLAUDE.md's own rule is to
+  survey the assets rather than guess. Not guessing a number on the third report of the same thing.
+
+- **A HARNESS TRAP THAT COST ME A WRONG DIAGNOSIS.** `setCam(x,z,dist,pitch)` takes **no yaw**, so
+  the real camera — which `updateUnitLOD` reads to decide who gets skinned — points wherever it was,
+  usually not where TFshot is aimed. Men in your shot but outside the *real* view stay in bind pose,
+  and you photograph T-poses and conclude the rig is broken. Read the yaw back off the camera and
+  pass it to the shot. Now in CLAUDE.md.
