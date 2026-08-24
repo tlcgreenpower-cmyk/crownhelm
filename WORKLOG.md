@@ -618,3 +618,27 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   zero off-map, zero in water, no errors; photographed before and after.
   Soak: 13 simulated minutes of ordinary play after, 179 units, 70 buildings, zero errors, 3.40ms
   a step.
+
+- **b355 THE SWEEP NOW DRIVES THE MOUSE.** Last of the three surfaces b352 listed as out of reach.
+  A synthetic click turns out to be honest here after all: project a world point through the camera
+  into client coordinates, dispatch a real MouseEvent, and the game's own
+  `localXY → raycastGround → commandMove` path runs exactly as under a hand. `tools/uisweep.js`
+  now drives seven orders and asserts each one LANDED, not merely that nothing threw — select the
+  right man, walk him (measured 21.9 units), send a worker to timber, order an attack, box-select,
+  place a foundation by clicking the ground, move a rally flag.
+  RESULT: 223 interactions, 7 pointer orders, 4 win modes, ZERO errors. No new defect — the pointer
+  surface is sound; b353 and b354 had already taken the two skipped surfaces that were not.
+
+- **THREE THINGS CHECKED RATHER THAN FIXED, which was most of the value.**
+  (1) Box-select over the town returned 1 unit while 5 stood inside the box, dropping four workers.
+  Looked like a clear bug for a minute. It is deliberate — if the box holds any non-worker, workers
+  are filtered out, the same convention AoE uses so dragging over your town gives you the army and
+  not the peasants. The sweep now ASSERTS it so nobody "fixes" it into a regression.
+  (2) A `computeBoundingSphere(): radius is NaN` during a drag. Reproduced from a clean start: does
+  not happen. My own doing — `setCam` takes (x,z,dist,pitch) and I called it bare, which sets
+  camTarget to undefined and turns the camera NaN, making every later projection garbage.
+  (3) The first full run reported three failures and ALL THREE were the sweep being wrong: it
+  hardcoded r1/r2/r3 in a two-AI-realm game, and it asserted `cmd==='gather'` four frames after a
+  gather order, by which time the worker had filled his arms and moved to `'return'` — the order
+  having worked. Both fixed and both documented at the assertion, because a harness that cries
+  wolf is worse than no harness.

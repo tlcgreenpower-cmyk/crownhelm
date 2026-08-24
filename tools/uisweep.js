@@ -14,13 +14,18 @@
 // but it skips anything that tears a building down or quits to the menu, and it finishes on a
 // fresh newGame() so the page is left in a sane state.
 //
+// b355: it now also drives REAL POINTER ORDERS on the 3D view — projecting a world position back
+// to client coordinates and dispatching genuine MouseEvents at it, so select, move, gather,
+// attack, box-select, build-placement, rally and the formation drag all go through the same
+// localXY -> raycastGround -> commandMove path the player's hand does. Each one asserts the order
+// actually took, not merely that nothing threw.
+//
 // WHAT IT DOES NOT COVER, so nobody reads a clean run as more than it is:
-//   - the Map Builder screen and custom maps
-//   - Parade mode
-//   - real mouse work on the 3D view: drag-select, right-click orders, formation drag-aim,
-//     wall dragging, rally flags. Those go through pointer maths this cannot fake honestly.
-// A clean sweep means every BUTTON is wired to something that runs. It does not mean the button
-// does the right thing.
+//   - the Map Builder screen and custom maps (b353 fixed that one; it is still untested here)
+//   - Parade mode (b354)
+//   - wall dragging, and camera orbit/pan
+// A clean sweep means every BUTTON is wired to something that runs and every ORDER lands. It does
+// not mean the result is the one a player wanted.
 (async function(){
   const R={clicks:0,errors:[],sections:{}};
   window.__SWEEP=R;
@@ -80,12 +85,13 @@
          step(2); } } }
    clear(); R.sections.unitBars=n;}
 
-  // ---- 3. diplomacy, every action against every realm
-  {let n=0;
-   for(const o of ['r1','r2','r3'])for(const fn of ['_gift','_war','_peace']){
+  // ---- 3. diplomacy, every action against every realm THAT EXISTS. A three-realm game has no r3,
+  // and hardcoding r1/r2/r3 reported two "failures" that were the sweep's fault, not the game's.
+  {let n=0; const realms=Object.keys(D.diplo||{});
+   for(const o of realms)for(const fn of ['_gift','_war','_peace']){
      try{D.res.player.g=9000;window[fn](o);n++;R.clicks++;}catch(e){err('DIPLO '+fn+' '+o+' '+e.message);}
      step(3);}
-   R.sections.diplomacy=n;}
+   R.sections.diplomacy={actions:n,realms};}
 
   // ---- 4. the top bar and the game menu. Everything except the one that quits.
   {let n=0;
@@ -113,6 +119,73 @@
    R.sections.winModes=modes;}
 
   D.winMode='conquest'; D.newGame(); await wait(1500);
+  // ---- 6. real pointer orders on the 3D view. Everything above is a button; this is the hand.
+  {const orders={};
+   D.winMode='conquest'; D.newGame(); await wait(2000);
+   const cv=document.getElementById('view');
+   const P=(x,z)=>{const v=new D.THREE.Vector3(x,D.heightAtWorld(x,z)+0.6,z);v.project(D.camera);
+     const r=cv.getBoundingClientRect();
+     return {cx:r.left+(v.x*0.5+0.5)*r.width, cy:r.top+(-v.y*0.5+0.5)*r.height, on:v.z<1&&Math.abs(v.x)<=1&&Math.abs(v.y)<=1};};
+   const fire=(t,cx,cy,btn,tgt)=>(tgt||cv).dispatchEvent(new MouseEvent(t,{bubbles:true,cancelable:true,clientX:cx,clientY:cy,button:btn||0,buttons:btn===2?2:1}));
+   const LC=(x,z)=>{const p=P(x,z);fire('mousedown',p.cx,p.cy,0);fire('mouseup',p.cx,p.cy,0,window);return p;};
+   const RC=(x,z)=>{const p=P(x,z);fire('mousedown',p.cx,p.cy,2);fire('mouseup',p.cx,p.cy,2,window);return p;};
+   const DRAG=(x0,z0,x1,z1)=>{const a=P(x0,z0),b=P(x1,z1);
+     fire('mousedown',a.cx,a.cy,0);fire('mousemove',(a.cx+b.cx)/2,(a.cy+b.cy)/2,0);fire('mousemove',b.cx,b.cy,0);fire('mouseup',b.cx,b.cy,0,window);};
+   try{
+     const K=D.blds.find(b=>b.owner==='player'&&b.type==='hall');
+     Object.assign(D.res.player,{f:5000,w:5000,m:5000,g:5000});
+     // setCam takes (x,z,dist,pitch). Calling it bare sets camTarget to undefined, the camera goes
+     // NaN, and every projection after it is garbage — cost me a confusing round of "results".
+     D.setCam(K.cx,K.cz,52,0.62); step(8);
+
+     const sold=D.ents.find(e=>e.owner==='player'&&e.type!=='worker');
+     LC(sold.x,sold.z); step(2);
+     orders.selectByClick={sel:D.selected.length,gotHim:D.selected.includes(sold.id)};
+     if(!D.selected.includes(sold.id))err('POINTER left-click did not select the man under it');
+
+     const p0={x:sold.x,z:sold.z}; RC(sold.x+22,sold.z+6); step(90);
+     orders.moveOrder={cmd:sold.cmd,moved:+Math.hypot(sold.x-p0.x,sold.z-p0.z).toFixed(1)};
+     if(Math.hypot(sold.x-p0.x,sold.z-p0.z)<4)err('POINTER right-click ground did not move him');
+
+     const w=D.ents.find(e=>e.owner==='player'&&e.type==='worker');
+     const nd=D.woodNodes.filter(n=>n.amount>0).map(n=>({n,d:Math.hypot(D.wx(n.tx)-w.x,D.wz(n.ty)-w.z)})).sort((a,b)=>a.d-b.d)[0];
+     D.sel(null);D.selected=[w.id];D.refreshUI(); RC(D.wx(nd.n.tx),D.wz(nd.n.ty)); step(4);
+     // 'return' is a gather order that has already succeeded — he filled his arms and set off home
+     // inside the four frames this waits. Asserting cmd==='gather' called that a failure once.
+     orders.gatherOrder={cmd:w.cmd,gather:!!w.gather};
+     if(!w.gather||!(w.cmd==='gather'||w.cmd==='return'))err('POINTER right-click on timber did not send the worker to it');
+
+     const foe=D.ents.find(e=>e.owner!=='player'&&e.type!=='worker');
+     if(foe){ foe.x=K.cx+16; foe.z=K.cz+10; D.diplo[foe.owner].stance='war';
+       D.sel(null);D.selected=[sold.id];D.refreshUI(); RC(foe.x,foe.z); step(4);
+       orders.attackOrder={cmd:sold.cmd,target:!!sold.target};
+       if(sold.cmd!=='attack')err('POINTER right-click on an enemy did not order the attack'); }
+
+     // Box-select DROPS workers when the box also holds a soldier — deliberate, and the same
+     // convention AoE uses. Assert that, so nobody later "fixes" it into a regression.
+     D.sel(null);D.selected=[];D.refreshUI(); DRAG(K.cx-26,K.cz-14,K.cx+26,K.cz+26); step(2);
+     const picked=D.selected.map(id=>D.ents.find(e=>e.id===id)).filter(Boolean);
+     orders.boxSelect={n:picked.length,anyWorkers:picked.some(e=>e.type==='worker')};
+     if(picked.length&&picked.some(e=>e.type!=='worker')&&picked.some(e=>e.type==='worker'))
+       err('POINTER box-select returned workers alongside soldiers — the b352-era filter is gone');
+
+     D.sel(null);D.selected=[w.id];D.refreshUI();
+     let bs=[...document.getElementById('cmds').querySelectorAll('.btn')];
+     const town=bs.find(b=>/Town/.test(b.textContent)); if(town){town.click();D.refreshUI();}
+     bs=[...document.getElementById('cmds').querySelectorAll('.btn')];
+     const house=bs.find(b=>/House/.test(b.textContent));
+     const nb0=D.blds.filter(b=>b.owner==='player').length;
+     if(house){ house.click(); step(1); LC(K.cx+18,K.cz+14); step(4); }
+     orders.placeBuilding={before:nb0,after:D.blds.filter(b=>b.owner==='player').length};
+     if(D.blds.filter(b=>b.owner==='player').length<=nb0)err('POINTER clicking the ground did not lay the foundation');
+     clear();
+
+     D.selected=[]; D.sel(K.id); step(1); RC(K.cx+20,K.cz+20); step(2);
+     orders.rallyFlag=K.rally?[Math.round(K.rally.x),Math.round(K.rally.z)]:null;
+     if(!K.rally)err('POINTER right-click with a building selected did not set the rally flag');
+   }catch(e){err('POINTER '+e.message);}
+   R.sections.pointerOrders=orders;}
+
   R.ok=R.errors.length===0;
   console.log('UI SWEEP — '+R.clicks+' interactions, '+R.errors.length+' errors');
   if(R.errors.length)console.log(R.errors);
