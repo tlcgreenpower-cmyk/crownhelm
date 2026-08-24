@@ -47,7 +47,12 @@
      110px, #selInfo already scrolls its own overflow, so nothing that fit before is cut off -
      it just means blank space at the bottom when nothing is selected, which is a fair trade for
      the viewport never moving under you again. */
-  #botbar{display:flex;gap:12px;padding:6px 14px;background:#0b1a26;border-top:1px solid #1d3a4a;flex:0 0 auto;height:110px;align-items:flex-start;}
+  /* b372 (owner: "this gap at the bottom needs to have a border as overlapping") — the bar had a
+     top edge and nothing at the bottom, so its contents ran straight into whatever was below the
+     window (the taskbar, in his shot) and the panel read as bleeding off the screen rather than
+     ending. Closed with the same hairline it already uses at the top, plus a little room so the
+     cards are not sitting on the line. */
+  #botbar{display:flex;gap:12px;padding:6px 14px 9px;background:#0b1a26;border-top:1px solid #1d3a4a;border-bottom:2px solid #1d3a4a;flex:0 0 auto;height:110px;align-items:flex-start;box-sizing:border-box;}
   #selInfo{width:335px;font-size:12.5px;line-height:1.4;color:#9fc0d2;max-height:118px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
   #formBar{flex:0 0 auto;max-width:224px;max-height:100px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;}
   #formBar:not(:empty){border-left:1px solid #1d3a4a;padding-left:12px;}
@@ -117,7 +122,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b371</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b372</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -4341,7 +4346,10 @@ function refreshBuildingMeshes(){ for(const bl of blds){ const old=bl.mesh; remo
 // b169: removeBuildUI, not just the scaffold. The progress bar hangs on its own group in the scene,
 // so razing a half-built thing used to leave its little orange bar floating there for the rest of
 // the session — invisible behind the rubble, but still drawn, every frame, forever.
-function removeBuilding(bl){bl._gone=1;bldStamp++;scene.remove(bl.mesh);removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
+function removeBuilding(bl){bl._gone=1;bldStamp++;scene.remove(bl.mesh);
+  /* b372: take the idle-field badge down with the field, or it hangs over bare grass */
+  if(bl._idleMark){scene.remove(bl._idleMark); if(bl._idleMark.material)bl._idleMark.material.dispose(); bl._idleMark=null;}
+  removeBuildUI(bl);for(let y=bl.ty;y<bl.ty+bl.h;y++)for(let x=bl.tx;x<bl.tx+bl.w;x++)if(inB(x,y)&&buildGrid[ti(x,y)]===bl.id)buildGrid[ti(x,y)]=0;gateOwner.delete(bl.id);blds=blds.filter(b=>b!==bl);if(selBuilding===bl.id)selBuilding=null;orientWallAround(bl.tx,bl.ty);if(bl.type==='bridge')rebuildBridges();}
 
 // ==================================================== POP / TECH
 function popCap(o){let c=0;for(const b of blds)if(b.owner===o&&b.done){if(b.type==='house')c+=(b.up?9:5);else if(b.type==='hall')c+=10;}
@@ -4941,6 +4949,30 @@ function nearestNode(e,type){let best=null,bd=1e9;const arr=type==='wood'?woodNo
 // way in: 3.19ms a step at 196 units, 6.19ms at 351.
 // The answer only changes when somebody starts or stops tending, so it is built once per step and
 // reused. _stepN already ticks once per update, which is exactly the right lifetime.
+// b372 (owner: "if a farm is not being farmed put a small symbol on it so we know"). A farm with
+// nobody in the rows still LOOKS like a farm — crops, fences, the lot — so an idle field is
+// invisible until you notice the food is not moving. A small straw-hat badge floats over any of
+// your finished farms that has no farmhand, and goes the moment somebody takes the field.
+// One shared texture, one sprite per farm made on demand, and the sprite is simply hidden when the
+// field is worked - so a fully-staffed realm draws none of them at all.
+let _idleFarmTex=null,_idleFarmT=0;
+function idleFarmTex(){ if(_idleFarmTex)return _idleFarmTex;
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  x.font='48px serif'; x.textAlign='center'; x.textBaseline='middle';
+  x.shadowColor='rgba(0,0,0,.85)'; x.shadowBlur=6; x.fillText('\u{1F33E}',32,34);
+  _idleFarmTex=new THREE.CanvasTexture(c); _idleFarmTex.colorSpace=THREE.SRGBColorSpace;
+  return _idleFarmTex; }
+function updateIdleFarmMarks(){
+  const td=tendedFarms();
+  for(const b of blds){
+    if(b.type!=='farm'||b.owner!=='player'){ if(b._idleMark)b._idleMark.visible=false; continue; }
+    const want=b.done&&!td.has(b.id);
+    if(want&&!b._idleMark){
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:idleFarmTex(),transparent:true,depthTest:false}));
+      sp.scale.set(2.2,2.2,1); sp.renderOrder=995;
+      sp.position.set(b.cx,heightAtWorld(b.cx,b.cz)+4.4,b.cz);
+      scene.add(sp); b._idleMark=sp; }
+    if(b._idleMark)b._idleMark.visible=!!want; } }
 let _tendSet=null,_tendStamp=-1;
 function tendedFarms(){ if(_tendStamp===_stepN&&_tendSet)return _tendSet;
   _tendStamp=_stepN; _tendSet=new Set();
@@ -5440,6 +5472,7 @@ function updateHonour(dt){ _honT-=dt; if(_honT>0)return; _honT=10;
 function update(dt){elapsed+=dt; _stepN++;   // sea is static now — water is scenery and shipping lanes, not a threat
   updatePopularity(dt); updateLords(dt); updateHonour(dt); updateAttrition(dt); updateRegiments(dt); updateCapture(dt); updateForest(dt);
   updateTreasures(dt); updateDowned(dt); updateTradeRoute(dt); updateParapets(dt);
+  if((_idleFarmT=(_idleFarmT||0)-dt)<=0){ _idleFarmT=0.5; updateIdleFarmMarks(); }
   econT-=dt; if(econT<=0){econT=1;recalcHarvest();}   // the chain is re-surveyed once a second, not every frame
   rescueCaravans(dt);
   // b307: Spy Network — a standing watch on every rival Keep the player has ever found, not a
@@ -7452,7 +7485,10 @@ canvas.addEventListener('mousemove',ev=>{const p=localXY(ev);mouseSX=p.x;mouseSY
   // commandTarget's own target order (unit before building), so the cursor never promises a fight
   // the click won't actually pick.
   if(running&&!placing&&!dragging&&!rDrag&&!patrolMode&&!attackMove&&!demoMode&&!orbitDrag&&!panDrag&&!wallDrag){
-    const atkTgt=selUnits().length?(entAt(g.x,g.z,'player')||bldAt(g.x,g.z,'player')):null;
+    // b372: beastAt was already here and already attackable — b303's cursor simply never asked it,
+    // so hovering a wolf or a boar showed the plain arrow as if there were nothing there, even
+    // though the right-click would have set the men on it. Same order commandTarget uses.
+    const atkTgt=selUnits().length?(entAt(g.x,g.z,'player')||beastAt(g.x,g.z)||bldAt(g.x,g.z,'player')):null;
     canvas.style.cursor=atkTgt?swordCur:'default'; }
   if(dragging){const db=document.getElementById('dragbox'),r=canvas.getBoundingClientRect(),fx=r.width/vw,fy=r.height/vh;const x1=Math.min(dragStartSX,p.x),y1=Math.min(dragStartSY,p.y);db.style.display='block';db.style.left=(x1*fx)+'px';db.style.top=(y1*fy)+'px';db.style.width=(Math.abs(p.x-dragStartSX)*fx)+'px';db.style.height=(Math.abs(p.y-dragStartSY)*fy)+'px';}
   if(rDrag){ const dx=g.x-rDrag.gx,dz=g.z-rDrag.gz,d=Math.hypot(dx,dz);
@@ -7707,7 +7743,23 @@ function setDemo(on){demoMode=on;const bt=document.getElementById('demoBtn');
 document.getElementById('demoBtn').onclick=()=>{if(running&&!gameOver)setDemo(!demoMode);};
 // minimap click
 const mini=document.getElementById('mini');
-mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();const mx=(ev.clientX-r.left)/r.width,my=(ev.clientY-r.top)/r.height;camTarget.set(mx*WORLD_W-HALF_W,0,my*WORLD_H-HALF_H);});
+mini.addEventListener('contextmenu',ev=>ev.preventDefault());   // the right button is an order here, not a menu
+mini.addEventListener('mousedown',ev=>{const r=mini.getBoundingClientRect();
+  const mx=(ev.clientX-r.left)/r.width,my=(ev.clientY-r.top)/r.height;
+  const wxw=mx*WORLD_W-HALF_W, wzw=my*WORLD_H-HALF_H;
+  // b372 (owner: "while having a unit selected make it so i can use the mini map to send him
+  // somewhere"). Left button still jumps the camera, which is what it always did. The RIGHT button
+  // now marches the selection — the same button that moves men on the main view, so it is an order
+  // the hand already knows — and sets a rally point if a building is what you have selected.
+  if(ev.button===2){ ev.preventDefault();
+    const sel=selUnits();
+    if(sel.length){ commandMove(sel,wxw,wzw); spawnMoveMark(wxw,wzw,0x8fe6a8);
+      flashMsg('\u{1F6A9} '+sel.length+(sel.length===1?' man marches':' men march')+' across the map'); SFX.cmd(); }
+    else if(selBuilding){ const b=blds.find(x=>x.id===selBuilding);
+      if(b&&b.owner==='player'&&b.done){ b.rally={x:wxw,z:wzw}; spawnMoveMark(wxw,wzw,0xffd479);
+        flashMsg('\u{1F6A9} Rally point set from the map'); SFX.cmd(); } }
+    return; }
+  camTarget.set(wxw,0,wzw);});
 
 // ==================================================== UI
 const $=id=>document.getElementById(id);

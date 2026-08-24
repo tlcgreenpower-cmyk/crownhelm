@@ -1114,3 +1114,26 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   zero errors**, counts growing normally. Stopped short of 30 because the backgrounded pane throttles
   timers; this changes farm orders, not anything holding state, so seventeen clean minutes at 470 men
   covers it — said plainly rather than quoting a settled verdict I didn't wait for.
+
+- **b372 FOUR MORE FROM THE OWNER'S LIST.**
+  **Sword cursor over a wolf** — half existed (b303), and the missing half is the interesting one:
+  it asked `entAt`/`bldAt`, and the **animals are in neither**, they have their own list. So hovering
+  a wolf or boar showed the plain arrow even though the right-click would set the men on it, and
+  `beastAt` — the picker that finds them — was already in the file and already used by the order
+  path. The cursor simply never asked it. Those are the two things most likely to be attacked by
+  hand: b306 gave the wolf 6hp to hunt peasants and the boar 9 so it fights back.
+  **Minimap as an order** — left button still moves the camera (untouched); **right** button marches
+  the selection, the same button that moves men on the main view, or sets a rally point with a
+  building selected. Verified: idle soldier → `move` with a path.
+  **Idle-farm badge** — a farm with nobody in the rows still looks like a farm, so an idle field is
+  invisible until the food stops. A wheat badge floats over any finished farm with no farmhand, one
+  shared texture, sprite per farm on demand, hidden when worked, removed with the farm. Three fields
+  → three badges; one hand at work → two.
+  **Bottom bar edge** — it had a top border and nothing at the bottom, so it bled into the taskbar.
+  Closed with the same hairline plus room so the cards aren't sitting on the line.
+
+- **A TRAP I HIT TWICE IN ONE DAY, NOW IN CLAUDE.md.** Appending a `//` comment to a line that
+  carries on with code swallows the rest of that line — an object literal's remaining fields in
+  b370, a function's closing brace here. Both times it surfaced as **`Unexpected end of input` at the
+  LAST line of the file**, nowhere near the edit. `node --check` on the extracted module finds it in
+  a second; a browser reload just shows a blank screen.
