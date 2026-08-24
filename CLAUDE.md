@@ -59,6 +59,10 @@ screenshots time out. Drive and photograph it instead:
   still reported 96×64 and every measurement taken after a map change was quietly wrong. It
   produced a confident "the default map has a third the scenery of every other" that was pure
   artefact. If you add a map-dependent value to the debug surface, make it a getter.
+- **`updateHUD` runs ONLY from the rAF loop, which never fires here** (b376), so the whole top bar
+  — resources, population, the popularity meter, the idle counter — is invisible to a headless test
+  unless you tick it yourself. It is on `_dbg` now: `__D.updateHUD()`. A warning written into the
+  top bar tested as "never appears" twice while the code was perfectly correct.
 - `window.TF.info` for fps/ents/skinned/calls; `window.TF.weather` for the live front (name, cloud,
   fog, mist, rain, sun, wind and seconds to the next change); `window._CHARLIB` for character
   templates; `renderer.info.render` after a TFshot for real draw calls and triangles.
