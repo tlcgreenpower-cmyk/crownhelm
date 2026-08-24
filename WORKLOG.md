@@ -1272,3 +1272,34 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   errors, all seven pointer orders passing** — `selectByClick {sel:1, gotHim:true}`,
   `moveOrder {cmd:'move', moved:21.9}`. Lesson in CLAUDE.md: instrument the failing call before
   theorising about its surroundings.
+
+- **b378 THE RELIC RACE WAS UNWINNABLE ON THE DEFAULT MAP.** Filed as tidying; it was not. The mode
+  needs **3 relics enshrined. Heartlands places 1** — the same one every game, because candidates
+  come from a hash of the loop counter, not chance. Two gates closing on each other: the four corner
+  starts each bar 20 tiles (most of a 96×64 map), and `genMap` deliberately raises a **centre
+  plateau to 3.0** while the relic ceiling stopped at **2.9** — corners barred by starts, middle
+  barred for being a hill. Ceiling → 3.4 (neutral high ground, where a shrine belongs), and the
+  inter-relic gap eases on small maps instead of a flat 14 tiles (a fifth of Heartlands' width).
+  **Heartlands 1 → 5**; Great Vale 7; Epic 8. All ≥ 3.
+  **Count now follows sqrt(area), not area** — the old `min(7, 3+2*A)` only *looked* scaled (big
+  maps want 9 and get 7; Epic wants 18 and gets 7). b367's caution was right: with a fixed goal of 3,
+  giving Epic 18 makes the race **easier** on the biggest maps. 5/7/8, cap gone.
+
+- **WEATHER: THE FRONTS STOP LOOKING ALIKE.** b366 said the next lever was cloud and sun. Sun
+  response 0.42 → 0.58 (intensity across overcast/showers/storm goes 1.86/1.79/1.62 → 1.41/1.31/1.06),
+  and **the fill now goes the other way** — cloud used to dim sun *and* fill together, so a cloudy
+  sky was just a darker clear one. Real overcast is flat, not dim. First attempt overshot: at +0.42
+  fill a storm photographed **brighter** than overcast (103.8 vs 100.1), exactly backwards; +0.15
+  keeps the flat-light character while the net still darkens. Median luminance now
+  **clear 123.1 / fair 109.2 / overcast 96.8 / showers 95.3 / storm 99.7 / mist 119.9** — clear→
+  overcast 26 points apart where it was ~15, and fair sits distinctly between.
+  **Still cannot claim:** those three stay within ~4 points and storm isn't darkest — but that is no
+  longer the lighting, it's **the rain**: 1400 pale streaks over a dark scene, and rain intensity is
+  0 / 0.62 / 1.0 in exactly the brightness order. Checked by median as well as mean. Telling a storm
+  from a shower is about seeing the rain, not the exposure.
+
+- **PINNED GRAPHICS NOW SPEAKS UP.** The game already eases quality when fps drops under 26 for six
+  seconds — but only while the player has never touched the ⚙ button, since choosing by hand sets a
+  flag that disables it permanently. That is correct and unchanged; it is his choice. But nothing
+  said so, so anyone who picked High once had the one lever that would help silently switched off.
+  Now says so, at most once a minute, only while the frame rate is genuinely poor.

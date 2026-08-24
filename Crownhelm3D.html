@@ -134,7 +134,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b377</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b378</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -1029,7 +1029,18 @@ function updateDayNight(){ const dayLight=1, a=0;   // permanent bright daylight
   if(dayNight<0.55)_sunC.copy(_sunDay).lerp(_sunDusk,dayNight/0.55); else _sunC.copy(_sunDusk).lerp(_sunMoon,(dayNight-0.55)/0.45);
   if(wCloud>0.01)_sunC.lerp(_sunOvercast,Math.min(0.85,wCloud));   // b146: under cloud the light goes flat and cold
   sun.color.copy(_sunC);
-  hemi.intensity=(0.20+0.26*dayLight)*(1-0.22*wCloud)+flashI*1.2;   // b256: fill cut to less than half, so the sun does the modelling and a shadow reads as a shadow
+  // b378: and the FILL goes the other way, which is the half that was making every front look the
+  // same. Cloud used to dim the sun and the fill together, so a cloudy sky was simply a darker
+  // clear one - the same picture with the brightness down. A real overcast is the opposite: little
+  // direct sun, plenty of bounced light, so the scene goes flat and shadowless rather than dim.
+  // Sun down, fill UP, and the difference between a bright afternoon and a grey one becomes the
+  // presence of shadows rather than the exposure. b256's point still holds on a clear day, where
+  // wCloud is 0.06 and the fill is essentially unchanged.
+  // Tuned by measuring, not by taste: at +0.42 the fill rise OVERSHOT the sun's fall and a storm
+  // photographed BRIGHTER than an overcast afternoon (103.8 against 100.1), which is exactly
+  // backwards. +0.15 keeps the flat-light character - fill rising as the sun drops - while the net
+  // still darkens with the cloud, so the fronts stay in the right order.
+  hemi.intensity=(0.20+0.26*dayLight)*(1+0.15*wCloud)+flashI*1.2;
   skyMat.uniforms.uNight.value=dayNight;
   skyMat.uniforms.uCloud.value=wCloud;
   skyMat.uniforms.uFlash.value=flashI*0.85;
@@ -1075,7 +1086,12 @@ function updateRain(dt){
   const ease=(v,t,k)=>v+(t-v)*Math.min(1,dt*k);
   rainI=ease(rainI,front.rain,0.5); wCloud=ease(wCloud,front.cloud,0.35);
   wFog=ease(wFog,front.fog,0.3);    wMist=ease(wMist,front.mist,0.3);
-  wWind=ease(wWind,front.wind,0.4); wSun=ease(wSun,1-0.42*front.cloud,0.35);
+  // b378: the sun answers the cloud harder. b366 fixed the haze and said plainly that the next
+  // lever was cloud and sun, because overcast, showers and storm still photographed within 1.6
+  // luminance points of one another. Per front, sun.intensity ran 1.86 / 1.79 / 1.62 - a thirteen
+  // per cent spread across three fronts that are meant to feel quite different. 0.42 -> 0.58 opens
+  // that to 1.41 / 1.31 / 1.06, a quarter, and a storm is finally darker than a grey afternoon.
+  wWind=ease(wWind,front.wind,0.4); wSun=ease(wSun,1-0.58*front.cloud,0.35);
   // lightning: a hard white flash, then thunder rolling in a beat or two later
   if(flashI>0)flashI=Math.max(0,flashI-dt*5.5);
   if(front.k==='storm'&&rainI>0.5&&Math.random()<dt*0.11){ flashI=1;
@@ -1491,13 +1507,37 @@ function genMap(){
   // b300: Relics — a handful of map pickups a Monk can carry home to a Church for a slow gold
   // trickle, the way AoE2's relic economy works. Placed sparsely, well clear of any realm's start.
   relics=[];
-  const rcap=Math.min(7,3+Math.round(2*areaScale()));
+  // b378: RELICS SCALE LIKE A SEARCH, NOT LIKE AN AREA - and the old line only pretended to scale.
+  // It read min(7, 3+2*areaScale()), which LOOKS area-scaled but the cap binds on every map above
+  // Heartlands: the big maps want 9 and get 7, an Epic map wants 18 and gets 7. b367 left this
+  // alone on purpose because relics are not scenery, they are the relic-race win condition.
+  // Thought about it properly rather than just lifting the ceiling like the treasures. The goal is
+  // THREE enshrined relics on every map, fixed, and it is written into the menu. Give an Epic map
+  // the eighteen the area rule wants and you need 3 of 18 where Heartlands needs 3 of 5 - the race
+  // gets EASIER on the biggest maps, which is backwards. So relics follow the square root of area,
+  // the same rule the trade road uses for the same reason: finding one is a search along your
+  // travels, not a thing that fills a space. 5 on Heartlands, 7 on the big maps, 8 on Epic. The
+  // cap goes, because the formula now genuinely bounds itself.
+  const rcap=3+Math.round(2*Math.sqrt(areaScale()));
   for(let tries=0;tries<400&&relics.length<rcap;tries++){
     const x=4+Math.floor(hashN(tries*3.7,tries*1.3)*(MAP_W-8)), y=4+Math.floor(hashN(tries*1.9+9,tries*4.1)*(MAP_H-8));
-    const e=elev[ti(x,y)]; if(e<1.7||e>2.9)continue;
+    // b378: THE RELIC RACE WAS UNWINNABLE ON THE DEFAULT MAP. Counted it: Heartlands places
+    // exactly ONE relic, the same one every game (the candidates come from a hash of the loop
+    // counter, so it is perfectly repeatable), and the mode needs THREE enshrined to win.
+    // Two gates were closing on each other. The four realm starts sit in the four corners and each
+    // excludes twenty tiles, which on a 96x64 map is most of the outside. And genMap deliberately
+    // raises a plateau at the CENTRE to elevation 3.0 - while the relic window stopped at 2.9. So
+    // the corners were barred by the starts and the middle was barred for being a hill, and what
+    // was left held one relic.
+    // The ceiling now takes in that neutral high ground, which is where a shrine belongs anyway,
+    // and the spacing eases on a small map instead of being a flat fourteen tiles: on Heartlands
+    // fourteen is a fifth of the map's width. Both floors are unchanged, so nothing lands in a
+    // marsh or on someone's doorstep.
+    const e=elev[ti(x,y)]; if(e<1.7||e>3.4)continue;
+    const rgap=Math.max(8,Math.round(14*Math.min(1,Math.sqrt(areaScale()))));
     let ok=true;
     for(const o of REALMS){const s=REALM_SITES[o];if(Math.hypot(x-s[0],y-s[1])<20)ok=false;}
-    for(const r of relics)if(Math.hypot(x-r.tx,y-r.ty)<14)ok=false;
+    for(const r of relics)if(Math.hypot(x-r.tx,y-r.ty)<rgap)ok=false;
     if(ok)relics.push({tx:x,ty:y});
   }
 }
@@ -8816,7 +8856,17 @@ function loop(t){const now=t/1000;let frame=now-last||0;last=now;if(frame>0.5)fr
       if(lastFps>0&&lastFps<26)_qBad++;else _qBad=0;
       if(_qBad>=6&&_nw-_qCool>15000){ _qCool=_nw;_qBad=0;
         QUAL=QUAL==='high'?'med':'low'; localStorage.setItem('crownhelm_quality',QUAL); applyQuality();
-        flashMsg('⚙ Graphics eased to '+(QUAL==='med'?'Medium':'Fast')+' for smooth play — use the ⚙ button to change'); } } }
+        flashMsg('⚙ Graphics eased to '+(QUAL==='med'?'Medium':'Fast')+' for smooth play — use the ⚙ button to change'); } }
+    // b378: AND IF THE PLAYER HAS PINNED THE SETTING, SAY SO RATHER THAN SUFFERING IN SILENCE.
+    // Choosing a graphics level by hand sets crownhelm_quality_user, and that switches the easing
+    // above off permanently - which is right, it is his choice and the game should not overrule it.
+    // But nothing anywhere said so, so a player who picked High once and later found the game
+    // heavy had the one lever that would help him quietly disabled and no way to know. The owner
+    // reported lag twice. Told once a minute at most, and only while it is genuinely struggling.
+    else if(running&&!gameOver&&!document.hidden&&localStorage.getItem('crownhelm_quality_user')&&QUAL!=='low'){
+      if(lastFps>0&&lastFps<26)_qBad++;else _qBad=0;
+      if(_qBad>=8&&_nw-_qCool>60000){ _qCool=_nw;_qBad=0;
+        flashMsg('⚙ '+lastFps+' fps on '+(QUAL==='high'?'High':'Medium')+' graphics, which you set by hand — press ⚙ for a lighter setting'); } } }
   requestAnimationFrame(loop);}
 let _ft=performance.now(),_fc=0,lastFps=0,_qBad=0,_qCool=0;const _aaV=new THREE.Vector3();
 // b252: LET THE GAME TAKE ITS OWN PHOTOGRAPH.

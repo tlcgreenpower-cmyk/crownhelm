@@ -221,6 +221,13 @@ Twelve borrowed mechanics went in over b326–b330 and they touch a lot:
   them and then they refuse move orders at the door in `commandMove`.
 - **Battle order** (`battleOrder`, `classOf`) — the player sets who stands in the front rank.
   Classify by REACH, not the `ranged` flag: the Skirmisher has range 17 and no flag.
+- **Relics** (`relics`, `RELIC_GOAL`=3) — placed from a HASH of the loop counter, not from chance, so
+  a map's relics are identical in every game ever played on it. b378 found the relic race was
+  **unwinnable on Heartlands**: it placed ONE relic for a goal of three, because the four corner
+  starts each bar 20 tiles and `genMap` raises a centre plateau to 3.0 while the relic ceiling was
+  2.9 — corners barred, middle barred. Ceiling now 3.4, spacing eases on small maps, count follows
+  **sqrt(area)** (5/7/8) not area: the goal is a fixed 3, so area-scaling to 18 on Epic would make
+  the race *easier* on the biggest maps.
 - **Treasures / trade road** (`treasures`, `tradeSites`) — placed in `newGame` after the keeps,
   saved and restored explicitly.
 - **Downed commanders** — heroes go to `downed` instead of dying; only the capture timer finishes
