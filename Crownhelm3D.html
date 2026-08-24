@@ -134,7 +134,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b376</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b377</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -3283,7 +3283,31 @@ function makeUnitMesh(type,owner){const u=UNIT[type],g=new THREE.Group();const t
       // see-sawed about her knuckles like a poker while her body played the idle loop. Nobody was
       // chopping anything. Parent the tool to the fist BONE instead and it inherits the hand's
       // rotation for free; the swing then comes from the animation, which is where it belongs.
-      if(hand){ for(const t of [gun,axe,pick]){ g.remove(t); hand.add(t);
+      // b377: DOES THAT HAND BONE ACTUALLY HOLD THE HAND? On this worker rig it does not.
+      // Measured: the axe tracks FistR perfectly - 0.189 units out, every frame of the swing, exactly
+      // the offset b325 designed - and yet it renders floating clear of her, which is the owner's
+      // "the workers look weird when using there axes" and why three passes of adjusting the grip
+      // got nowhere. The bone and the drawn mesh are in different places: the FistR bone sits
+      // 0.15 to 0.51 away from the visibly skinned hand, varying through the swing, so no fixed
+      // correction can fix it either. The reason is in the weights - the STRONGEST vertex weight on
+      // FistR in this mesh is 0.33, so almost no geometry is bound to it and the hand you see is
+      // carried by the forearm instead. CLAUDE.md has warned since b92 that these generated meshes
+      // are shards that weight badly; this is that, surfacing as a prop.
+      // Re-rigging the model is the real fix and belongs in Blender. Until then: a rig that cannot
+      // hold a tool is not given one. The worker model already carries its own axe, knife and
+      // pouches modelled into the mesh - proven by hiding every prop in the game and re-shooting,
+      // where the blade over her shoulder is still there - so she loses nothing but the floater.
+      // Any rig whose hand bone DOES drive its geometry keeps its tools exactly as before.
+      let handHolds=true;
+      try{ let skm=null; ch.traverse(o=>{ if(o.isSkinnedMesh&&!skm)skm=o; });
+        if(skm&&skm.skeleton&&hand){ const bi=skm.skeleton.bones.indexOf(hand);
+          const si=skm.geometry.attributes.skinIndex, sw=skm.geometry.attributes.skinWeight;
+          if(bi>=0&&si&&sw){ let top=0;
+            for(let i=0;i<si.count;i++)for(let k=0;k<4;k++)
+              if(si.getComponent(i,k)===bi){ const ww=sw.getComponent(i,k); if(ww>top)top=ww; }
+            handHolds = top>=0.5; g.userData.handWeight=+top.toFixed(2); } } }catch(e){}
+      if(hand&&!handHolds){ for(const t of [gun,axe,pick]) t.visible=false; g.userData.noHeldTools=true; }
+      if(hand&&handHolds){ for(const t of [gun,axe,pick]){ g.remove(t); hand.add(t);
           t.rotation.copy(TOOL_GRIP_R); t.scale.setScalar(TOOL_GRIP_S);
           // slide the haft along the bone's +Y so she grips the BUTT and the head reaches out
           // past her knuckles — parked at the origin the tool straddles her fist, half of it
@@ -5926,7 +5950,7 @@ function updateUnit(e,dt){if(_prof)_ut=performance.now();e.cd-=dt;if(e.atk>0)e.a
   if(e.flinch>0){ e.flinch-=dt; const kf=Math.max(0,e.flinch)/0.15;   // struck men visibly flinch
     if(_vis){ e.mesh.scale.y=1-Math.sin(kf*Math.PI)*0.14; if(e.flinch<=0)e.mesh.scale.y=1; } }
   if(_vis){ const ud=e.mesh.userData;
-    if(ud.gun){ const gt=(e.cmd==='gather'&&e.gather)?e.gather.type:null;
+    if(ud.gun&&!ud.noHeldTools){ const gt=(e.cmd==='gather'&&e.gather)?e.gather.type:null;
       // b375 (owner: "the workers look weird when using there axes still"). The axe itself is fine:
       // measured it, and it is parented to the FistR bone 0.189 units out, which is exactly the
       // grip b325 designed and photographed. What looked wrong is WHEN it is drawn. wantA was true

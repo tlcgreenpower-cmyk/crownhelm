@@ -139,6 +139,17 @@ graph, which falls again when things are disposed. `soak.js` reports both and ta
 Two containers, and this catches people out: a soldier's commands live in `#formBar` and its
 `#cmds` is empty. A worker is the other way round. Neither is a bug.
 
+**A PROP PARENTED TO A BONE LANDS WHERE THE BONE IS, NOT WHERE THE HAND IS DRAWN** (b377). This
+cost four passes because every measurement said the axe was attached and every photograph said it
+was floating, and both were true. The axe tracked `FistR` at exactly 0.189 every frame — and the
+bone sits **0.15–0.51 away from the visibly skinned hand**, varying through the swing, so no fixed
+offset can correct it. The cause is in the weights: **the strongest vertex weight on `FistR` in that
+mesh is 0.33**, so almost no geometry is bound to it and the hand you see is carried by the forearm.
+To check any rig: find the vertex most strongly bound to the hand bone, run it through
+`skinnedMesh.applyBoneTransform(...)` then `matrixWorld`, and compare with `bone.getWorldPosition()`.
+If they differ, bone-parenting will float and the fix is in Blender, not in the game. Workers now
+skip held tools when that weight is under 0.5; rigs that pass keep theirs.
+
 **The worker's held tool is NOT the blade on his shoulder** (b375). The worker model has tools,
 pouches and a belt knife modelled into the mesh. Hide every `userData.axe`/`pick` in the scene and
 re-shoot before blaming the attached prop — that control settles in one render what three passes of

@@ -1235,3 +1235,24 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   untestable headlessly; anything written into it could be checked by reading the source and no
   other way. That is exactly how a warning that never appeared gets called done. `updateHUD` is on
   the debug surface now — the one part of the UI the sweep could never reach.
+
+- **b377 THE FLOATING AXE, FOUND — THE FIST BONE DOES NOT HOLD THE FIST.** Fourth pass, and the
+  reason the first three failed is that **every measurement said attached and every photograph said
+  floating, and both were true.** The axe tracks `FistR` at exactly **0.189 every frame** of the
+  swing, parent chain intact, and of nine rotations the shipped one is best. But the bone is not
+  where the hand is drawn: took the vertex most strongly bound to `FistR`, ran it through the same
+  skinning transform the shader uses — **bone at y 13.00, drawn hand at 12.59**, a 0.44 gap on a
+  woman 2.2 tall, a fifth of her height. And not a fixed gap: **0.148 → 0.514** across the swing, so
+  no offset could fix it.
+  **Why:** the strongest vertex weight on `FistR` anywhere in that mesh is **0.33** — almost nothing
+  is bound to it, the hand is carried by the forearm. CLAUDE.md has warned since b92 that these
+  generated meshes are shards that weight badly; this is that warning arriving as a visible bug.
+  **Fix:** re-rigging belongs in Blender. Until then a rig that cannot hold a tool is not given one —
+  checked at build time, hand-bone weight must reach 0.5 or the held axe/pick/musket are never
+  attached. The worker loses nothing: that model already carries an axe, knife and pouches modelled
+  in (proved by hiding every prop and re-shooting — the blade is still there). She was carrying two
+  axes, one floating. The chop swing is untouched. Verified same build: spearman keeps his weapon
+  and is not suppressed; the worker is.
+  **What I got wrong on the way:** read the shoulder blade as a misplaced prop (it's the character),
+  and called the haft too long (0.47 against 2.2 — 21% of height, a sensible axe). Both were guesses
+  at a picture. What settled it was a number.
