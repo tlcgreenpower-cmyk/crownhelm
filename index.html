@@ -52,6 +52,17 @@
      window (the taskbar, in his shot) and the panel read as bleeding off the screen rather than
      ending. Closed with the same hairline it already uses at the top, plus a little room so the
      cards are not sitting on the line. */
+  /* b374 (owner: "when choosing a map we need to see the map and its size and how many players it
+     is for"). A dropdown of names told you none of those three. */
+  #mapCards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px;}
+  .mapCard{cursor:pointer;background:#12212c;border:1px solid #2c5164;border-radius:8px;padding:6px;
+    display:flex;flex-direction:column;gap:4px;text-align:left;transition:border-color .12s,background .12s;}
+  .mapCard:hover{border-color:#c9a44a;background:#17303f;}
+  .mapCard.on{border-color:#c9a44a;background:#1b3547;box-shadow:inset 0 0 18px rgba(201,164,74,.14);}
+  .mapCard canvas{width:100%;height:auto;display:block;border-radius:4px;background:#0d1b24;image-rendering:auto;}
+  .mapCard .mcName{font:600 12.5px Georgia,serif;color:#f3e4be;line-height:1.15;}
+  .mapCard .mcMeta{font:11px 'IBM Plex Mono',monospace;color:#8fa7bc;display:flex;justify-content:space-between;gap:6px;}
+  .mapCard .mcDesc{font:10.5px Georgia,serif;color:#7e97ad;line-height:1.25;}
   #botbar{display:flex;gap:12px;padding:6px 14px 9px;background:#0b1a26;border-top:1px solid #1d3a4a;border-bottom:2px solid #1d3a4a;flex:0 0 auto;height:110px;align-items:flex-start;box-sizing:border-box;}
   #selInfo{width:335px;font-size:12.5px;line-height:1.4;color:#9fc0d2;max-height:118px;overflow-y:auto;} #selInfo b{color:#e8f4fb;}
   #formBar{flex:0 0 auto;max-width:224px;max-height:100px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;}
@@ -122,7 +133,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b373</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b374</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -209,7 +220,9 @@
       <div style="max-height:100vh;overflow-y:auto;padding:44px 48px 52px;background:linear-gradient(180deg,#1b1610 0%,#15110c 100%);display:flex;flex-direction:column;justify-content:center;">
         <div><div class="aorKick">Muster your campaign</div>
           <div style="border:1px solid #3b2f1d;background:rgba(28,23,15,.85);padding:20px 22px;display:flex;flex-direction:column;gap:13px;box-shadow:inset 0 0 40px rgba(0,0,0,.3);">
-            <label class="setRow"><span class="setLbl">Battleground</span><select id="mapSel" class="setSel"></select></label>
+            <label class="setRow" id="mapSelRow" style="display:none"><span class="setLbl">Battleground</span><select id="mapSel" class="setSel"></select></label>
+            <div class="setLbl" style="margin-bottom:6px">Battleground</div>
+            <div id="mapCards"></div>
             <label class="setRow"><span class="setLbl">Difficulty</span>
               <select id="diffSel" class="setSel">
                 <option value="easiest">Easiest — the neighbours mean no harm</option>
@@ -8930,7 +8943,11 @@ function addCustomMapBtn(){ const sel=document.getElementById('mapSel');
   let o=sel.querySelector('option[value=custom]');
   if(!o){ o=document.createElement('option'); o.value='custom'; sel.appendChild(o); }
   o.textContent=m.name+' ('+m.w+'×'+m.h+')';
-  if(curMapId==='custom')sel.value='custom'; }
+  if(curMapId==='custom')sel.value='custom';
+  // b374: a map just saved from the builder must appear as a CARD too, and its preview is stale by
+  // definition — the player has only this moment finished drawing it.
+  try{ if(typeof _mapPrev!=='undefined')delete _mapPrev.custom;
+       if(typeof buildMapCards==='function'&&document.getElementById('mapCards')){buildMapCards();paintMapCards();} }catch(e){} }
 document.getElementById('paradeBtn').onclick=()=>{ paradeMode=true; setMap('heartlands'); start(localStorage.getItem('crownhelm_fac')||'english');
   const ph=blds.find(b=>b.owner==='player'&&b.type==='hall');
   // b354 THE BACK RANK WAS STANDING IN THE SEA. The parade began three tiles below the Keep and
@@ -8990,6 +9007,111 @@ function updateStartSummary(){const el=document.getElementById('startSummary');i
 function updateSetupBlurb(){const bl=document.getElementById('setupBlurb');if(!bl)return;
   const f=FACTIONS[selFac],m=MAPS[curMapId];
   bl.textContent=(m?m.desc+'. ':'')+(f?f.emo+' '+f.bonus+'.':'');}
+// ============ b374: PICK A MAP BY LOOKING AT IT =========================================
+// (owner: "when choosing a map we need to see the map and its size and how many players it is
+// for"). It was a dropdown of names. Not one of those three things was on screen, and two of them
+// are not written down anywhere in the game to be read: the size only appeared in the option text,
+// and how many realms a map suits was never recorded at all.
+//
+// The preview is the REAL map, not a drawing of one. setMap(id) then genMap() fills the same elev
+// array the game plays on, so what you see is the coastline you will land on. It costs one
+// generation per map, done once and cached, and the game's own setMap is restored afterwards -
+// newGame() regenerates from scratch anyway, so nothing carries over.
+//
+// HOW MANY PLAYERS IS DERIVED, NOT INVENTED. realmSitesFor hands out eight fixed starts whatever
+// the map size, so nothing in the game says "this map suits four". What does say it is BORDER_R:
+// a Keep claims 46 units around it, so two Keeps closer than 92 have overlapping claims from the
+// first second and neither can build freely. Walking the start sites for each realm count and
+// taking the largest that keeps every pair at least 92 apart gives: 96x64 holds six, and every
+// larger map holds all eight. Heartlands at eight would put two pairs 68 apart.
+const _mapPrev={};
+function mapMaxRealms(w,h){
+  const S={player:[15,h-15],r1:[w-17,12],r2:[15,12],r3:[w-17,h-15],
+           r4:[w>>1,12],r5:[w>>1,h-15],r6:[15,h>>1],r7:[w-17,h>>1]};
+  let best=2;
+  for(let n=2;n<=8;n++){ const use=['player']; for(let i=1;i<n;i++)use.push('r'+i);
+    let mn=1e9;
+    for(let i=0;i<use.length;i++)for(let j=i+1;j<use.length;j++){
+      const a=S[use[i]],b=S[use[j]]; const d=Math.hypot(a[0]-b[0],a[1]-b[1])*TILE; if(d<mn)mn=d; }
+    if(mn>=2*BORDER_R.hall)best=n; }
+  return best; }
+function mapPreview(id){
+  if(_mapPrev[id])return _mapPrev[id];
+  const keep=curMapId;
+  try{
+    setMap(id); genMap();
+    const W=Math.min(132,MAP_W), H=Math.round(W*MAP_H/MAP_W);
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+    const ctx=cv.getContext('2d'), img=ctx.createImageData(W,H);
+    // Flat colour bands made every map look the same green rectangle — Iron Highlands showed no
+    // highlands and the Broadwood no wood. Relief is a continuous ramp now, and the things that
+    // actually tell these maps apart are the RESOURCES, which genMap has just filled in: forest
+    // darkens the ground, ore and gold get a speck each. A card is worth looking at only if the
+    // five maps look different on it.
+    const wood=new Uint8Array(W*H), ore=new Uint8Array(W*H), au=new Uint8Array(W*H);
+    const mark=(arr,n)=>{ const px=Math.min(W-1,(n.tx*W/MAP_W)|0), py=Math.min(H-1,(n.ty*H/MAP_H)|0);
+      arr[py*W+px]=Math.min(255,arr[py*W+px]+1); };
+    for(const n of woodNodes)mark(wood,n);
+    for(const n of metalNodes)mark(ore,n);
+    for(const n of goldNodes)mark(au,n);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const e=elev[ti(Math.min(MAP_W-1,(x*MAP_W/W)|0),Math.min(MAP_H-1,(y*MAP_H/H)|0))];
+      let r,g,b;
+      if(e<SEA-0.6){ r=16;g=38;b=68; }
+      else if(e<SEA){ const t=(e-(SEA-0.6))/0.6; r=16+t*30;g=38+t*58;b=68+t*62; }   // shallows
+      else if(e<SEA+0.3){ r=178;g=160;b=112; }                                      // sand
+      else {
+        // Measured the land rather than guessing at it: elevation runs about 1.5 at the 5th
+        // percentile to 3.5 at the peak, median 2.6. The first ramp I wrote spread that over
+        // (e-0.85)/3.2, which puts the MEDIAN tile at 0.55 of the way to "high ground" — so every
+        // map came out uniformly brown and none of them looked like itself. Only the top decile
+        // should grey out; everything below stays green country.
+        const t=Math.max(0,Math.min(1,(e-2.7)/0.8));
+        r=72+t*56; g=110+t*8; b=52+t*44;
+        const i2=y*W+x;
+        if(wood[i2]){ const d=Math.min(1,wood[i2]/1.5);                             // woodland, and it should LOOK like wood
+          r=r*(1-d)+40*d; g=g*(1-d)+76*d; b=b*(1-d)+38*d; }
+      }
+      const o=(y*W+x)*4; img.data[o]=r;img.data[o+1]=g;img.data[o+2]=b;img.data[o+3]=255; }
+    // the two scarce things get a speck of their own colour so a rich map reads as rich
+    for(let i2=0;i2<W*H;i2++){ const o=i2*4;
+      if(au[i2]){ img.data[o]=226;img.data[o+1]=194;img.data[o+2]=84; }
+      else if(ore[i2]){ img.data[o]=176;img.data[o+1]=182;img.data[o+2]=190; } }
+    ctx.putImageData(img,0,0);
+    // and where the realms actually start, so the spread is visible rather than described
+    const n=mapMaxRealms(MAP_W,MAP_H), sites=realmSitesFor(MAP_W,MAP_H);
+    const order=['player']; for(let i=1;i<n;i++)order.push('r'+i);
+    for(const k of order){ const st=sites[k];
+      const px=st[0]*W/MAP_W, py=st[1]*H/MAP_H;
+      ctx.beginPath(); ctx.arc(px,py,2.6,0,7);
+      ctx.fillStyle=(k==='player')?'#8fe6a8':'#e08a6a'; ctx.fill();
+      ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,.7)'; ctx.stroke(); }
+    _mapPrev[id]={url:cv.toDataURL('image/png'), w:MAP_W, h:MAP_H, realms:n};
+  }catch(err){ _mapPrev[id]={url:null,w:MAPS[id].w,h:MAPS[id].h,realms:mapMaxRealms(MAPS[id].w,MAPS[id].h)}; }
+  setMap(keep);
+  return _mapPrev[id]; }
+function buildMapCards(){
+  const host=document.getElementById('mapCards'); if(!host)return;
+  host.innerHTML='';
+  const sel=document.getElementById('mapSel');
+  for(const opt of sel.options){
+    const id=opt.value, m=MAPS[id]; if(!m)continue;
+    const p=mapPreview(id);
+    const card=document.createElement('div'); card.className='mapCard'; card.dataset.map=id;
+    const cv=document.createElement('canvas'); cv.width=132; cv.height=Math.round(132*p.h/p.w);
+    if(p.url){ const im=new Image(); im.onload=()=>{try{cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);}catch(e){}}; im.src=p.url; }
+    card.appendChild(cv);
+    const nm=document.createElement('div'); nm.className='mcName'; nm.textContent=m.name; card.appendChild(nm);
+    const meta=document.createElement('div'); meta.className='mcMeta';
+    meta.innerHTML='<span>'+p.w+'\u00d7'+p.h+'</span><span>\u265F 2\u2013'+p.realms+'</span>';
+    card.appendChild(meta);
+    const ds=document.createElement('div'); ds.className='mcDesc'; ds.textContent=m.desc||''; card.appendChild(ds);
+    card.title=m.name+' \u2014 '+p.w+'\u00d7'+p.h+' tiles, suits 2 to '+p.realms+' realms';
+    card.onclick=()=>{ sel.value=id; sel.dispatchEvent(new Event('change',{bubbles:true})); };
+    host.appendChild(card); } }
+function paintMapCards(){
+  const host=document.getElementById('mapCards'); if(!host)return;
+  for(const c of host.children) c.classList.toggle('on', c.dataset.map===curMapId); }
 { const mapSel=document.getElementById('mapSel'),diffSel=document.getElementById('diffSel'),plSel=document.getElementById('plSel'),facSel=document.getElementById('facSel'),winModeSel=document.getElementById('winModeSel');
   winModeSel.value=winMode;
   winModeSel.onchange=()=>{winMode=winModeSel.value;localStorage.setItem('crownhelm_winmode',winMode);};
@@ -8997,7 +9119,8 @@ function updateSetupBlurb(){const bl=document.getElementById('setupBlurb');if(!b
     const o=document.createElement('option'); o.value=id; o.textContent=m.name+' ('+m.w+'×'+m.h+')'; mapSel.appendChild(o); }
   addCustomMapBtn();
   mapSel.value=curMapId; if(mapSel.value!==curMapId){setMap('heartlands');mapSel.value='heartlands';}
-  mapSel.onchange=()=>{setMap(mapSel.value);localStorage.setItem('crownhelm_map',mapSel.value);updateSetupBlurb();updateStartSummary();};
+  mapSel.onchange=()=>{setMap(mapSel.value);localStorage.setItem('crownhelm_map',mapSel.value);updateSetupBlurb();updateStartSummary();paintMapCards();};
+  buildMapCards(); paintMapCards();
   diffSel.value=difficulty;
   diffSel.onchange=()=>{difficulty=diffSel.value;localStorage.setItem('crownhelm_diff',difficulty);updateStartSummary();};
   plSel.value=String(playerCount);
