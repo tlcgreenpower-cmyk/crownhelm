@@ -95,9 +95,13 @@
 
   // ---- 4. the top bar and the game menu. Everything except the one that quits.
   {let n=0;
+   // b370: the owner had Resume and the Sound toggle removed - Escape already closes the menu and
+   // the volume slider already silences the game. gmResume was how this sweep CLOSED the game menu,
+   // so 'gmenuBtn' (which opens it) now has no partner; closing it is done by clicking gmenuBtn a
+   // second time, which is the same toggle a player uses.
    for(const id of ['idleBtn','idleMilBtn','forcesBtn','realmsBtn','bellBtn','speedBtn','speedBtn','speedBtn',
-                    'pauseBtn','pauseBtn','gmenuBtn','muteBtn','muteBtn','qualBtn','qualBtn','qualBtn',
-                    'guideBtn','saveBtn','slotsClose','gmResume','demoBtn','demoBtn']){
+                    'pauseBtn','pauseBtn','gmenuBtn','gmenuBtn','qualBtn','qualBtn','qualBtn',
+                    'guideBtn','saveBtn','slotsClose','demoBtn','demoBtn']){
      const el=document.getElementById(id);
      if(!el){err('MISSING button #'+id);continue;}
      try{el.click();n++;R.clicks++;}catch(e){err('BTN '+id+' '+e.message);}

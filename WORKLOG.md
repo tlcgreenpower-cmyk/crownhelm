@@ -1046,3 +1046,28 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   but the player has the wheel and Q/E and the flash message says so; that is a separate judgement.
   UI sweep 238 / 0 errors. Soak 31.5 min: peak 517 units, 230 buildings, save 104KB, 8.81ms a step,
   zero errors, healthy.
+
+- **b370 THE OWNER PLAYED AND SENT A LIST.** Three of it done here.
+  **"The wolfs have no life bar"** — right, and never only the wolves: **no animal had one**, though
+  b306 gave the wolf 6 hp and sent it hunting workers, and the boar 9 so it could "turn on the man
+  shooting it". Every animal now carries the men's own bar, on the men's own rule (shown only when
+  hurt). Two traps on the way: animals had **no `maxHp` at all**, only a current hp, so there was
+  nothing to draw against; and the **hoard-guard wolves spawn somewhere else entirely, in two places**
+  (fresh game + save-restore), so the wolves the player actually fights would have been missed.
+  Caught because the first test said 18 of 29 animals had a full-health figure and the missing 11
+  were all wolves. Verified: 28 animals, 28 bars, hidden whole → amber at 45% → hidden when healed.
+  **Resume and Sound buttons removed** — Escape already closes the menu, the slider at zero already
+  silences through the master gain. Handlers removed with them: a dangling
+  `getElementById('gmResume').onclick` throws and takes the rest of the script down. Menu now says
+  "Esc to close".
+
+- **AND A HARNESS FAILURE THAT IS NOT THE BUILD.** The sweep reports "left-click did not select" and
+  "right-click ground did not move him". I chased it through four wrong theories (menu left open,
+  double-Escape reopening the menu — Escape is **not idempotent**, with nothing to cancel it OPENS
+  the menu — panels covering the canvas, viewport size) before running the control I should have run
+  first: **committed harness against committed b369, the exact pair that scored 238/0 this morning —
+  same two failures.** So it is environmental to the browser pane and hits every build equally. The
+  other five pointer orders pass every run, so events do reach the canvas; it is the section's first
+  click that misses. **Run the committed harness against a committed build before believing you broke
+  something.** Also muted this session's browser at source — the owner could hear the game through
+  his speakers.
