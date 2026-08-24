@@ -191,6 +191,13 @@ Twelve borrowed mechanics went in over b326–b330 and they touch a lot:
   three-way war used to destroy ONE building. It is still always truthy, so `if(aiWars[k])` is
   unaffected; a pre-b364 save holds `true`, which `warAge` reads as "old enough to end".
 
+**Never end a patched line with a `//` comment unless the line really ends there.** Twice in one
+day (b370, b372) a comment appended mid-statement swallowed the rest of the line — an object
+literal's remaining fields once, a function's closing brace the other time — and the failure
+surfaces as `Unexpected end of input` at the LAST line of the file, nowhere near the edit. Use a
+`/* ... */` block, or put the comment on its own line. `node --check` on the extracted module
+catches it in a second; a browser reload just shows a blank screen.
+
 **Anything new that holds state must go in `saveGame`/`loadGame`.** Four of these were silently
 lost on reload until they were tested; test the round trip, do not assume it.
 
