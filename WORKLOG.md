@@ -600,3 +600,21 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   "not a Tidefall map" error. Naming only — no tide mechanics remain in it. The one surviving
   mention is a code comment recording where a function was ported from, which is true and stays.
   Soak after: 7 simulated minutes on a generated map, 58 buildings, 76 units, zero errors.
+
+- **b354 THE UNIT PARADE WAS DROWNING ITS BACK RANK.** Second of the surfaces b352's sweep skips.
+  The parade laid its ranks out three tiles below the Keep and marched south with nothing checking
+  the map went that far. On the Heartlands the Keep sits at ty=49 on a 64-tile map, so the ranks
+  land at 55/58/61/64 — and 64 is off the end of a grid whose last row is 63. Measured on the real
+  screen: **4 men off the map entirely** (z=130, boundary 128) and **5 standing on water**, four of
+  them on skirt ground 6–8 units UNDER the sea. The drowned rank was Hoplite, Privateer, Viking and
+  Samurai — four of the six models b347 had just rebuilt, on the one screen whose whole job is to
+  show them off.
+  Now sizes the block it needs and finds somewhere it fits. Dry alone was not enough: the first
+  version allowed anything above the tideline and photographed as half-on-grass, half-on-beach, so
+  it wants proper inland ground (1.6, the floor the world's own scatter uses) and near-level, so
+  the back rank does not stand over the front rank's heads. Falls back to the old position if the
+  map offers nothing, so it cannot be worse than before. Camera frames the block, not the Keep.
+  Verified through the menu button rather than by calling anything directly: 37 units, 31 types,
+  zero off-map, zero in water, no errors; photographed before and after.
+  Soak: 13 simulated minutes of ordinary play after, 179 units, 70 buildings, zero errors, 3.40ms
+  a step.
