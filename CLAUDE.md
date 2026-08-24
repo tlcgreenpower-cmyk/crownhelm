@@ -46,8 +46,13 @@ screenshots time out. Drive and photograph it instead:
   still reported 96×64 and every measurement taken after a map change was quietly wrong. It
   produced a confident "the default map has a third the scenery of every other" that was pure
   artefact. If you add a map-dependent value to the debug surface, make it a getter.
-- `window.TF.info` for fps/ents/skinned/calls; `window._CHARLIB` for character templates;
-  `renderer.info.render` after a TFshot for real draw calls and triangles.
+- `window.TF.info` for fps/ents/skinned/calls; `window.TF.weather` for the live front (name, cloud,
+  fog, mist, rain, sun, wind and seconds to the next change); `window._CHARLIB` for character
+  templates; `renderer.info.render` after a TFshot for real draw calls and triangles.
+  **Some of the debug surface hangs off `TF` and some off `TF._dbg()`'s `__D`, and they are not the
+  same object** — `weather` is on `TF`, so listing `Object.keys(__D)` says it does not exist. Check
+  both before concluding a thing cannot be measured (b366 nearly re-derived the weather state by
+  hand for want of looking one level up).
 - **A unit photographed away from the camera shows its BIND POSE, not its animation.** TFshot
   renders from its own throwaway camera, but `updateUnitLOD` decides who gets skinned using the
   REAL one — off-screen men are deliberately never animated. So a unit posed for a photograph is
@@ -84,6 +89,13 @@ tens of chunks, and reading one gave "1 sea stack" when the true figure was 65. 
 entity counts, scene nodes, scene geometry, save size and step time all settle. b356 measured 21.5
 minutes: army plateaus at 346, scene nodes and geometry stop growing and tick down again, save
 holds at 74KB, step time flat around 2ms, zero errors.
+
+**Give it thirty minutes, not fifteen, and read the army trace before the verdict** (b366). Since
+b364 the rivals actually fight, so the army no longer climbs monotonically — a real run reads
+24/100/119/181/**117**/175/219/236/236/236, that dip being a war taking sixty-four men off the
+board. The settle check looks for the first sample within 95% of peak, so a run cut off mid-rebuild
+reports `healthy:false, "army never settled"` when nothing whatever is wrong. Two builds in a row
+were nearly mis-reported that way.
 
 **`renderer.info.memory` is not a leak detector here.** It counts what has been UPLOADED to the
 GPU, so it only ever rises, and it jumps every time you call **TFshot** — a screenshot renders

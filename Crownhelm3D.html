@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b365</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b366</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -2570,7 +2570,17 @@ function updateCloudShade(dt){ _cldT+=dt*(0.010+0.014*wWind);
   // this camera barely gets to the far edge of the view.
   // b323: same cap on the aerial-perspective term. At full mist this reached 3.5e-5, which is
   // where the haze stops being distance and becomes a white sheet across the whole view.
-  _hazeUni.k.value=Math.min(1.15e-5, 6.5e-6+4.2e-6*wFog+1.5e-5*wMist);
+  // b366: THE CAP WAS ON THE WRONG TERM, AND IT UNDID b198. 1.15e-5 sits BELOW five of the six
+  // fronts, so fair, overcast, showers, storm and mist all came out at exactly the same value and
+  // only clear (1.07e-5) differed at all — which is precisely the fault b198 was written to cure,
+  // back within a hundred builds. Went looking for the white sheet b323 saw and it is real, but it
+  // is the fog DENSITY that makes it, not this: photographed at 4.6 density the distant town is a
+  // pale ghost, while at the shipped 1.35 density this term can run to 4.1e-5 and the same view
+  // stays perfectly legible, keep and town holding their colour. b323 fixed the density on line
+  // 1024 and capped this as well; only the first was needed. The sea is safe either way — the
+  // shader's own min(0.34) from b293 is what stops distant water turning to paint and it holds at
+  // any k. Ceiling kept, but lifted clear of every front so nothing is flattened by it.
+  _hazeUni.k.value=Math.min(4.2e-5, 6.5e-6+4.2e-6*wFog+1.5e-5*wMist);
   _cldUni.drift.value.set(_cldT,_cldT*0.42);
   const want=Math.min(1,wCloud*1.55)*(1-rainI*0.45);
   const a=_cldUni.amt; a.value+=(want-a.value)*Math.min(1,dt*0.5); }
