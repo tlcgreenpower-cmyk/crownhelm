@@ -868,3 +868,35 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   scaffolded timber structure that has looked half-built in several recent screenshots is the
   **storehouse's finished model**, a woodcutter's hut — every building on the map read
   `done=true prog=1 scaffold=false`. Recorded because I misread it twice.
+
+- **b365 SCORCHED EARTH WAS A HOLE IN THE WORLD.** Went to look at what b364 makes reachable — the
+  aftermath of a razed town, which b186's own comment says players almost never saw. The town
+  photographs well; the ground did not. A razed building's scorch mark reads as a **black void with
+  grass tufts standing in it**: the darkest pixel of the whole ground canvas, RGB(25,23,19), nine
+  per cent brightness, landed dead centre of one. Ruled out the other two explanations first —
+  cloud shade is only `amt` 0.105 × depth 0.70 (~7%), and re-rendering with
+  `renderer.shadowMap.enabled=false` left the blobs untouched — then converted the darkest canvas
+  pixel to world coordinates, pointed the camera there, and found the mark exactly where the log
+  said a house fell 40s earlier. Cause: six ellipses of `rgba(30,26,22,0.28)` saturate long before
+  the sixth, so the patch ends a flat near-black disc whatever it fell on. **The game already has a
+  floor for this** — `CHAR_BLACK` 0.26, which every character palette is lifted through since b172;
+  ground had none. Same shapes, dark earth-brown, stack lands on that 0.26.
+  Identical scenario either side, same spot (134,-64): **RGB(40,37,28) lum 36.9 (14.5%) →
+  RGB(83,76,54) lum 75.6 (29.6%)**. And the floor is structural: replaying the compositing from
+  black at 1/3/10/30/80 stamps, both saturate after ~3 — old converges on **22.9**, new on **61.1**,
+  so a town besieged repeatedly ends up burnt rather than erased. Size left alone deliberately (one
+  variable at a time). UI sweep 226 / 0 errors; soak 23.8 min / 240 units / 1.43ms a step / healthy.
+  (A 15-minute soak first returned healthy:false, "army never settled" — the harness correctly
+  saying the run was too short, not a fault. Re-ran it properly rather than quoting the short one.)
+
+- **THE RAIN DREW MY EYE FIRST AND I LET IT GO.** It renders as fairly stark pale streaks, but it is
+  a `LineBasicMaterial` at 0.38 alpha in a stylised game and photographs as rain in daylight — not a
+  look I can call wrong. Measured the fronts while there: clear 98 luminance, cloudy fronts 83–84,
+  and a shower lands within ~1.5 points of dry overcast — the same complaint **b198** recorded and
+  only partly cured by changing drop count. Recorded, not acted on.
+
+- **ALSO CHECKED, NO FAULT.** Rubble does not accumulate (`rubblePiles` capped at 24, shared
+  geometry). Soldiers do not keep demolishing after a truce — 16 mid-siege at the moment of peace,
+  7 five seconds later, **0 after thirty-five**. Note for next time: `rubblePiles`, `stampScorch`
+  and the weather state are **not** on the debug surface, which is why this pass was done by reading
+  the ground canvas and re-rendering with features switched off.
