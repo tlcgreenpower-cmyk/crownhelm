@@ -82,6 +82,18 @@ screenshots time out. Drive and photograph it instead:
   frozen at frame 0, which on these rigs is a T-pose, and it looks exactly like a broken model.
   Drive it by hand before the shot: `for(let k=0;k<40;k++)e.mesh.userData.mixer.update(1/30)`.
 
+**Nothing in this harness ever renders with the REAL camera, so `camera.matrixWorld` goes stale.**
+`pickUnit`/`pickBuilding` do `raycaster.setFromCamera(ndc,camera)`, which reads that matrix; a real
+game refreshes it every frame so it is never wrong, but here the pane does not composite and TFshot
+renders from a throwaway camera of its own. After `setCam` the ray is therefore cast from where the
+camera *used to be*, and every click-to-select misses while gather/attack/box-select/rally still
+pass — they set the selection directly and cast no ray. Call
+`camera.updateMatrixWorld(true)` (and `scene.updateMatrixWorld(true)`) before any synthetic click.
+This produced "POINTER left-click did not select the man under it" on **eight consecutive builds**,
+reproduced identically on committed builds that had shipped green, and survived four wrong theories
+(menu left open, double-Escape reopening it, panels over the canvas, viewport size) before anyone
+instrumented the click itself.
+
 **The hands-off soak only ever tests the AI.** Spinning up a game and stepping it for twenty
 minutes exercises `realmBrain` and nothing the PLAYER does — which is the half the owner actually
 operates, and where b351's ReferenceError hid for twenty-five builds. `tools/uisweep.js` pastes

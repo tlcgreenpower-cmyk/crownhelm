@@ -1256,3 +1256,19 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   **What I got wrong on the way:** read the shoulder blade as a misplaced prop (it's the character),
   and called the haft too long (0.47 against 2.2 — 21% of height, a sensible axe). Both were guesses
   at a picture. What settled it was a number.
+
+- **THE SWEEP IS GREEN AGAIN — AND IT WAS NEVER THE GAME.** Eight builds carried "POINTER left-click
+  did not select the man under it". Four wrong theories died first (menu left open; double-Escape
+  *reopening* it, since Escape is not idempotent; panels covering the canvas; viewport size), and the
+  control that mattered — committed harness against committed b369, which had shipped green — failed
+  identically, which proved it was environmental but not *what*.
+  **Cause:** `pickUnit` does `raycaster.setFromCamera(ndc,camera)`, which reads `camera.matrixWorld`.
+  A real game refreshes that every frame; this harness never renders with the real camera (the pane
+  does not composite, TFshot uses a throwaway camera), so after `setCam` the ray is cast **from where
+  the camera used to be**. That is why gather/attack/box-select/rally always passed — they set the
+  selection directly and cast no ray. Proved by clicking the same man twice either side of one line:
+  **false, then true.**
+  One `camera.updateMatrixWorld(true)` before the pointer section. Sweep now **236 interactions, 0
+  errors, all seven pointer orders passing** — `selectByClick {sel:1, gotHim:true}`,
+  `moveOrder {cmd:'move', moved:21.9}`. Lesson in CLAUDE.md: instrument the failing call before
+  theorising about its surroundings.

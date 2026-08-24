@@ -138,9 +138,23 @@
    try{
      const K=D.blds.find(b=>b.owner==='player'&&b.type==='hall');
      Object.assign(D.res.player,{f:5000,w:5000,m:5000,g:5000});
+     // THE TWO POINTER FAILURES, EXPLAINED AND FIXED (found while chasing them for a fourth time).
+     // pickUnit does raycaster.setFromCamera(ndc, camera), and that reads camera.matrixWorld. In a
+     // real game the renderer refreshes it every single frame, so it is never wrong. In THIS harness
+     // nothing ever renders with the real camera - the pane does not composite, and TFshot renders
+     // from a throwaway camera of its own - so after setCam moves the view the matrix still holds
+     // the OLD pose and every pick-ray is cast from where the camera used to be. Hence "left-click
+     // did not select the man under it" while gather, attack, box-select and the rally flag all
+     // passed: those set the selection directly and never cast a ray.
+     // Proved it by clicking the same man twice, once either side of this one line: false, then
+     // true. It was never the game - the same failure reproduces on committed builds that shipped
+     // green - and it wasted most of a pass across four builds before I stopped guessing and
+     // instrumented the click itself.
+     D.camera.updateMatrixWorld(true); D.scene.updateMatrixWorld(true);
      // setCam takes (x,z,dist,pitch). Calling it bare sets camTarget to undefined, the camera goes
      // NaN, and every projection after it is garbage — cost me a confusing round of "results".
      D.setCam(K.cx,K.cz,52,0.62); step(8);
+     D.camera.updateMatrixWorld(true);   // setCam moved the view; the ray must know
 
      const sold=D.ents.find(e=>e.owner==='player'&&e.type!=='worker');
      LC(sold.x,sold.z); step(2);
