@@ -1071,3 +1071,46 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   click that misses. **Run the committed harness against a committed build before believing you broke
   something.** Also muted this session's browser at source — the owner could hear the game through
   his speakers.
+
+- **b371 THE FARM WORK, AND THE O(n²) HIDING IN IT.** Three owner requests, one piece of code — and
+  that code was also part of why the game lags.
+  **"Peasants who build a farm must stay and farm it"** — the order of two lines was the whole
+  reason: the man who finished a building went straight to `nextBuildSite`, so a peasant who had
+  just raised a farm walked off to the next foundation and the farm stood empty until some other
+  idle peasant rolled the 50% chance of looking for one. He now works the farm he built.
+  **"Selecting multiple peasants and clicking one farm must spread them"** — it used to give the
+  field to `workers0[0]` and the other nine **no order at all**, so they carried on with whatever
+  they were doing. Now each takes the nearest field still wanting a hand. Seven peasants, five
+  fields → five tending five **different** fields, none doubled up.
+  **"If too many they just stand there and wait"** — the one I'd have got wrong without holding the
+  test open. Setting them idle looked right at the instant of the order, then a minute later **five
+  of seven had drifted back to the woods**: the idle-peasant logic re-rolls twice a second. The game
+  already has `noWork` (what a man gets when he can't reach his job) and it gates exactly that
+  re-roll. Surplus now carry it, set far out — safe open-ended because the 💤 counter and button read
+  `cmd` only, so a waiting man is still counted and findable, and any player order lifts the flag.
+
+    | seven peasants, two fields | tending | waiting | drifted off |
+    |---|---|---|---|
+    | at once | 2 on 2 fields | 5 | 0 |
+    | a full minute later | 2 | **5** | **0** (was 5) |
+    | told to move afterwards | — | all 5 obey, flags cleared | — |
+
+  **And it was slow as well as wrong.** "Is anybody on this farm?" was `ents.some(...)` inside
+  `blds.find(...)`, per idle peasant, twice a second each. The **AI's copy of this was fixed long
+  ago** and builds the tended set in one pass; the player's never was. Now built once per step
+  (`_stepN` is exactly the right lifetime). Measured both ways against the **same live state** — two
+  runs of this game are not comparable, per b366: 339 units / 200 buildings / 52 farms / 17 idle
+  peasants, **0.221ms → 0.103ms per call, 2.1×, identical answers**.
+
+- **NOT THE LAG, AND I WON'T PRETEND IT IS.** One contributor only. The profiler puts the per-unit
+  loop top of step cost, near-linear in men: **3.19ms at 196 units, 6.19ms at 351**. It bites now
+  because of **b364, which is mine** — since the realms actually fight, a late game carries 500–700
+  men where it carried ~340, so the same per-man cost arrives twice over. The real answer is a
+  **level of detail for the SIMULATION** as well as the rendering — men far from the camera and out
+  of contact don't need their orders re-examined 30× a second. Bigger than belongs at the end of
+  this build.
+  Sweep 236 interactions (the two pointer failures are b370's environmental pair — committed harness
+  vs committed b369 fails identically). Soak **17.3 min, 470 units, 227 buildings, 5.9ms a step,
+  zero errors**, counts growing normally. Stopped short of 30 because the backgrounded pane throttles
+  timers; this changes farm orders, not anything holding state, so seventeen clean minutes at 470 men
+  covers it — said plainly rather than quoting a settled verdict I didn't wait for.
