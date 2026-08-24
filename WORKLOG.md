@@ -642,3 +642,29 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   gather order, by which time the worker had filled his arms and moved to `'return'` — the order
   having worked. Both fixed and both documented at the assertion, because a harness that cries
   wolf is worse than no harness.
+
+- **b356 LONG-RUN STABILITY, AND THE COUNTER THAT LIES ABOUT IT.** Every soak in this project runs
+  ~10 minutes; the owner plays far longer, and nothing had ever checked the failures that only
+  appear after half an hour. `tools/soak.js` runs a long hands-off game and returns a verdict on
+  whether entity counts, scene nodes, scene geometry, save size and step time all settle.
+  Measured over 21.5 simulated minutes: army plateaus at 346 and stops; scene nodes and scene
+  geometry stop climbing and tick DOWN between samples (disposal working); save holds at 74KB;
+  step time flat ~2ms against a 33ms budget; zero errors. Verdict healthy, no notes.
+
+- **THE TRAP, which is most of the value.** `renderer.info.memory.geometries` looked like a textbook
+  leak — 484 at 15 min, 597 at 18, 716 at 23, with entities flat at 342 and scene nodes barely
+  moving. It is not one. Those counters report what has been UPLOADED TO THE GPU, so they only ever
+  rise, and they jump every time you call **TFshot**, because a screenshot renders parts of the
+  world the play camera never touched — and I had been screenshotting between samples. Proved it
+  with a controlled two-minute interval containing no screenshot: 1406 geometries before, 1406
+  after, while the scene churned 44 new geometries in and 38 out. soak.js therefore takes NO
+  screenshots and reports the honest figure too — distinct geometries reachable from the scene
+  graph, which falls again on disposal. Trap and correct measure both now in CLAUDE.md.
+
+- **CHECKED, NO FAULT FOUND: textures.** Looked like a creep (51→63). Counted distinct textures
+  actually referenced by scene materials: 57, against 61 reported. The four spare are render
+  targets. The rise tracks character models uploading the first time each unit type appears, and it
+  plateaus. Not a leak.
+
+- No defect found this pass — it ships the harness and a clean 21.5-minute result, and the commit
+  says so plainly.
