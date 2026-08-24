@@ -542,3 +542,31 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   meant to matter.
   Soak: 9 simulated minutes with two wars running throughout, 292 entities, 129 buildings, zero
   errors, 6.44ms a step.
+
+- **b352 A SWEEP THAT CLICKS EVERYTHING THE PLAYER CAN CLICK.** b351's crash had been eating
+  simulation steps since b326 and only surfaced by luck — a battle staged for another reason
+  happened to catch it in the console. The hands-off soak this project leans on only ever
+  exercises `realmBrain`; every command button, stance, panel, diplomacy action and menu item is
+  untouched by it, and that is the half of the game the owner operates. `tools/uisweep.js` now
+  drives all of it from one console paste: builds a rich player kingdom, clicks every button on
+  every building panel and every unit bar, runs gift/war/peace against all three realms, works the
+  top bar and game menu (everything but Quit), and round-trips all four win modes through
+  save/load checking the mode survives and the game still runs.
+  RESULT: 226 interactions, four win modes, ZERO errors. Nothing new found — this ships the
+  harness and a clean run, not a fix, and the commit says so.
+  TWO TRAPS IT TAUGHT ME, both now in CLAUDE.md: a soldier's commands live in `#formBar` and his
+  `#cmds` is EMPTY (a worker is the other way round) — my first sweep read `#cmds` only and
+  reported "military units have no commands at all", which looked serious for about a minute. And
+  the panel is built from `div.btn`, not `<button>` — querying for buttons finds nothing and
+  reports a clean pass over zero controls, which is the worst kind of green.
+  Caveats written into the file so a clean run is not over-read: it does not cover the Map
+  Builder, Parade mode, or real pointer work on the 3D view (drag-select, right-click orders,
+  formation drag-aim, wall dragging, rally flags), and a green sweep means every button is wired
+  to something that runs, not that it does the right thing.
+
+- **CHECKED, NO FAULT FOUND: Regicide, end to end.** Every realm starts with a King, `_regHad`
+  fills correctly, a downed King stays in `ents` so the game does NOT end while he is merely down
+  (the b330 design), and removing a King outright ends the game on the spot with `_regDone` set.
+  `_regHad` is not in the save, which looked like the same hole b350 found in the Wonder's clock —
+  but it self-heals on the first tick after a load, since any realm that still has a King re-marks
+  itself. Left alone. All four win modes survive save/reload with the mode intact.
