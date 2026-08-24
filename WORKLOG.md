@@ -943,3 +943,43 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   within 95% of peak, so a run cut off mid-rebuild reports "never settled" while nothing is wrong.
   **Soak this game for thirty minutes, not fifteen, and read the trace before the verdict.**
   b366 final: 34.2 min, 236 units, 118 buildings, zero errors, 1.13ms a step, healthy.
+
+- **b367 THE MAP BUILDER MAKES MAPS TWICE THE SIZE OF ANYTHING IN THE MENU.** Went to test the Map
+  Builder round-trip — listed in CLAUDE.md as covered by no harness, and b353 (mine) renamed its
+  storage keys. **It works.** Drove the real builder headlessly (scatter → Save → Play): builder
+  wrote 96×64 / 1276 forest / 16 gold / 26 metal / 455 water, game built exactly that, four halls,
+  three minutes clean. The two sites reading `crownhelm_custom_map` without `cmRead()`'s legacy
+  fallback are *correct* — a one-time migration copies old keys on load, and the only read that
+  happens **before** that migration is the one that does use the fallback.
+  **The find was the sizes.** The builder offers Large 224×144 and Epic 256×176 — both bigger than
+  any menu map — and up to 8 realms against the menu's 4. Epic is 45,056 tiles, **7.33× Heartlands**,
+  and had never been run. It plays: 8 halls, resources matching tile for tile, 16 min at 1.2–3.0ms a
+  step, save 133KB, zero errors (`newGame` takes 8.2s, slow but once). But every area-scaled ceiling
+  was cut to fit the menu's biggest map, and on Epic they **all bind at once** — treasures 81 wanted
+  / 34 given, villages 51/16, relics 18/7, herds 22/8, flocks 59/16, sheep 440/120, posts 19/14.
+  Hoard density 0.75 per 1000 tiles against Heartlands' 1.79. That is b362's fault one size further
+  out, and **34 and 14 are my own numbers from b362** — the values the formulas give at 168×112.
+  **Fixed the two I own**, ceilings now derived from the builder's largest size rather than written
+  as constants: Epic 34→**81** hoards (0.75→**1.80** per 1000, matching the big maps) and 14→**19**
+  posts at spacing 42, identical to the others. Built-in maps untouched. Save/load on Epic
+  round-trips all 81 and 19 with identical positions and tiers.
+  **Did NOT touch the other five.** Villages/herds/flocks/sheep are mesh budgets and I have not
+  measured what 440 sheep costs to *render* (the soak takes no screenshots). Relics are worse — 7→18
+  changes the relic-race win condition. Numbers left in the table so the next person decides with
+  figures, not a hunch.
+
+- **AND THE REASON IT WENT UNSEEN.** `worldcensus.js` walked the map selector and explicitly
+  **skipped `custom`**. That skip is why this sat for five builds — the census exists (b359) to catch
+  a feature quietly arriving at the wrong density, and it was blind to the only sizes above 168×112
+  that exist. It now audits a custom map whenever one is saved, and says plainly when the builder
+  sizes are uncovered. Six maps: hoards/1000 **1.79 / 1.81 / 1.81 / 1.81 / 1.81 / 1.80**, trade
+  spacing 43/46/45/44/41/43, healthy. Territory still reported, still not acted on: 61.5% claimed on
+  Heartlands, ~19% on the big maps, **7.7% on Epic** — same call as b363.
+  UI sweep **238** interactions (twelve more than usual — the custom map now appears in the selector
+  and the sweep exercises it), zero errors. Soak run on **Epic with eight realms** rather than
+  Heartlands, being this build's subject and the harder case: 32.2 min, peak 680 units, 259
+  buildings, 27,221 scene nodes, save 127KB, zero errors, healthy — army trace
+  48/134/217/281/337/409/484/558/608/661/**680**/679/621/598, plateauing then coming down as the
+  wars bite, which is b364 working. **One honest number: a step costs 8.4ms on Epic with eight
+  realms against ~1.4ms on Heartlands, roughly six times.** Still inside a 60fps budget for the
+  simulation, but that is the figure to watch if anyone raises the five ceilings I left alone.
