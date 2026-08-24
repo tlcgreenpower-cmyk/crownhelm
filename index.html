@@ -117,7 +117,7 @@
       <button id="realmsBtn" style="cursor:pointer;background:#17303f;border:1px solid #2c5164;color:#dff0f9;border-radius:6px;padding:3px 9px;font-size:12px;">🕊 Realms</button>
     </div>
     <span id="clock">0:00</span>
-    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b369</span>
+    <span id="ver" title="Game build — if this differs from the latest, close the tab and reopen the link" style="color:#bcd8ea;font-size:11px;font-weight:600;margin-left:6px;">b370</span>
   </div>
   <div id="builder" style="display:none;position:fixed;inset:0;z-index:60;background:#08141d;flex-direction:column;align-items:center;gap:10px;padding:16px;">
     <div style="font:700 26px Georgia,serif;color:#f3e4be;">🛠 Map Builder</div>
@@ -308,10 +308,9 @@
     <div id="guide" class="hidden" style="position:absolute;inset:28px 56px;z-index:44;overflow-y:auto;background:rgba(8,20,30,.97);border:1px solid #2c5164;border-radius:12px;padding:20px 26px;box-shadow:0 20px 60px rgba(0,0,0,.7)"></div>
     <div id="gameMenu" class="hidden">
       <div style="width:310px;background:#0e2230;border:1px solid #2c5164;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.65);">
-        <div style="font:700 21px Georgia,serif;color:#f3e4be;text-align:center;letter-spacing:3px;margin-bottom:6px;">☰ GAME MENU</div>
+        <div style="font:700 21px Georgia,serif;color:#f3e4be;text-align:center;letter-spacing:3px;margin-bottom:2px;">☰ GAME MENU</div>
+        <div style="font:12px Georgia,serif;color:#8fb0c4;text-align:center;margin-bottom:6px;">Esc to close</div>
         <button class="gmb" id="saveBtn">💾 Save / Load</button>
-        <button class="gmb" id="gmResume">▶ Resume</button>
-        <button class="gmb" id="muteBtn">🔊 Sound: On</button>
         <div class="gmb" style="display:flex;align-items:center;gap:10px;cursor:default"><span style="flex:none">🔉 Volume</span>
           <input id="volSlider" type="range" min="0" max="100" value="70" style="flex:1;accent-color:#c9a44a;cursor:pointer">
           <span id="volVal" style="flex:none;width:38px;text-align:right;color:#c9a44a">70%</span></div>
@@ -877,7 +876,6 @@ function setSpeed(s){ gameSpeed=Math.max(1,Math.min(3,s));
   document.getElementById('speedBtn').textContent='⏩ '+gameSpeed+'×';
   flashMsg('⏩ Game speed '+gameSpeed+'×'); }
 document.getElementById('speedBtn').onclick=()=>setSpeed(gameSpeed>=3?1:gameSpeed+1);
-document.getElementById('muteBtn').onclick=()=>{audioOn=!audioOn;document.getElementById('muteBtn').textContent=audioOn?'🔊 Sound: On':'🔇 Sound: Off';if(audioOn)initAudio();};
 { const vs=document.getElementById('volSlider'),vv=document.getElementById('volVal');
   if(vs){ vs.value=String(Math.round(sfxVol*100)); vv.textContent=Math.round(sfxVol*100)+'%';
     vs.oninput=()=>{ sfxVol=(+vs.value)/100; vv.textContent=vs.value+'%';
@@ -2759,6 +2757,15 @@ const deerHide=new THREE.MeshStandardMaterial({color:0x8a5f38,roughness:.9,flatS
 const deerBelly=new THREE.MeshStandardMaterial({color:0xc9a97e,roughness:.9,flatShading:true});
 const boarHide=new THREE.MeshStandardMaterial({color:0x4a3a2c,roughness:.95,flatShading:true});
 const wolfHide=new THREE.MeshStandardMaterial({color:0x565a5e,roughness:.92,flatShading:true});   // b306: the pack that actually hunts back
+// b370 (owner: "the wolfs have no life bar"). Quite right, and it was never only the wolves — no
+// animal had one. They are not scenery: b306 gave the wolf 6 hp and sent it hunting unescorted
+// workers, and raised the boar to 9 specifically so it could "turn on the man shooting it". So the
+// game has had huntable, fighting animals with hit points and no way whatever to see them, while
+// every soldier and every building shows a bar. Same bar, same rule as the men: it appears when the
+// animal is hurt and stays hidden while it is whole, so a quiet field stays quiet.
+const SHEEP_BAR_Y={deer:2.05,rabbit:0.95,wolf:1.10,boar:1.05,sheep:1.60};
+function _animalBar(g,kind){ const hb=makeHealthBar();
+  hb.position.y=SHEEP_BAR_Y[kind]||1.2; g.add(hb); g.userData.hb=hb; return g; }
 function makeSheep(kind){
   if(kind==='deer'){ const g=new THREE.Group();
     const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),deerHide);body.scale.set(.9,.75,1.45);body.position.y=.85;body.castShadow=true;g.add(body);
@@ -2766,13 +2773,13 @@ function makeSheep(kind){
     const head=new THREE.Mesh(new THREE.BoxGeometry(.2,.22,.4),deerHide);head.position.set(0,1.42,.78);g.add(head);g.userData.head=head;
     for(const sx of[-1,1]){const ant=new THREE.Mesh(new THREE.ConeGeometry(.05,.5,4),deerBelly);ant.position.set(sx*.12,1.72,.72);ant.rotation.z=sx*.5;g.add(ant);}
     for(const[lx,lz]of[[-.2,.42],[.2,.42],[-.2,-.42],[.2,-.42]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.08,.62,.08),deerHide);leg.position.set(lx,.32,lz);g.add(leg);}
-    return g; }
+    return _animalBar(g,'deer'); }
   if(kind==='rabbit'){ const g=new THREE.Group(); const fur=hashN(1,2)<0.5?woolMat:deerBelly;
     const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.26,0),Math.random()<0.5?woolMat:deerBelly);body.scale.set(1,.85,1.25);body.position.y=.26;body.castShadow=true;g.add(body);
     const head=new THREE.Mesh(new THREE.SphereGeometry(.15,6,5),woolMat);head.position.set(0,.4,.28);g.add(head);g.userData.head=head;
     for(const sx of[-1,1]){const ear=new THREE.Mesh(new THREE.BoxGeometry(.06,.3,.04),deerBelly);ear.position.set(sx*.07,.62,.24);ear.rotation.x=-.2;g.add(ear);}
     const tail=new THREE.Mesh(new THREE.SphereGeometry(.08,5,4),woolMat);tail.position.set(0,.3,-.32);g.add(tail);
-    return g; }
+    return _animalBar(g,'rabbit'); }
   if(kind==='wolf'){ const g=new THREE.Group();
     const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.42,0),wolfHide);body.scale.set(.85,.8,1.5);body.position.y=.5;body.castShadow=true;g.add(body);
     const head=new THREE.Mesh(new THREE.BoxGeometry(.22,.24,.36),wolfHide);head.position.set(0,.62,.66);g.add(head);g.userData.head=head;
@@ -2780,14 +2787,14 @@ function makeSheep(kind){
     for(const sx of[-1,1]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.06,.16,4),wolfHide);ear.position.set(sx*.09,.78,.64);g.add(ear);}
     for(const[lx,lz]of[[-.18,.36],[.18,.36],[-.18,-.36],[.18,-.36]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.08,.36,.08),wolfHide);leg.position.set(lx,.18,lz);g.add(leg);}
     const tail=new THREE.Mesh(new THREE.ConeGeometry(.08,.5,5),wolfHide);tail.rotation.x=Math.PI*0.6;tail.position.set(0,.56,-.62);g.add(tail);
-    return g; }
+    return _animalBar(g,'wolf'); }
   if(kind==='boar'){ const g=new THREE.Group();
     const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,0),boarHide);body.scale.set(1.05,.85,1.35);body.position.y=.55;body.castShadow=true;g.add(body);
     const head=new THREE.Mesh(new THREE.BoxGeometry(.34,.34,.44),boarHide);head.position.set(0,.6,.68);g.add(head);g.userData.head=head;
     const snout=new THREE.Mesh(new THREE.CylinderGeometry(.09,.11,.16,6),deerBelly);snout.rotation.x=Math.PI/2;snout.position.set(0,.52,.95);g.add(snout);
     for(const sx of[-1,1]){const tusk=new THREE.Mesh(new THREE.ConeGeometry(.04,.18,4),woolMat);tusk.position.set(sx*.14,.5,.9);tusk.rotation.x=-.9;g.add(tusk);}
     for(const[lx,lz]of[[-.24,.34],[.24,.34],[-.24,-.34],[.24,-.34]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.1,.28,.1),boarHide);leg.position.set(lx,.16,lz);g.add(leg);}
-    return g; }
+    return _animalBar(g,'boar'); }
   if(CHAR_LIB&&CHAR_LIB.lib.SheepA){ const src=CHAR_LIB.lib.SheepA;
     const gg=new THREE.Group(); const ch=CHAR_LIB.clone(src.scene);
     const box=modelBox(ch), hgt=box.max.y-box.min.y||1;
@@ -2799,13 +2806,13 @@ function makeSheep(kind){
     gg.userData.mixer=mixer; gg.userData.walkA=wc?mixer.clipAction(wc):null; gg.userData.idleA=ic?mixer.clipAction(ic):null; gg.userData.mode='idle';
     deSync(gg.userData);   // a flock of sheep grazing in perfect time is as odd as a regiment doing it
     if(gg.userData.idleA)gg.userData.idleA.play();
-    return gg; }
+    return _animalBar(gg,'sheep'); }
   const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,0),woolMat);body.scale.set(1,.8,1.25);body.position.y=.62;body.castShadow=true;g.add(body);
   const head=new THREE.Mesh(new THREE.BoxGeometry(.26,.28,.42),sheepDark);head.position.set(0,.72,.62);g.add(head);g.userData.head=head;
   for(const[lx,lz]of[[-.22,.3],[.22,.3],[-.22,-.3],[.22,-.3]]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.09,.32,.09),sheepDark);leg.position.set(lx,.18,lz);g.add(leg);}
   const tail=new THREE.Mesh(new THREE.SphereGeometry(.14,5,4),woolMat);tail.position.set(0,.62,-.68);g.add(tail);
-  return g; }
+  return _animalBar(g,'sheep'); }
 function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
   let flocks=0;
   const FLK=Math.min(16,Math.round(8*areaScale()));
@@ -2820,7 +2827,9 @@ function buildSheep(){ for(const s of sheep)scene.remove(s.mesh); sheep=[];
     for(let i=0;i<n;i++){ const m=makeSheep(kind); scene.add(m);
       const sx=wx(x)+(Math.random()-.5)*6, sz=wz(y)+(Math.random()-.5)*6;
       sheep.push({mesh:m,kind,meat:kind==='boar'?220:kind==='deer'?140:kind==='rabbit'?45:kind==='wolf'?70:90,spd:kind==='deer'?2.6:kind==='boar'?1.4:kind==='rabbit'?3.4:kind==='wolf'?2.0:1.7,
-        hp:kind==='boar'?9:kind==='rabbit'?1:kind==='wolf'?6:2,hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }   // b306: boar hp 3->9 — it used to die before it could ever turn on the man shooting it
+        hp:kind==='boar'?9:kind==='rabbit'?1:kind==='wolf'?6:2,
+        maxHp:kind==='boar'?9:kind==='rabbit'?1:kind==='wolf'?6:2,   /* b370: the bar needs a full-health figure to draw against */
+        hx:wx(x),hz:wz(y),x:sx,z:sz,tx:sx,tz:sz,wait:Math.random()*4,graze:0}); } } }   // b306: boar hp 3->9 — it used to die before it could ever turn on the man shooting it
 // b312: Escort Caravans act on their own — no order needed. Each one scans its own realm's workers
 // for anyone alone and close to an enemy, boards them (reusing the same cargo mechanic the manual
 // transport commands use), and ferries them home to the nearest Hall to disembark. Pathfinding
@@ -2891,7 +2900,20 @@ function updateSheep(dt){ for(const s of sheep){ s.wait-=dt;
     if(want!==sud.mode&&sud.walkA&&sud.idleA){ const to=want==='walk'?sud.walkA:sud.idleA, from=want==='walk'?sud.idleA:sud.walkA;
       deSyncTo(to.reset(),sud).fadeIn(0.2).play(); from.fadeOut(0.2); sud.mode=want; } }
   let hopY=0; if(s.kind==='rabbit'){ s.hopP=(s.hopP||0)+dt*9; const mvg2=Math.hypot(s.tx-s.x,s.tz-s.z)>=0.5; hopY=mvg2?Math.abs(Math.sin(s.hopP))*0.45:0; }
-  s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z); } }
+  s.mesh.position.set(s.x,heightAtWorld(s.x,s.z)+hopY,s.z);
+  // b370: the bar, on the men's own rule — only when hurt, billboarded, and held legible as the
+  // camera pulls back. Skipped entirely for an animal too far off to be drawn at all.
+  const ahb=s.mesh.userData.hb;
+  if(ahb&&!sfar){ const mx=s.maxHp||s.hp||1, hr=clamp(s.hp/mx,0,1);
+    if(s.hp<mx-0.01){ ahb.visible=true;
+      ahb.userData.fg.scale.x=Math.max(0.01,hr); ahb.userData.fg.position.x=-(1-hr)*ahb.userData.hw;
+      ahb.userData.fg.material.color.setHex(hr>0.6?0x54e468:hr>0.3?0xf2b23c:0xff4632);
+      if(ahb.userData.baseS===undefined)ahb.userData.baseS=ahb.scale.x;
+      const k=clamp(camDist/46,1,2.6);
+      if(Math.abs(ahb.scale.x-ahb.userData.baseS*k)>0.01)ahb.scale.setScalar(ahb.userData.baseS*k);
+      ahb.quaternion.copy(s.mesh.quaternion).invert().multiply(camera.quaternion); }
+    else if(ahb.visible)ahb.visible=false; }
+  else if(ahb&&ahb.visible)ahb.visible=false; } }
 
 // ==================================================== UNIT / BUILDING MESHES
 // b327: NO MORE UNTEXTURED MEN. Surveyed every character template in the library and they fall
@@ -4995,7 +5017,7 @@ function spawnTreasures(count){
     const guards=[];
     for(let i=0;i<tier.n;i++){ const gm=makeSheep('wolf'); scene.add(gm);
       const gx=x+Math.cos(i/tier.n*6.283)*3.2, gz=z+Math.sin(i/tier.n*6.283)*3.2;
-      const w={mesh:gm,kind:'wolf',meat:70,spd:2.0,hp:6+tier.n*2,hx:x,hz:z,x:gx,z:gz,tx:gx,tz:gz,wait:Math.random()*3,graze:0,guardOf:treasures.length};
+      const w={mesh:gm,kind:'wolf',meat:70,spd:2.0,hp:6+tier.n*2,maxHp:6+tier.n*2,hx:x,hz:z,x:gx,z:gz,tx:gx,tz:gz,wait:Math.random()*3,graze:0,guardOf:treasures.length};
       sheep.push(w); guards.push(w); }
     treasures.push({x,z,tier,guards,taken:false,mesh}); } }
 // b344: SOLDIERS CLEAR THE GUARD. Measured the treasure system as shipped and its top tiers were
@@ -7513,7 +7535,6 @@ function openGameMenu(){ if(!running||gameOver)return; const gm=document.getElem
   if(!paused){togglePause();_gmPaused=true;} gm.classList.remove('hidden'); }
 document.getElementById('gmenuBtn').onclick=()=>{ const gm=document.getElementById('gameMenu');
   if(gm&&!gm.classList.contains('hidden'))closeGameMenu(); else openGameMenu(); };
-document.getElementById('gmResume').onclick=closeGameMenu;
 // ---- b125: the Kingdom Guide — every building & person, with pictures and plain words ----
 const BLD_DESC={hall:'Your Keep — trains Workers, advances the Age, takes deliveries. Lose it and the realm falls.',
   house:'+5 population room (Attic upgrade makes it +9). Lose houses and training stops until rebuilt.',
@@ -8489,7 +8510,7 @@ function loadGame(key){ const raw=localStorage.getItem(key||'crownhelm_save'); i
       if(!rec.taken){ const mesh=makeTreasureMesh(tier); mesh.position.set(t.x,heightAtWorld(t.x,t.z),t.z); scene.add(mesh); rec.mesh=mesh;
         for(let i=0;i<tier.n;i++){ const gm=makeSheep('wolf'); scene.add(gm);
           const gx=t.x+Math.cos(i/tier.n*6.283)*3.2, gz=t.z+Math.sin(i/tier.n*6.283)*3.2;
-          const w={mesh:gm,kind:'wolf',meat:70,spd:2.0,hp:6+tier.n*2,hx:t.x,hz:t.z,x:gx,z:gz,tx:gx,tz:gz,wait:Math.random()*3,graze:0,guardOf:treasures.length};
+          const w={mesh:gm,kind:'wolf',meat:70,spd:2.0,hp:6+tier.n*2,maxHp:6+tier.n*2,hx:t.x,hz:t.z,x:gx,z:gz,tx:gx,tz:gz,wait:Math.random()*3,graze:0,guardOf:treasures.length};
           sheep.push(w); rec.guards.push(w); } }
       treasures.push(rec); } }
   if(s.trade&&s.trade.length){
