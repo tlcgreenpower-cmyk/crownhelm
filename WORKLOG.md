@@ -1015,3 +1015,34 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   2.83ms a step, zero errors, healthy — army trace
   48/107/159/208/235/295/350/402/450/489/**509**/489/432/310/291/277/323, a war taking it from 509
   to 277 and climbing again by the end. b364 doing its job on the shipped map.
+
+- **b369 THE UNIT PARADE WAS NOT IN RANKS.** CLAUDE.md lists Parade mode as covered by no harness,
+  and b347 rebuilt six unit models, so the one screen whose whole job is "see every soldier up
+  close" was overdue a look. The picture showed men **scattered loose across a hillside**, not a
+  parade. Checked it was not dispersal before blaming the layout — stepped it eighty seconds and the
+  span is **64×36 world units at frame zero and still 64×36 eighty seconds later**, every man idle,
+  nobody pathing. Placed that way, not drifting.
+  **Cause:** `CW`/`RH` are TILE counts and `spawnUnit` takes tiles, and `TILE` is 4 — so `CW=2` stood
+  the men **8 world units** apart and `RH=3` put **12** between ranks. The nine-column block is
+  therefore 64×36 on the ground while the mode opens its camera on it at `camDist` 12.
+  **Spacing taken from the game, not guessed:** raised sixteen infantry, marched them with a real
+  `commandMove`, let them settle, and measured — the game's own formed-up line is **1.99 / 1.99 /
+  1.99 / 2.00** world units between neighbours. Then the floor: widest land unit is the cannon at
+  r=1.7 (howitzer matches), so a side-by-side pair needs 3.4 clear. **4 world units — one tile — is
+  the tightest clean rank that cannot overlap even the heaviest gun**, and is exactly twice the
+  battle line. Ranks get 6. `fits()` now rounds to the nearest tile before testing terrain, keeping
+  b354's drowned-rank fix honest — it still checks the ground the men actually stand on.
+
+    | | before | after |
+    |---|---|---|
+    | block span | 64 × 36 | **32 × 18** |
+    | nearest neighbour | 8.0 | **4.00** (min and median) |
+    | overlapping pairs | — | **0** |
+    | men in water | 0 | 0 |
+
+  At the mode's own camera the models hold up well — the wolfrider's shield, the knight's grey, the
+  guns — which is the point of the screen and the first proper look at b347's rebuilt models.
+  **Not changed:** the opening camera. At `camDist` 12 a mounted man's head clips the top of frame,
+  but the player has the wheel and Q/E and the flash message says so; that is a separate judgement.
+  UI sweep 238 / 0 errors. Soak 31.5 min: peak 517 units, 230 buildings, save 104KB, 8.81ms a step,
+  zero errors, healthy.
