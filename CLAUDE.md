@@ -36,6 +36,18 @@ screenshots time out. Drive and photograph it instead:
   frozen at frame 0, which on these rigs is a T-pose, and it looks exactly like a broken model.
   Drive it by hand before the shot: `for(let k=0;k<40;k++)e.mesh.userData.mixer.update(1/30)`.
 
+**The hands-off soak only ever tests the AI.** Spinning up a game and stepping it for twenty
+minutes exercises `realmBrain` and nothing the PLAYER does — which is the half the owner actually
+operates, and where b351's ReferenceError hid for twenty-five builds. `tools/uisweep.js` pastes
+into the console and clicks every command button, stance, panel, diplomacy action and menu item,
+then round-trips all four win modes through save/load. ~230 interactions, and it reports anything
+that throws. Run it before calling a UI change done. It does NOT cover the Map Builder, Parade
+mode, or real pointer work on the 3D view (drag-select, right-click orders, formation drag-aim) —
+a clean sweep means every button is wired to something that runs, not that it does the right thing.
+
+Two containers, and this catches people out: a soldier's commands live in `#formBar` and its
+`#cmds` is empty. A worker is the other way round. Neither is a bug.
+
 **Numbers can agree while the picture disagrees, and the picture is right.** But looking is not
 enough on its own either — when characters "look bad", SURVEY the assets (`tools/blender/survey.py`)
 before touching lights or materials. Three separate rounds of that complaint turned out to be
