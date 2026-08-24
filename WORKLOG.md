@@ -813,3 +813,33 @@ rendering or measuring, fix it, soak it, ship it, no questions. Running note bel
   Verified: save/reload with 34 hoards and 12 posts round-trips exactly — positions, tiers,
   ownership. Soaks: Broadwood 7.5 min / 184 units / 5.32ms; Heartlands 12.2 min / 184 units /
   3.19ms; zero errors on either.
+
+- **b363 A CHECK FOR THE BUG THAT KEEPS HAPPENING.** b361 and b362 were the same bug twice: a
+  number tuned on Heartlands (96×64) and never revisited, quietly wrong on the four 168×112 maps
+  that are most of the menu. Both found by eye, then measured; nothing was watching for the class.
+  The census now audits it — alongside the nineteen scatters it measures the scale-sensitive
+  quantities across every real map and flags any whose density doesn't hold (area things keep their
+  per-area count, line things keep their spacing). On this build: hoards/1000 tiles 1.79 / 1.81 ×4,
+  trade spacing 44/41/44/42/45, verdict healthy — b362's fix holding, now verifiable in one call.
+
+- **TERRITORY: MEASURED, REPORTED, DELIBERATELY NOT CHANGED.** Heartlands keeps **31.2%** of its
+  land inside someone's borders; the big maps about **10%**, because BORDER_R is a fixed world
+  radius and a bigger country has more frontier between the same four realms. Tempting to scale it
+  like the rest. Checked how it PLAYS first: on the Broadwood the nearest rival claims sit 248 units
+  apart against Heartlands' 48, and over seven minutes that gap closes 248 → 224 → 208 as towns
+  expand. Quieter out there, not dead — and "a bigger map has more wilderness" is a fair reading of
+  the design. Changing a tuned constant on a hunch is how b360 nearly happened. Number left in the
+  table so the next person can judge instead of rediscovering it.
+
+- **ALSO CHECKED, LEFT ALONE:** forts and castles absent at 15 minutes on Heartlands looks like the
+  "type missing from BAND" trap — it isn't, both are gated behind Age II and most realms are still
+  Age I then. The 22-townsfolk cap is a mesh budget, identical on both map sizes, not a scale bug.
+
+- **TWO CORRECTIONS TO CLAUDE.md.** It has said "No Python and no Node" for a long time. **Both are
+  installed** — node v24.19.0 + npm 11.17, python 3.13.15 (`py` works; `python3` hits the Windows
+  Store alias). Not trivia: the game is one 780KB HTML file and `node --check` on anything in
+  `tools/` catches a syntax slip in a second instead of a reload and a blank screen — it caught a
+  broken comment while writing this build. And **the browser caches the module script through
+  `location.reload()`**, so editing the game and reloading can leave you measuring the build you
+  already replaced; load with a changed query string. That cost most of a pass earlier tonight.
+  Soak: 12 simulated minutes, 208 units, 102 buildings, zero errors, 3.88ms a step.

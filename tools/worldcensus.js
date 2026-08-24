@@ -24,7 +24,7 @@
 // scatter was empty on. Empty on ONE map is terrain; empty on ALL of them is a broken condition.
 window.census = async function(maps){
   maps = maps || 4;
-  const R = { runs: [], byName: {}, verdict: null };
+  const R = { runs: [], scale: [], byName: {}, verdict: null };
   window.__CENSUS = R;
   if(!window.TF || !window.TF._dbg) throw new Error('TF._dbg missing — is the game loaded?');
   window.TF._dbg();
@@ -55,6 +55,21 @@ window.census = async function(maps){
       r.count += o.count; r.cap += o.instanceMatrix.count; r.chunks++;
     });
     R.runs.push(row);
+
+    // the scale-sensitive simulation quantities, alongside the scenery
+    {const nn = pts => { if(pts.length < 2) return null; let s = 0;
+       for(const a of pts){ let best = 1e9;
+         for(const b of pts){ if(a===b) continue; const d = Math.hypot(a.x-b.x, a.z-b.z); if(d < best) best = d; }
+         s += best; }
+       return Math.round(s / pts.length); };
+     let land = 0, claimed = 0;
+     for(let y = 0; y < D.MAP_H; y += 2) for(let x = 0; x < D.MAP_W; x += 2){
+       if(D.elev[D.ti(x,y)] < D.SEA) continue; land++;
+       if(D.territoryAt(D.wx(x), D.wz(y))) claimed++; }
+     R.scale.push({ tiles: D.MAP_W * D.MAP_H,
+       treasures: D.treasures.length, tradePosts: D.tradeSites.length,
+       tradeSpacing: nn(D.tradeSites.map(t => ({x:t.x, z:t.z}))),
+       claimedPct: land ? +(100 * claimed / land).toFixed(1) : 0 }); }
     for(const k in row){
       const b = R.byName[k] || (R.byName[k] = { name:k, counts:[], cap:row[k].cap, emptyOn:0 });
       b.counts.push(row[k].count);
@@ -83,6 +98,41 @@ window.census = async function(maps){
                    'stumps','logs','mushrooms','saplings','deadTrees','foam','lilies','seaStacks']
                   .filter(n => !R.byName[n]);
   if(missing.length) notes.push('never found in the scene at all: ' + missing.join(', ') + ' — has a scatter been renamed or removed?');
+
+  // ---- SCALE AUDIT. b361 and b362 both found the same kind of bug: a number tuned on Heartlands
+  // (96x64) and never revisited, quietly wrong on the four 168x112 maps that are most of the menu.
+  // Minimap markers drawn bigger than your own castle; eleven treasures spread over three times the
+  // country; half the trade road beyond any realm's reach. Each was found by eye and then measured.
+  // This measures them without needing the eye. A quantity that fills an AREA should hold its
+  // per-area density; one that follows a LINE should hold its spacing.
+  {const per = R.runs.map((row, i) => {
+     const s = R.scale[i];
+     return { map:R.mapsUsed[i], tiles:s.tiles,
+              hoardsPerMTile:+(s.treasures / s.tiles * 1000).toFixed(2),
+              tradeSpacing:s.tradeSpacing,
+              landClaimedPct:s.claimedPct };
+   });
+   // landClaimedPct is REPORTED but never flagged. Measured, Heartlands has 31 per cent of its
+   // land inside somebody's borders and the big maps about 10 — because BORDER_R is a fixed world
+   // radius and a bigger map simply has more frontier between the same four realms. Checked how it
+   // plays before deciding: on the Broadwood the nearest rival claims sit 248 units apart against
+   // Heartlands' 48, and over seven minutes that gap closes 248 -> 224 -> 208 as towns expand. So
+   // the system is quieter out there, not dead, and more wilderness on a bigger country is a fair
+   // reading of the design rather than a bug. Left alone deliberately; the number is here so the
+   // next person can form their own view instead of rediscovering it.
+   // Villages are deliberately NOT measured: `villages` is not on the debug surface, and a metric
+   // that silently reads zero on every map is exactly the lying instrument b358 and b360 cost a
+   // pass each to. Export it first, then measure it.
+   R.scaleTable = per;
+   // Heartlands is the reference because every constant in this game was tuned on it.
+   const ref = per[0];
+   if(ref) for(const p of per.slice(1)){
+     const off = (a,b) => b && Math.abs(a-b)/b > 0.35;
+     if(off(p.hoardsPerMTile, ref.hoardsPerMTile))
+       notes.push(p.map+': hoard density '+p.hoardsPerMTile+' per 1000 tiles against '+ref.map+"'s "+ref.hoardsPerMTile+' — a count that does not scale with area');
+     if(off(p.tradeSpacing, ref.tradeSpacing))
+       notes.push(p.map+': trade posts '+p.tradeSpacing+' apart against '+ref.map+"'s "+ref.tradeSpacing+' — a line whose spacing does not hold');
+   }}
 
   R.table = list;
   R.verdict = { maps, healthy: notes.length === 0, notes };
